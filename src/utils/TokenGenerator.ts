@@ -18,8 +18,6 @@ export default class TokenGenerator {
       expiresIn: this.config.get<string>('TOKEN_EXPIRE') as unknown as number,
     });
 
-    console.log(invitation);
-
     return invitation;
   }
 

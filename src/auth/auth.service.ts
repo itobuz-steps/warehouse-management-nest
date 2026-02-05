@@ -24,6 +24,7 @@ import {
 import config from '../config/config.service';
 import TokenGenerator from '../utils/TokenGenerator.js';
 import SendEmail from '../utils/SendEmail.js';
+import OtpGenerator from '../utils/OtpGenerator.js';
 
 export interface TokenPayload {
   email?: string;
@@ -35,7 +36,8 @@ export class AuthService {
   constructor(
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
     @InjectModel(OTP.name) private readonly otpModel: Model<OTPDocument>,
-    private readonly tokenGenerator: TokenGenerator
+    private readonly tokenGenerator: TokenGenerator,
+    private readonly otpGenerator: OtpGenerator
   ) {}
 
   async signup(dto: SignupDto) {
@@ -64,10 +66,7 @@ export class AuthService {
   }
 
   verify(token: string) {
-    const tokenData = jwt.verify(
-      token,
-      process.env.TOKEN_SECRET as string
-    ) as TokenPayload;
+    const tokenData = jwt.verify(token, config().TOKEN_SECRET) as TokenPayload;
 
     return { message: 'Valid Token', success: true, data: tokenData };
   }
@@ -123,7 +122,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid password');
     }
 
-    const token = this.tokenGenerator.generateToken(email);
+    const token = this.tokenGenerator.generateToken(user._id.toString());
 
     console.log(token);
 
@@ -144,21 +143,17 @@ export class AuthService {
     const { email } = dto;
 
     const user = await this.userModel.findOne({ email }).exec();
+
     if (!user) {
       throw new BadRequestException('User does not exist');
     }
 
-    const otp: string = Math.floor(100000 + Math.random() * 900000).toString();
-
-    await this.otpModel.findOneAndUpdate(
-      { email },
-      { $push: { otp } },
-      { upsert: true }
-    );
+    const response = this.otpGenerator.generateOtp(email);
+    console.log(response);
 
     return {
-      message: 'OTP sent successfully',
-      otp,
+      message: 'OTP sent successfully, check your email',
+      success: true,
     };
   }
 
@@ -175,25 +170,19 @@ export class AuthService {
 
     await this.userModel.updateOne({ email }, { password: hashedPassword });
 
-    return { message: 'Password reset successful' };
+    return { message: 'Password reset successful', success: true };
   }
 
   refresh(userId: string) {
-    const accessToken: string = jwt.sign(
-      { id: userId },
-      process.env.JWT_SECRET as string,
-      { expiresIn: '1h' }
-    );
-
-    const refreshToken: string = jwt.sign(
-      { id: userId },
-      process.env.JWT_SECRET as string,
-      { expiresIn: '7d' }
-    );
+    const token = this.tokenGenerator.generateToken(userId);
 
     return {
-      accessToken,
-      refreshToken,
+      message: 'Valid Access and Refresh Token',
+      success: true,
+      data: {
+        accessToken: token.access,
+        refreshToken: token.refresh,
+      },
     };
   }
 }
