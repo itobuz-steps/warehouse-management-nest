@@ -4,10 +4,10 @@ import { AppService } from './app.service';
 import { ConfigModule } from '@nestjs/config';
 import { DbModule } from './config/db.module';
 import { WarehouseModule } from './warehouse/warehouse.module';
+import { ProductsModule } from './products/products.module';
 import { AuthModule } from './auth/auth.module';
 import configService from './config/config.service';
 import TokenGenerator from './utils/TokenGenerator';
-
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -17,6 +17,7 @@ import TokenGenerator from './utils/TokenGenerator';
     DbModule,
     AuthModule,
     WarehouseModule,
+    ProductsModule,
   ],
   controllers: [AppController],
   providers: [AppService, TokenGenerator],
