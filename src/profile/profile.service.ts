@@ -1,30 +1,31 @@
 // src/modules/profile/profile.service.ts
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User, UserDocument } from '../auth/entities/auth.entity';
 import { USER_TYPES } from '../auth/userType';
+import { Request } from 'express';
 
 @Injectable()
 export class ProfileService {
   constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) {}
 
-  async updateProfile(user, file) {
+  async updateProfile(
+    user: UserDocument,
+    file: Express.Multer.File,
+    req: Request,
+  ) {
     if (!file) {
-      throw new BadRequestException('Please select an image');
+      throw new Error('Please select an image');
     }
 
-    user.profileImage = `${process.env.BASE_URL}/uploads/user/${file.filename}`;
+    user.profileImage = `${req.protocol}://${req.get('host')}/${file.path.replace(/\\/g, '/')}`;
     await user.save();
 
     return { message: 'User profile updated successfully!' };
   }
 
-  async getCurrentUser(user) {
+  getCurrentUser(user: User) {
     return { user };
   }
 
@@ -49,7 +50,7 @@ export class ProfileService {
     return { user, verifiedManagers, unverifiedManagers };
   }
 
-  async deleteUser(user: User) {
+  async deleteUser(user: UserDocument) {
     await this.userModel.findByIdAndUpdate(user._id, { isDeleted: true });
     return { message: 'User deleted successfully!' };
   }

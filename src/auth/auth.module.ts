@@ -20,6 +20,6 @@ import OtpGenerator from 'src/utils/OtpGenerator';
   ],
   controllers: [AuthController],
   providers: [AuthService, TokenGenerator, OtpGenerator],
-  exports: [OtpGenerator, TokenGenerator, User], // Optional if needed elsewhere
+  exports: [OtpGenerator, TokenGenerator], // Optional if needed elsewhere
 })
 export class AuthModule {}

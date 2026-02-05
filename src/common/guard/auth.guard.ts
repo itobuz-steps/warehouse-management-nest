@@ -9,8 +9,8 @@ import {
 } from '@nestjs/common';
 import * as jwt from 'jsonwebtoken';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { User } from 'src/auth/entities/auth.entity';
+import { Model, Types } from 'mongoose';
+import { User, UserDocument } from 'src/auth/entities/auth.entity';
 import { Request } from 'express';
 import { JwtPayload } from 'jsonwebtoken';
 import configService from 'src/config/config.service';
@@ -26,7 +26,7 @@ interface AuthenticatedRequest extends Request {
 
 @Injectable()
 export class AuthGuard implements CanActivate {
-  constructor(@InjectModel(User.name) private userModel: Model<User>) {}
+  constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
@@ -61,12 +61,17 @@ export class AuthGuard implements CanActivate {
         throw new UnauthorizedException('Invalid token payload');
       }
 
+      console.log('Decoded ID:', decoded.id);
+      console.log('Is valid ObjectId:', Types.ObjectId.isValid(decoded.id));
+
       const user = await this.userModel
         .findOne({
           _id: decoded.id,
           isDeleted: false,
         })
         .select('-password');
+
+      console.log('User:', user);
 
       if (!user) {
         throw new NotFoundException('User not found!');

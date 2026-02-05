@@ -8,51 +8,53 @@ import {
   UploadedFile,
   Req,
   Param,
+  UseGuards,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname } from 'path';
+import { Request } from 'express';
 
 import { ProfileService } from './profile.service';
 import { ManagerParamsDto } from './dto/manager-params.dto';
+import { AuthGuard } from '../common/guard/auth.guard';
+import { multerStorage } from 'src/helper/multer';
+import { UserDocument } from 'src/auth/entities/auth.entity';
+
+// ✅ Proper Request Type
+export interface RequestWithUser extends Request {
+  user: UserDocument;
+}
 
 @Controller('profile')
+@UseGuards(AuthGuard)
 export class ProfileController {
   constructor(private readonly profileService: ProfileService) {}
 
   @Patch('update-profile')
   @UseInterceptors(
     FileInterceptor('profile-img', {
-      storage: diskStorage({
-        destination: 'uploads/user',
-        filename: (_, file, cb) => {
-          const uniqueSuffix =
-            Date.now() + '-' + Math.round(Math.random() * 1e9);
-          cb(
-            null,
-            `${file.fieldname}-${uniqueSuffix}${extname(file.originalname)}`,
-          );
-        },
-      }),
+      storage: multerStorage('user'),
     }),
   )
-  async updateProfile(@Req() req: Request, @UploadedFile() file: Blob) {
+  async updateProfile(
+    @Req() req: RequestWithUser,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
     return {
       success: true,
-      ...(await this.profileService.updateProfile(req.user, file)),
+      ...(await this.profileService.updateProfile(req.user, file, req)),
     };
   }
 
   @Get('me')
-  async getCurrentUser(@Req() req: Request) {
+  getCurrentUser(@Req() req: RequestWithUser) {
     return {
       success: true,
-      ...(await this.profileService.getCurrentUser(req.user)),
+      ...this.profileService.getCurrentUser(req.user),
     };
   }
 
   @Get()
-  async getUserDetails(@Req() req: Request) {
+  async getUserDetails(@Req() req: RequestWithUser) {
     return {
       success: true,
       ...(await this.profileService.getUserDetails(req.user)),
@@ -60,7 +62,7 @@ export class ProfileController {
   }
 
   @Delete()
-  async deleteUser(@Req() req: Request) {
+  async deleteUser(@Req() req: RequestWithUser) {
     return {
       success: true,
       ...(await this.profileService.deleteUser(req.user)),
