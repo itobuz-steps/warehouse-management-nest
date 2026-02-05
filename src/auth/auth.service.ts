@@ -22,7 +22,7 @@ import {
 } from './dto/create-auth.dto.js';
 
 import config from '../config/config.service';
-import TokenGenerator from '../utils/TokenGenerator.js';
+import { TokenGenerator } from '../utils/TokenGenerator.js';
 import SendEmail from '../utils/SendEmail.js';
 import OtpGenerator from '../utils/OtpGenerator.js';
 

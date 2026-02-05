@@ -11,7 +11,7 @@ export default class SendEmail {
     email: string,
     title: string,
     body: string,
-    attachment: Buffer | null = null
+    attachment: Buffer | null = null,
   ): Promise<nodemailer.SentMessageInfo> => {
     console.log('sending email...');
 
@@ -47,7 +47,7 @@ export default class SendEmail {
 
   sendInvitationEmail = async (
     email: string,
-    link: string
+    link: string,
   ): Promise<string> => {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const mailResponse = await this.mailSender(
@@ -55,7 +55,7 @@ export default class SendEmail {
       'Invitation Link',
       `<h1>Please click on the link to signup and set password</h1>
        <p>Here is your link: ${link}</p>
-       <p>Link will be valid only for 5 minutes.</p>`
+       <p>Link will be valid only for 5 minutes.</p>`,
     );
 
     console.log('Email sent successfully: ', mailResponse);
@@ -72,7 +72,7 @@ export default class SendEmail {
           <p>Your one-time password (OTP) is:</p>
           <p style="font-size: 18px; font-weight: bold; color: #000;">${otp}</p>
           <p>This OTP is valid for the next 10 minutes. Please do not share it with anyone.</p>
-        </div>`
+        </div>`,
     );
 
     console.log('Email sent successfully: ', mailResponse);
