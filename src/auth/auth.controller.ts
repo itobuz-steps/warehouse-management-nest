@@ -1,0 +1,50 @@
+import { Controller, Post, Body, Param, Req } from '@nestjs/common';
+import { AuthService } from './auth.service';
+
+import {
+  SignupDto,
+  LoginDto,
+  SetPasswordDto,
+  SendOtpDto,
+  ForgotPasswordDto,
+} from './dto/create-auth.dto';
+
+@Controller('user/auth')
+export class AuthController {
+  constructor(private readonly authService: AuthService) {}
+
+  @Post('signup')
+  signup(@Body() dto: SignupDto) {
+    return this.authService.signup(dto);
+  }
+
+  @Post('signup/:token')
+  verify(@Param('token') token: string) {
+    return this.authService.verify(token);
+  }
+
+  @Post('signup/set-password/:token')
+  setPassword(@Param('token') token: string, @Body() dto: SetPasswordDto) {
+    return this.authService.setPassword(token, dto);
+  }
+
+  @Post('login')
+  login(@Body() dto: LoginDto) {
+    return this.authService.login(dto);
+  }
+
+  @Post('send-otp')
+  sendOtp(@Body() dto: SendOtpDto) {
+    return this.authService.sendOtp(dto);
+  }
+
+  @Post('forgot-password')
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto);
+  }
+
+  @Post('refresh')
+  refresh(@Req() req: { userId: string }) {
+    return this.authService.refresh(req.userId);
+  }
+}
