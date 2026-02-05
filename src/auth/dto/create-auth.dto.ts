@@ -1,4 +1,10 @@
-import { IsEmail, IsNotEmpty, MinLength } from 'class-validator';
+import { IsEmail, IsNotEmpty, Matches } from 'class-validator';
+
+export const PASSWORD_REGEX =
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+
+const invalidPasswordMessage: string =
+  'Password must contain uppercase, lowercase, number, and special character';
 
 // Base DTO required by UpdateAuthDto
 export class CreateAuthDto {
@@ -15,7 +21,9 @@ export class LoginDto {
   @IsEmail()
   email: string;
 
-  @MinLength(6)
+  @Matches(PASSWORD_REGEX, {
+    message: invalidPasswordMessage,
+  })
   password: string;
 }
 
@@ -23,7 +31,9 @@ export class SetPasswordDto {
   @IsNotEmpty()
   name: string;
 
-  @MinLength(6)
+  @Matches(PASSWORD_REGEX, {
+    message: invalidPasswordMessage,
+  })
   password: string;
 }
 
@@ -39,6 +49,8 @@ export class ForgotPasswordDto {
   @IsNotEmpty()
   otp: string;
 
-  @MinLength(6)
+  @Matches(PASSWORD_REGEX, {
+    message: invalidPasswordMessage,
+  })
   password: string;
 }

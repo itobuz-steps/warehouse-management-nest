@@ -6,7 +6,6 @@ import { DbModule } from './config/db.module';
 import { ProductsModule } from './products/products.module';
 import { AuthModule } from './auth/auth.module';
 import configService from './config/config.service';
-import TokenGenerator from './utils/TokenGenerator';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -18,6 +17,6 @@ import TokenGenerator from './utils/TokenGenerator';
     ProductsModule,
   ],
   controllers: [AppController],
-  providers: [AppService, TokenGenerator],
+  providers: [AppService],
 })
 export class AppModule {}
