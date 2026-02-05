@@ -10,9 +10,10 @@ import {
 import * as jwt from 'jsonwebtoken';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { User } from 'src/auth/entities/auth.entity'; // Adjust path to your schema
+import { User } from 'src/auth/entities/auth.entity';
 import { Request } from 'express';
 import { JwtPayload } from 'jsonwebtoken';
+import configService from 'src/config/config.service';
 
 type TokenPayload = JwtPayload & {
   id: string;
@@ -31,12 +32,10 @@ export class AuthGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const { path, headers } = request;
 
-    // 1. Bypass check (mimics: if (req.path.includes('qr')))
     if (path.includes('qr')) {
       return true;
     }
 
-    // 2. Extract Authorization Header
     const authHeader = headers.authorization;
     if (!authHeader) {
       throw new BadRequestException('No Token Provided');
@@ -45,11 +44,10 @@ export class AuthGuard implements CanActivate {
     const token = authHeader.split(' ')[1];
 
     try {
-      // 3. Determine Secret (mimics your getSecret logic)
       const isRefresh = path.includes('refresh');
       const secret = isRefresh
-        ? process.env.REFRESH_SECRET_KEY
-        : process.env.ACCESS_SECRET_KEY;
+        ? configService().REFRESH_SECRET_KEY
+        : configService().ACCESS_SECRET_KEY;
 
       if (!secret) {
         throw new Error(
@@ -57,14 +55,12 @@ export class AuthGuard implements CanActivate {
         );
       }
 
-      // 4. Verify JWT
       const decoded = jwt.verify(token, secret) as TokenPayload;
 
       if (!decoded || typeof decoded.id !== 'string') {
         throw new UnauthorizedException('Invalid token payload');
       }
 
-      // 5. Database validation (mimics: User.findOne({ _id: decoded.id, isDeleted: false }))
       const user = await this.userModel
         .findOne({
           _id: decoded.id,
@@ -80,13 +76,11 @@ export class AuthGuard implements CanActivate {
         throw new ForbiddenException('User has been blocked!');
       }
 
-      // 6. Attach to request (mimics: req.userId = decoded.id; req.user = user;)
       request.userId = decoded.id;
       request.user = user;
 
       return true;
     } catch (error) {
-      // Direct mimicry of your catch block
       if (
         error instanceof UnauthorizedException ||
         error instanceof ForbiddenException ||

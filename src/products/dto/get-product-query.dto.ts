@@ -1,5 +1,5 @@
-// src/products/dto/get-products-query.dto.ts
-import { IsOptional, IsString, IsIn, IsNumberString } from 'class-validator';
+import { IsOptional, IsString, IsEnum, IsNumberString } from 'class-validator';
+import { SORT_CATEGORY } from '../constants/product.constant';
 import { Transform } from 'class-transformer';
 
 export class GetProductsQueryDto {
@@ -12,8 +12,8 @@ export class GetProductsQueryDto {
   category?: string;
 
   @IsOptional()
-  @IsIn(['name_asc', 'name_desc', 'category_asc', 'newest'])
-  sort?: 'name_asc' | 'name_desc' | 'category_asc' | 'newest';
+  @IsEnum(SORT_CATEGORY)
+  sort?: SORT_CATEGORY;
 
   @IsOptional()
   @IsNumberString()
