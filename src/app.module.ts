@@ -6,6 +6,7 @@ import { DbModule } from './config/db.module';
 import { WarehouseModule } from './warehouse/warehouse.module';
 import { ProductsModule } from './products/products.module';
 import { AuthModule } from './auth/auth.module';
+import { QuantityModule } from './quantity/quantity.module';
 import configService from './config/config.service';
 
 @Module({
@@ -18,6 +19,7 @@ import configService from './config/config.service';
     AuthModule,
     WarehouseModule,
     ProductsModule,
+    QuantityModule,
   ],
   controllers: [AppController],
   providers: [AppService],
