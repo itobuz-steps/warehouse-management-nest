@@ -12,6 +12,7 @@ import {
   Delete,
   Patch,
   Res,
+  UseGuards,
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { GetProductsQueryDto } from './dto/get-product-query.dto';
@@ -21,8 +22,10 @@ import { storageConfig } from 'src/helper/multer';
 import type { Request, Response } from 'express';
 import { CreateProductDto } from './dto/create-product.dto';
 import { ConfigService } from '@nestjs/config';
+import { AuthGuard } from 'src/common/guard/auth.guard';
 
-@Controller('products')
+@UseGuards(AuthGuard)
+@Controller('product/')
 export class ProductsController {
   constructor(
     private readonly productsService: ProductsService,
@@ -30,7 +33,6 @@ export class ProductsController {
   ) {}
 
   @Get()
-  // @HttpCode(HttpStatus.OK)
   async getProducts(@Query() queryDto: GetProductsQueryDto) {
     const data = await this.productsService.getProducts(queryDto);
 
@@ -134,8 +136,7 @@ export class ProductsController {
     };
   }
 
-  @Get('archived/all')
-  // If you have an Admin Guard migrated, you would add it here:
+  // @Get('archived/all')
   // @UseGuards(AdminGuard)
   // async getArchivedProducts(@Query() queryDto: GetProductsQueryDto) {
   //   const data = await this.productsService.findArchived(queryDto);
