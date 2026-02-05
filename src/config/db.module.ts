@@ -23,8 +23,7 @@ export class DbModule implements OnModuleInit {
       this.logger.log('MongoDB connected successfully');
     } else {
       this.logger.error(
-        // eslint-disable-next-line prettier/prettier
-        `MongoDB connection state: ${ConnectionStates[this.connection.readyState]}`
+        `MongoDB connection state: ${ConnectionStates[this.connection.readyState]}`,
       );
     }
   }
