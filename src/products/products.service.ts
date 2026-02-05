@@ -5,6 +5,7 @@ import { Product, ProductDocument } from './entities/product.entity';
 import { GetProductsQueryDto } from './dto/get-product-query.dto';
 import { updateProductDto } from './dto/update-product.dto';
 import { CreateProductDto } from './dto/create-product.dto';
+import { SORT_CATEGORY } from './constants/product.constant';
 import * as QRCode from 'qrcode';
 
 @Injectable()
@@ -29,11 +30,11 @@ export class ProductsService {
     let query = this.productModel.find(filter).populate('createdBy');
 
     if (sort) {
-      if (sort === 'name_asc') {
+      if (sort === SORT_CATEGORY.NAME_ASC) {
         query = query.sort({ name: 1 });
-      } else if (sort === 'name_desc') {
+      } else if (sort === SORT_CATEGORY.NAME_DESC) {
         query = query.sort({ name: -1 });
-      } else if (sort === 'category_asc') {
+      } else if (sort === SORT_CATEGORY.CATEGORY_ASC) {
         query = query.sort({ category: 1 });
       } else {
         query = query.sort({ createdAt: -1 });

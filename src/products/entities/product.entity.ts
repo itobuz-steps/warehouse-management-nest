@@ -1,6 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Schema as MongooseSchema } from 'mongoose';
-import CATEGORY_TYPES from '../product.constant';
+import { PRODUCT_CATEGORY_TYPES } from '../constants/product.constant';
 
 export type ProductDocument = HydratedDocument<Product>;
 
@@ -11,7 +11,7 @@ export class Product {
 
   @Prop({
     required: true,
-    enum: Object.values(CATEGORY_TYPES),
+    enum: Object.values(PRODUCT_CATEGORY_TYPES),
   })
   category: string;
 

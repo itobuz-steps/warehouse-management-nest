@@ -13,6 +13,7 @@ import { Model } from 'mongoose';
 import { User } from 'src/auth/entities/auth.entity';
 import { Request } from 'express';
 import { JwtPayload } from 'jsonwebtoken';
+import configService from 'src/config/config.service';
 
 type TokenPayload = JwtPayload & {
   id: string;
@@ -45,8 +46,8 @@ export class AuthGuard implements CanActivate {
     try {
       const isRefresh = path.includes('refresh');
       const secret = isRefresh
-        ? process.env.REFRESH_SECRET_KEY
-        : process.env.ACCESS_SECRET_KEY;
+        ? configService().REFRESH_SECRET_KEY
+        : configService().ACCESS_SECRET_KEY;
 
       if (!secret) {
         throw new Error(
