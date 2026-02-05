@@ -1,9 +1,9 @@
-import Role from './userRole';
+import { USER_TYPES } from 'src/auth/userType';
 
 type User = {
   _id: string;
   email: string;
-  role: Role;
+  role: USER_TYPES;
   isVerified: boolean;
   isActive: boolean;
   isDeleted: boolean;
