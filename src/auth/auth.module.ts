@@ -8,6 +8,7 @@ import { User, UserSchema } from './entities/auth.entity';
 import { OTP, OTPSchema } from './entities/otp.entity';
 import { TokenGenerator } from 'src/utils/TokenGenerator';
 import { ConfigModule } from 'src/config/config.module';
+import OtpGenerator from 'src/utils/OtpGenerator';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { ConfigModule } from 'src/config/config.module';
     ]),
   ],
   controllers: [AuthController],
-  providers: [AuthService, TokenGenerator],
+  providers: [AuthService, TokenGenerator, OtpGenerator],
+  exports: [OtpGenerator, TokenGenerator], // Optional if needed elsewhere
 })
 export class AuthModule {}

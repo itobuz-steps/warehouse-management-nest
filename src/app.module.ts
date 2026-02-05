@@ -7,6 +7,7 @@ import { WarehouseModule } from './warehouse/warehouse.module';
 import { ProductsModule } from './products/products.module';
 import { AuthModule } from './auth/auth.module';
 import configService from './config/config.service';
+
 @Module({
   imports: [
     ConfigModule.forRoot({

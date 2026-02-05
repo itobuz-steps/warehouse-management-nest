@@ -1,4 +1,3 @@
-// migrated-nest/src/config/config.service.ts
 import { registerAs } from '@nestjs/config';
 import { SignOptions } from 'jsonwebtoken';
 
