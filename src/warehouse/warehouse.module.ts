@@ -3,11 +3,14 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { WarehouseController } from './warehouse.controller';
 import { WarehouseService } from './warehouse.service';
 import { Warehouse, WarehouseSchema } from './schemas/warehouse.schema';
+import { User, UserSchema } from 'src/auth/entities/auth.entity';
+// import { AuthModule } from 'src/auth/auth.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: Warehouse.name, schema: WarehouseSchema },
+      { name: User.name, schema: UserSchema },
     ]),
   ],
   controllers: [WarehouseController],
