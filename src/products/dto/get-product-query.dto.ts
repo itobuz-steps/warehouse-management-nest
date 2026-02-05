@@ -1,4 +1,3 @@
-// src/products/dto/get-products-query.dto.ts
 import { IsOptional, IsString, IsIn, IsNumberString } from 'class-validator';
 import { Transform } from 'class-transformer';
 

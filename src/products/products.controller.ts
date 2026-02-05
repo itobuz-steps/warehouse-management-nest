@@ -116,10 +116,8 @@ export class ProductsController {
 
   @Patch(':id')
   async restoreProduct(@Param('id') id: string) {
-    // 1. Call the service
     await this.productsService.restore(id);
 
-    // 2. Return the custom response
     return {
       success: true,
       message: 'Product restored successfully',

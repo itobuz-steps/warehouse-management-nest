@@ -10,7 +10,7 @@ import {
   IsBoolean,
   IsEnum,
 } from 'class-validator';
-import CATEGORY_TYPES from '../product.constant'; // Adjust path
+import CATEGORY_TYPES from '../product.constant';
 
 export class CreateProductDto {
   @IsString()
@@ -27,8 +27,7 @@ export class CreateProductDto {
   description?: string;
 
   @IsArray()
-  @IsString({ each: true }) // Ensures every item in array is a string
-  @IsUrl({}, { each: true, message: 'Each product image must be a valid URL' }) // Validates every URL
+  @IsUrl({}, { each: true, message: 'Each product image must be a valid URL' })
   @IsOptional()
   productImage?: string[];
 

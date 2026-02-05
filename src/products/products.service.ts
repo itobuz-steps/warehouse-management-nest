@@ -1,4 +1,3 @@
-// src/products/products.service.ts
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -17,7 +16,6 @@ export class ProductsService {
   async getProducts(queryDto: GetProductsQueryDto) {
     const { search, category, sort, page = '1', limit = '10' } = queryDto;
 
-    // Build filter
     const filter: Record<string, any> = { isArchived: false };
 
     if (category) {
@@ -28,10 +26,8 @@ export class ProductsService {
       filter.name = { $regex: search, $options: 'i' };
     }
 
-    // Build query
     let query = this.productModel.find(filter).populate('createdBy');
 
-    // Apply sorting
     if (sort) {
       if (sort === 'name_asc') {
         query = query.sort({ name: 1 });
@@ -43,15 +39,13 @@ export class ProductsService {
         query = query.sort({ createdAt: -1 });
       }
     } else {
-      query = query.sort({ createdAt: -1 }); // default sort
+      query = query.sort({ createdAt: -1 });
     }
 
-    // Pagination
     const pageNumber = Math.max(parseInt(page, 10), 1);
     const limitNumber = Math.max(parseInt(limit, 10), 1);
     const skip = (pageNumber - 1) * limitNumber;
 
-    // Execute queries in parallel
     const [products, totalCount] = await Promise.all([
       query.skip(skip).limit(limitNumber).exec(),
       this.productModel.countDocuments(filter).exec(),
@@ -82,7 +76,7 @@ export class ProductsService {
     const updatedProduct = await this.productModel.findByIdAndUpdate(
       id,
       updates,
-      { new: true, runValidators: true }, // Return the updated doc
+      { new: true, runValidators: true },
     );
 
     if (!updatedProduct) {
@@ -93,15 +87,11 @@ export class ProductsService {
   }
 
   async create(createProductDto: CreateProductDto, imageUrls: string[]) {
-    // 1. Create the new product instance
-    // Note: Mongoose automatically converts 'createdBy' string to ObjectId
-    // because you defined it as ObjectId in the Schema.
     const createdProduct = new this.productModel({
       ...createProductDto,
       productImage: imageUrls, // Add the image URLs here
     });
 
-    // 2. Save to database
     return createdProduct.save();
   }
 
@@ -113,7 +103,6 @@ export class ProductsService {
     );
 
     if (!archivedProduct) {
-      // This replaces res.status(404) + throw Error
       throw new NotFoundException('Product not found');
     }
 
@@ -165,7 +154,6 @@ export class ProductsService {
       query.where('name').regex(new RegExp(search, 'i'));
     }
 
-    // 3. Sorting (simplified map)
     const sortMap: Record<string, any> = {
       name_asc: { name: 1 },
       name_desc: { name: -1 },
