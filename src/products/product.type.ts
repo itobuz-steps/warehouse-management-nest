@@ -1,3 +1,5 @@
+import { Document, Types } from 'mongoose';
+
 export type ProductParams = {
   id: string;
 };
@@ -36,3 +38,24 @@ export type GetArchivedProductsQuery = {
   page?: string;
   limit?: string;
 };
+
+export interface IProduct extends Document {
+  _id: Types.ObjectId;
+  name: string;
+  category: string;
+  isArchived: boolean;
+  createdBy: Types.ObjectId;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface PaginatedProductsResponse {
+  success: boolean;
+  data: {
+    products: IProduct[];
+    totalCount: number;
+    totalPages: number;
+    currentPage: number;
+    productsPerPage: number;
+  };
+}
