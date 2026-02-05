@@ -10,8 +10,8 @@ import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import * as jwt from 'jsonwebtoken';
 
-import { User, UserDocument } from './entities/auth.entity.js';
-import { OTP, OTPDocument } from './entities/otp.entity.js';
+import { User, UserDocument } from './entities/auth.entity';
+import { OTP, OTPDocument } from './entities/otp.entity';
 
 import {
   SignupDto,
@@ -37,7 +37,7 @@ export class AuthService {
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
     @InjectModel(OTP.name) private readonly otpModel: Model<OTPDocument>,
     private readonly tokenGenerator: TokenGenerator,
-    private readonly otpGenerator: OtpGenerator
+    private readonly otpGenerator: OtpGenerator,
   ) {}
 
   async signup(dto: SignupDto) {
@@ -74,7 +74,7 @@ export class AuthService {
   async setPassword(token: string, dto: SetPasswordDto) {
     const payload = jwt.verify(
       token,
-      process.env.TOKEN_SECRET as string
+      process.env.TOKEN_SECRET as string,
     ) as TokenPayload;
 
     if (!payload.email) {
@@ -90,7 +90,7 @@ export class AuthService {
         password: hashedPassword,
         isVerified: true,
       },
-      { new: true }
+      { new: true },
     );
 
     if (!user) {
@@ -106,7 +106,7 @@ export class AuthService {
     const user = await this.userModel.findOneAndUpdate(
       { email, isDeleted: false, isActive: true },
       { lastLogin: new Date() },
-      { new: true }
+      { new: true },
     );
 
     if (!user || !user.password) {
@@ -115,7 +115,7 @@ export class AuthService {
 
     const passwordMatch: boolean = await bcrypt.compare(
       password,
-      user.password
+      user.password,
     );
 
     if (!passwordMatch) {
