@@ -5,22 +5,6 @@ import { ConfigModule } from '@nestjs/config';
 import { DbModule } from './config/db.module';
 import { AuthModule } from './auth/auth.module';
 import configService from './config/config.service';
-// import TokenGenerator from './utils/TokenGenerator';
-// import OtpGenerator from './utils/OtpGenerator';
-
-// @Module({
-//   imports: [
-//     ConfigModule.forRoot({
-//       isGlobal: true,
-//       load: [configService],
-//     }),
-//     DbModule,
-//     AuthModule,
-//   ],
-//   controllers: [AppController],
-//   providers: [AppService, TokenGenerator, OtpGenerator],
-// })
-// export class AppModule {}
 
 @Module({
   imports: [
