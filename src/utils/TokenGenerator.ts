@@ -8,7 +8,7 @@ type AuthTokens = {
 };
 
 @Injectable()
-export default class TokenGenerator {
+export class TokenGenerator {
   constructor(private readonly config: ConfigService) {}
 
   invitationToken(email: string): string {
@@ -27,10 +27,10 @@ export default class TokenGenerator {
     const access = this.config.get<string>('ACCESS_SECRET_KEY');
     const refresh = this.config.get<string>('REFRESH_SECRET_KEY');
     const accessExpiry = this.config.get<string>(
-      'ACCESS_TOKEN_EXPIRY'
+      'ACCESS_TOKEN_EXPIRY',
     ) as unknown as number;
     const refreshExpiry = this.config.get<string>(
-      'REFRESH_TOKEN_EXPIRY'
+      'REFRESH_TOKEN_EXPIRY',
     ) as unknown as number;
 
     if (!access || !refresh || !accessExpiry || !refreshExpiry) {

@@ -22,7 +22,7 @@ import {
 } from './dto/create-auth.dto.js';
 
 import config from '../config/config.service';
-import TokenGenerator from '../utils/TokenGenerator.js';
+import { TokenGenerator } from '../utils/TokenGenerator.js';
 import SendEmail from '../utils/SendEmail.js';
 
 export interface TokenPayload {
@@ -35,7 +35,7 @@ export class AuthService {
   constructor(
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
     @InjectModel(OTP.name) private readonly otpModel: Model<OTPDocument>,
-    private readonly tokenGenerator: TokenGenerator
+    private readonly tokenGenerator: TokenGenerator,
   ) {}
 
   async signup(dto: SignupDto) {
@@ -66,7 +66,7 @@ export class AuthService {
   verify(token: string) {
     const tokenData = jwt.verify(
       token,
-      process.env.TOKEN_SECRET as string
+      process.env.TOKEN_SECRET as string,
     ) as TokenPayload;
 
     return { message: 'Valid Token', success: true, data: tokenData };
@@ -75,7 +75,7 @@ export class AuthService {
   async setPassword(token: string, dto: SetPasswordDto) {
     const payload = jwt.verify(
       token,
-      process.env.TOKEN_SECRET as string
+      process.env.TOKEN_SECRET as string,
     ) as TokenPayload;
 
     if (!payload.email) {
@@ -91,7 +91,7 @@ export class AuthService {
         password: hashedPassword,
         isVerified: true,
       },
-      { new: true }
+      { new: true },
     );
 
     if (!user) {
@@ -107,7 +107,7 @@ export class AuthService {
     const user = await this.userModel.findOneAndUpdate(
       { email, isDeleted: false, isActive: true },
       { lastLogin: new Date() },
-      { new: true }
+      { new: true },
     );
 
     if (!user || !user.password) {
@@ -116,14 +116,14 @@ export class AuthService {
 
     const passwordMatch: boolean = await bcrypt.compare(
       password,
-      user.password
+      user.password,
     );
 
     if (!passwordMatch) {
       throw new UnauthorizedException('Invalid password');
     }
 
-    const token = this.tokenGenerator.generateToken(email);
+    const token = this.tokenGenerator.generateToken(user._id.toString());
 
     console.log(token);
 
@@ -153,7 +153,7 @@ export class AuthService {
     await this.otpModel.findOneAndUpdate(
       { email },
       { $push: { otp } },
-      { upsert: true }
+      { upsert: true },
     );
 
     return {
@@ -182,13 +182,13 @@ export class AuthService {
     const accessToken: string = jwt.sign(
       { id: userId },
       process.env.JWT_SECRET as string,
-      { expiresIn: '1h' }
+      { expiresIn: '1h' },
     );
 
     const refreshToken: string = jwt.sign(
       { id: userId },
       process.env.JWT_SECRET as string,
-      { expiresIn: '7d' }
+      { expiresIn: '7d' },
     );
 
     return {

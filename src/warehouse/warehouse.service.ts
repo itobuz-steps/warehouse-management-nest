@@ -18,6 +18,7 @@ export class WarehouseService {
   ) {}
 
   async getWarehouses(user: User) {
+    console.log(user);
     if (user.role === USER_TYPES.MANAGER) {
       const warehouses = await this.warehouseModel
         .find({
