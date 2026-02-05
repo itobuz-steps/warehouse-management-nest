@@ -4,6 +4,7 @@ import { QuantityService } from './quantity.service';
 import { AddProductQuantityDto } from './dto/add-quantity.dto';
 import { UpdateQuantityDto } from './dto/update-quantity.dto';
 import { GetSpecificQuantityDto } from './dto/product-specific-quantity.dto';
+import { ProductsHavingQuantityDto } from './dto/product-having-quantity.dto';
 
 @Controller('product')
 export class QuantityController {
@@ -54,6 +55,30 @@ export class QuantityController {
 
     return {
       message: 'Warehouse Specific Product Quantity',
+      success: true,
+      data: result,
+    };
+  }
+
+  @Get('all-products-having-quantity')
+  async getProductsHavingQuantity(@Query() query: ProductsHavingQuantityDto) {
+    const data = await this.quantityService.getProductsHavingQuantity(query);
+
+    return {
+      message: 'Products with quantity information',
+      success: true,
+      data,
+    };
+  }
+
+  @Get('warehouse-specific-products/:warehouseId')
+  async getWarehouseSpecificProducts(
+    @Param('warehouseId') warehouseId: string,
+  ) {
+    const result = await this.quantityService.getWarehouseProducts(warehouseId);
+
+    return {
+      message: 'Specific Warehouse all products',
       success: true,
       data: result,
     };
