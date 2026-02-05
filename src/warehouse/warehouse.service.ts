@@ -6,7 +6,7 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose'; //Types
 import { Warehouse, WarehouseDocument } from './schemas/warehouse.schema';
-import USER_TYPES from './constants/userConstants';
+import { USER_TYPES } from 'src/auth/userType';
 // import Quantity from '../models/quantityModel'; // TEMP: will be injected later
 import User from './types/userType';
 
@@ -75,23 +75,19 @@ export class WarehouseService {
       };
     }
 
-    if (user.role === USER_TYPES.ADMIN) {
-      warehouse = await this.warehouseModel
-        .findById(warehouseId.trim())
-        .populate('managerIds', 'name email role');
+    warehouse = await this.warehouseModel
+      .findById(warehouseId.trim())
+      .populate('managerIds', 'name email role');
 
-      if (!warehouse) {
-        throw new NotFoundException('Warehouse not found');
-      }
-
-      return {
-        message: 'Warehouse Details',
-        success: true,
-        data: warehouse,
-      };
+    if (!warehouse) {
+      throw new NotFoundException('Warehouse not found');
     }
 
-    throw new ForbiddenException('User role not allowed to fetch warehouses');
+    return {
+      message: 'Warehouse Details',
+      success: true,
+      data: warehouse,
+    };
   }
 
   async getWarehouseCapacity(warehouseId: string, user: User) {
@@ -102,12 +98,8 @@ export class WarehouseService {
         _id: warehouseId.trim(),
         managerIds: user._id,
       });
-    } else if (user.role === USER_TYPES.ADMIN) {
-      warehouse = await this.warehouseModel.findById(warehouseId.trim());
     } else {
-      throw new ForbiddenException(
-        'User role not allowed to fetch warehouse capacity',
-      );
+      warehouse = await this.warehouseModel.findById(warehouseId.trim());
     }
 
     if (!warehouse) {
