@@ -2,7 +2,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-
 import { Product, ProductDocument } from './entities/product.entity';
 import { GetProductsQueryDto } from './dto/get-product-query.dto';
 import { updateProductDto } from './dto/update-product.dto';
@@ -74,22 +73,18 @@ export class ProductsService {
     updateProductDto: updateProductDto,
     imageUrls?: string[],
   ) {
-    // 1. Create the update object from the DTO
     const updates = { ...updateProductDto };
 
-    // 2. If new images were uploaded, overwrite the productImage field
     if (imageUrls && imageUrls.length > 0) {
       updates['productImage'] = imageUrls;
     }
 
-    // 3. Perform the update
     const updatedProduct = await this.productModel.findByIdAndUpdate(
       id,
       updates,
       { new: true, runValidators: true }, // Return the updated doc
     );
 
-    // 4. Handle "Not Found"
     if (!updatedProduct) {
       throw new NotFoundException('Product not found');
     }
@@ -128,7 +123,7 @@ export class ProductsService {
   async restore(id: string) {
     const restoredProduct = await this.productModel.findByIdAndUpdate(
       id,
-      { isArchived: false }, // Set to false to restore
+      { isArchived: false },
       { new: true },
     );
 
@@ -140,7 +135,6 @@ export class ProductsService {
   }
 
   async generateQrCode(url: string): Promise<Buffer> {
-    // Generates a PNG Buffer
     return QRCode.toBuffer(url);
   }
 
@@ -154,53 +148,42 @@ export class ProductsService {
     return product;
   }
 
-  //   async findArchived(queryDto: GetProductsQueryDto) {
-  //     const { search, category, sort, page = 1, limit = 10 } = queryDto;
+  async findArchived(queryDto: GetProductsQueryDto) {
+    const { search, category, sort, page = '1', limit = '10' } = queryDto;
 
-  //     // 1. Build Filter (This is the key difference: isArchived = TRUE)
-  //     const filter: mongoose.FilterQuery<ProductDocument> = { isArchived: true };
+    const pageNumber = Math.max(parseInt(page, 10), 1);
+    const limitNumber = Math.max(parseInt(limit, 10), 1);
+    const skip = (pageNumber - 1) * limitNumber;
 
-  //     if (category) {
-  //       filter.category = category;
-  //     }
+    const query = this.productModel.find().where('isArchived').equals(true);
 
-  //     if (search) {
-  //       filter.name = { $regex: search, $options: 'i' };
-  //     }
+    if (category) {
+      query.where('category').equals(category);
+    }
 
-  //     // 2. Build Query
-  //     let query = this.productModel.find(filter).populate('createdBy');
+    if (search) {
+      query.where('name').regex(new RegExp(search, 'i'));
+    }
 
-  //     // 3. Handle Sorting
-  //     if (sort) {
-  //       const sortOptions: Record<string, 1 | -1> = {};
-  //       if (sort === 'name_asc') sortOptions.name = 1;
-  //       else if (sort === 'name_desc') sortOptions.name = -1;
-  //       else if (sort === 'category_asc') sortOptions.category = 1;
-  //       else sortOptions.createdAt = -1;
+    // 3. Sorting (simplified map)
+    const sortMap: Record<string, any> = {
+      name_asc: { name: 1 },
+      name_desc: { name: -1 },
+      category_asc: { category: 1 },
+    };
+    query.sort(sortMap[sort as string] || { createdAt: -1 });
 
-  //       query = query.sort(sortOptions);
-  //     } else {
-  //       query = query.sort({ createdAt: -1 });
-  //     }
+    const [products, totalCount] = await Promise.all([
+      query.clone().populate('createdBy').skip(skip).limit(limitNumber).exec(),
+      this.productModel.countDocuments(query.getFilter()).exec(),
+    ]);
 
-  //     // 4. Pagination
-  //     const skip = (page - 1) * limit;
-
-  //     // 5. Execute
-  //     const [products, totalCount] = await Promise.all([
-  //       query.skip(skip).limit(limit).exec(),
-  //       this.productModel.countDocuments(filter).exec(),
-  //     ]);
-
-  //     const totalPages = Math.ceil(totalCount / limit);
-
-  //     return {
-  //       products,
-  //       totalCount,
-  //       totalPages,
-  //       currentPage: page,
-  //       productsPerPage: limit,
-  //     };
-  //   }
+    return {
+      products,
+      totalCount,
+      totalPages: Math.ceil(totalCount / limitNumber),
+      currentPage: pageNumber,
+      productsPerPage: limitNumber,
+    };
+  }
 }
