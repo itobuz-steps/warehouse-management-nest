@@ -156,9 +156,9 @@ export class ProductsService {
     }
 
     const sortMap: Record<string, any> = {
-      name_asc: { name: 1 },
-      name_desc: { name: -1 },
-      category_asc: { category: 1 },
+      [SORT_CATEGORY.NAME_ASC]: { name: 1 },
+      [SORT_CATEGORY.NAME_DESC]: { name: -1 },
+      [SORT_CATEGORY.CATEGORY_ASC]: { category: 1 },
     };
     query.sort(sortMap[sort as string] || { createdAt: -1 });
 
