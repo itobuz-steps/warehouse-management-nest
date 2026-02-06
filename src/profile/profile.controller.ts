@@ -18,6 +18,7 @@ import { ManagerParamsDto } from './dto/manager-params.dto';
 import { AuthGuard } from '../common/guard/auth.guard';
 import { multerStorage } from 'src/helper/multer';
 import { UserDocument } from 'src/auth/entities/auth.entity';
+import { FILE_FIELD, FOLDER_PATH } from 'src/common/constants/file.constant';
 
 // ✅ Proper Request Type
 export interface RequestWithUser extends Request {
@@ -31,8 +32,8 @@ export class ProfileController {
 
   @Patch('update-profile')
   @UseInterceptors(
-    FileInterceptor('profile-img', {
-      storage: multerStorage('user'),
+    FileInterceptor(FILE_FIELD.profileImage, {
+      storage: multerStorage(FOLDER_PATH.user),
     }),
   )
   async updateProfile(

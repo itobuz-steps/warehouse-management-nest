@@ -23,6 +23,11 @@ import type { Request, Response } from 'express';
 import { CreateProductDto } from './dto/create-product.dto';
 import { ConfigService } from '@nestjs/config';
 import { AuthGuard } from 'src/common/guard/auth.guard';
+import {
+  FILE_COUNT,
+  FILE_FIELD,
+  FOLDER_PATH,
+} from 'src/common/constants/file.constant';
 
 @UseGuards(AuthGuard)
 @Controller('product/')
@@ -44,7 +49,9 @@ export class ProductsController {
 
   @Put(':id')
   @UseInterceptors(
-    FilesInterceptor('productImage', 8, { storage: multerStorage('product') }),
+    FilesInterceptor(FILE_FIELD.productImage, FILE_COUNT, {
+      storage: multerStorage(FOLDER_PATH.product),
+    }),
   )
   async updateProduct(
     @Param('id') id: string,
@@ -76,7 +83,9 @@ export class ProductsController {
 
   @Post()
   @UseInterceptors(
-    FilesInterceptor('productImage', 8, { storage: multerStorage('product') }),
+    FilesInterceptor(FILE_FIELD.productImage, FILE_COUNT, {
+      storage: multerStorage(FOLDER_PATH.product),
+    }),
   )
   async createProduct(
     @Body() createProductDto: CreateProductDto,
@@ -163,151 +172,3 @@ export class ProductsController {
     };
   }
 }
-
-// // src/modules/products/products.controller.ts
-// import {
-//   Controller,
-//   Get,
-//   Query,
-//   Put,
-//   UseInterceptors,
-//   Req,
-//   Param,
-//   Body,
-//   UploadedFiles,
-//   Post,
-//   Delete,
-//   Patch,
-//   Res,
-//   UseGuards,
-// } from '@nestjs/common';
-// import { ProductsService } from './products.service';
-// import { GetProductsQueryDto } from './dto/get-product-query.dto';
-// import { FilesInterceptor } from '@nestjs/platform-express';
-// import { updateProductDto } from './dto/update-product.dto';
-// import { multerStorage } from 'src/helper/multer';
-// import type { Request, Response } from 'express';
-// import { CreateProductDto } from './dto/create-product.dto';
-// import { ConfigService } from '@nestjs/config';
-// import { AuthGuard } from 'src/common/guard/auth.guard';
-
-// @UseGuards(AuthGuard)
-// @Controller('product')
-// export class ProductsController {
-//   constructor(
-//     private readonly productsService: ProductsService,
-//     private readonly configService: ConfigService,
-//   ) {}
-
-//   @Get()
-//   async getProducts(@Query() queryDto: GetProductsQueryDto) {
-//     const data = await this.productsService.getProducts(queryDto);
-//     return { success: true, data };
-//   }
-
-//   @Post()
-//   @UseInterceptors(
-//     FilesInterceptor('productImage', 8, {
-//       storage: multerStorage('product'),
-//     }),
-//   )
-//   async createProduct(
-//     @Body() createProductDto: CreateProductDto,
-//     @UploadedFiles() files: Express.Multer.File[],
-//     @Req() req: Request,
-//   ) {
-//     const imageUrls =
-//       files?.map(
-//         (file) =>
-//           `${req.protocol}://${req.get('host')}/${file.path.replace(/\\/g, '/')}`,
-//       ) || [];
-
-//     const product = await this.productsService.create(
-//       createProductDto,
-//       imageUrls,
-//     );
-
-//     return {
-//       success: true,
-//       message: 'Product Successfully Saved',
-//       data: product,
-//     };
-//   }
-
-//   @Put(':id')
-//   @UseInterceptors(
-//     FilesInterceptor('productImage', 8, {
-//       storage: multerStorage('product'),
-//     }),
-//   )
-//   async updateProduct(
-//     @Param('id') id: string,
-//     @Body() updateProductDto: updateProductDto,
-//     @UploadedFiles() files: Express.Multer.File[],
-//     @Req() req: Request,
-//   ) {
-//     const imageUrls =
-//       files?.map(
-//         (file) =>
-//           `${req.protocol}://${req.get('host')}/${file.path.replace(/\\/g, '/')}`,
-//       ) || undefined;
-
-//     const data = await this.productsService.update(
-//       id,
-//       updateProductDto,
-//       imageUrls,
-//     );
-
-//     return {
-//       success: true,
-//       message: 'Product updated successfully',
-//       data,
-//     };
-//   }
-
-//   @Delete(':id')
-//   async deleteProduct(@Param('id') id: string) {
-//     await this.productsService.remove(id);
-//     return { success: true, message: 'Product archived successfully' };
-//   }
-
-//   @Patch(':id')
-//   async restoreProduct(@Param('id') id: string) {
-//     await this.productsService.restore(id);
-//     return { success: true, message: 'Product restored successfully' };
-//   }
-
-//   @Get('archived/all')
-//   async getArchivedProducts(@Query() queryDto: GetProductsQueryDto) {
-//     const data = await this.productsService.findArchived(queryDto);
-//     return { success: true, data };
-//   }
-
-//   @Get('qr/:id')
-//   async getProductQrCode(
-//     @Param('id') id: string,
-//     @Req() req: Request,
-//     @Res() res: Response,
-//   ) {
-//     const frontendUrl = this.configService.get<string>('FRONTEND_URL');
-//     const url = `${req.protocol}://${frontendUrl}/pages/qr-product.html?id=${id}`;
-
-//     const qrBuffer = await this.productsService.generateQrCode(url);
-
-//     res.setHeader('Content-Type', 'image/png');
-//     res.setHeader('Content-Disposition', 'inline; filename="qrcode.png"');
-
-//     return res.send(qrBuffer);
-//   }
-
-//   @Get(':id')
-//   async getProductById(@Param('id') id: string) {
-//     const product = await this.productsService.findOne(id);
-
-//     return {
-//       success: true,
-//       message: 'Product with specific id',
-//       data: product,
-//     };
-//   }
-// }

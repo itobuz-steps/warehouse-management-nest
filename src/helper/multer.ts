@@ -1,11 +1,12 @@
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import fs from 'fs';
+import { FOLDER_PATH } from 'src/common/constants/file.constant';
 
-export const multerStorage = (folder: 'user' | 'product') =>
+export const multerStorage = (folder: string) =>
   diskStorage({
     destination: (req, file, cb) => {
-      const path = `./uploads/${folder}`;
+      const path = `./${FOLDER_PATH.uploads}/${folder}`;
 
       // Ensure folder exists
       if (!fs.existsSync(path)) {
