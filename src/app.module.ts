@@ -6,6 +6,7 @@ import { DbModule } from './config/db.module';
 import { WarehouseModule } from './warehouse/warehouse.module';
 import { ProductsModule } from './products/products.module';
 import { AuthModule } from './auth/auth.module';
+import { ProfileModule } from './profile/profile.module';
 import { AdminModule } from './admin/admin.module';
 import configService from './config/config.service';
 
@@ -17,6 +18,7 @@ import configService from './config/config.service';
     }),
     DbModule,
     AuthModule,
+    ProfileModule,
     WarehouseModule,
     ProductsModule,
     AdminModule,
