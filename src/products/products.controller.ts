@@ -23,8 +23,10 @@ import type { Request, Response } from 'express';
 import { CreateProductDto } from './dto/create-product.dto';
 import { ConfigService } from '@nestjs/config';
 import { AuthGuard } from 'src/common/guard/auth.guard';
+import { ApiBearerAuth } from '@nestjs/swagger';
 
 @UseGuards(AuthGuard)
+@ApiBearerAuth()
 @Controller('product/')
 export class ProductsController {
   constructor(
