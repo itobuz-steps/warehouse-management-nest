@@ -16,7 +16,7 @@ export class User {
   password?: string;
 
   @Prop({ required: true, enum: Object.values(USER_TYPES) })
-  role: string;
+  role: USER_TYPES;
 
   @Prop({ default: false })
   isVerified: boolean;
