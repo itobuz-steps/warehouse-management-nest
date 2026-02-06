@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types, PipelineStage } from 'mongoose';
 import { Quantity } from './entities/quantity.entity';
@@ -8,28 +12,12 @@ import { GetSpecificQuantityDto } from './dto/product-specific-quantity.dto';
 import { ProductsHavingQuantityDto } from './dto/product-having-quantity.dto';
 import { BadRequestException } from '@nestjs/common';
 import { SORT_CATEGORY } from 'src/products/constants/product.constant';
+import {
+  TotalQuantityResult,
+  CountResult,
+  WarehouseProductResult,
+} from './quantity.type';
 
-export interface TotalQuantityResult {
-  _id: string;
-  totalQuantity: number;
-}
-interface CountResult {
-  count: number;
-}
-
-export interface WarehouseProductResult {
-  _id: string;
-  warehouseId: string;
-  productId: string;
-  quantity: number;
-  limit: number;
-  product: {
-    _id: string;
-    name: string;
-    category: string;
-    isArchived: boolean;
-  };
-}
 @Injectable()
 export class QuantityService {
   constructor(
@@ -107,6 +95,10 @@ export class QuantityService {
   ): Promise<Quantity[]> {
     const { productId, warehouseId } = query;
 
+    if (productId || warehouseId) {
+      throw new NotFoundException('Id from params don"t exists');
+    }
+
     const ptId = new Types.ObjectId(productId);
     const wId = new Types.ObjectId(warehouseId);
 
@@ -132,6 +124,12 @@ export class QuantityService {
   async getProductsHavingQuantity(query: ProductsHavingQuantityDto) {
     const { search, category, sort, warehouseId, page, limit } = query;
     const pipeline: PipelineStage[] = [];
+
+    if (warehouseId && !Types.ObjectId.isValid(warehouseId)) {
+      throw new BadRequestException(
+        `Invalid Warehouse ID format: ${warehouseId}`,
+      );
+    }
 
     if (warehouseId) {
       pipeline.push({
@@ -207,10 +205,15 @@ export class QuantityService {
       },
     );
 
+    //can add exact error
     const [products, countResult] = await Promise.all([
       this.quantityModel.aggregate(pipeline).exec(),
       this.quantityModel.aggregate<CountResult>(countPipeline).exec(),
-    ]);
+    ]).catch(() => {
+      throw new InternalServerErrorException(
+        'Failed to retrieve products from database',
+      );
+    });
 
     const totalCount = countResult[0]?.count || 0;
     const totalPages = Math.ceil(totalCount / limit);
@@ -245,19 +248,42 @@ export class QuantityService {
       { $match: { 'product.isArchived': false } },
     ];
 
-    return await this.quantityModel
+    const res = await this.quantityModel
       .aggregate<WarehouseProductResult>(pipeline)
       .exec();
+
+    if (!res) {
+      throw new NotFoundException('Data Not Found');
+    }
+    return res;
   }
 
   async findByProduct(productId: string) {
-    return await this.quantityModel
-      .find({ productId })
-      .populate({
-        path: 'productId',
-        match: { isArchived: false },
-      })
-      .populate('warehouseId')
-      .exec();
+    try {
+      const res = await this.quantityModel
+        .find({ productId: new Types.ObjectId(productId) })
+        .populate({
+          path: 'productId',
+          match: { isArchived: false },
+        })
+        .populate('warehouseId')
+        .exec();
+
+      if (!res) {
+        throw new NotFoundException(
+          `No stock found for product ID ${productId}`,
+        );
+      }
+
+      return res;
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Database operation failed');
+    }
   }
 }
