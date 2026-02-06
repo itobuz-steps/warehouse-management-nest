@@ -1,6 +1,12 @@
 import { PartialType } from '@nestjs/mapped-types';
 import { CreateWarehouseDto } from './create-warehouse.dto';
-import { IsBoolean, IsNumber, IsOptional, IsString } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsNumber,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 export class UpdateWarehouseDto extends PartialType(CreateWarehouseDto) {
   @IsOptional()
@@ -18,6 +24,10 @@ export class UpdateWarehouseDto extends PartialType(CreateWarehouseDto) {
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  managers?: string[];
 
   @IsOptional()
   @IsNumber()

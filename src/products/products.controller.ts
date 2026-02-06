@@ -28,8 +28,10 @@ import {
   FILE_FIELD,
   FOLDER_PATH,
 } from 'src/common/constants/file.constant';
+import { ApiBearerAuth } from '@nestjs/swagger';
 
 @UseGuards(AuthGuard)
+@ApiBearerAuth()
 @Controller('product/')
 export class ProductsController {
   constructor(

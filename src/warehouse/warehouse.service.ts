@@ -9,6 +9,9 @@ import { Warehouse, WarehouseDocument } from './schemas/warehouse.schema';
 import { USER_TYPES } from 'src/auth/userType';
 // import Quantity from '../models/quantityModel'; // TEMP: will be injected later
 import User from './types/userType';
+import mongoose from 'mongoose';
+import { CreateWarehouseDto } from './dto/create-warehouse.dto';
+import { UpdateWarehouseDto } from './dto/update-warehouse.dto';
 
 @Injectable()
 export class WarehouseService {
@@ -18,7 +21,6 @@ export class WarehouseService {
   ) {}
 
   async getWarehouses(user: User) {
-    console.log(user);
     if (user.role === USER_TYPES.MANAGER) {
       const warehouses = await this.warehouseModel
         .find({
@@ -136,5 +138,45 @@ export class WarehouseService {
         // percentage,
       },
     };
+  }
+
+  async addWarehouse(dto: CreateWarehouseDto) {
+    const managerIds = dto.managers?.map(
+      (id) => new mongoose.Types.ObjectId(id),
+    );
+
+    return this.warehouseModel.create({
+      ...dto,
+      managerIds,
+    });
+  }
+
+  async updateWarehouse(id: string, dto: UpdateWarehouseDto) {
+    const managerIds = dto.managers?.map(
+      (id) => new mongoose.Types.ObjectId(id),
+    );
+
+    const warehouse = await this.warehouseModel.findByIdAndUpdate(
+      id,
+      { ...dto, managerIds },
+      { new: true },
+    );
+
+    if (!warehouse) {
+      throw new NotFoundException('Warehouse not found');
+    }
+
+    return warehouse;
+  }
+
+  async deleteWarehouse(id: string) {
+    const warehouse = await this.warehouseModel.findOneAndUpdate(
+      { _id: id, active: true },
+      { active: false },
+    );
+
+    if (!warehouse) {
+      throw new NotFoundException('Warehouse not found');
+    }
   }
 }

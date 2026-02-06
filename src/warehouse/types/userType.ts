@@ -1,3 +1,4 @@
+import type { Request } from 'express';
 import { USER_TYPES } from 'src/auth/userType';
 
 type User = {
@@ -15,4 +16,9 @@ type User = {
   updatedAt: Date;
   warehouseId?: string | null;
 };
+
+export type RequestWithUser = Request & {
+  user: User;
+};
+
 export default User;
