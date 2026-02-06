@@ -1,12 +1,7 @@
 import { Controller, Get, Param, Req, UseGuards } from '@nestjs/common';
 import { WarehouseService } from './warehouse.service';
-import User from './types/userType';
-import type { Request } from 'express';
+import type { RequestWithUser } from './types/userType';
 import { AuthGuard } from 'src/common/guard/auth.guard';
-
-export interface RequestWithUser extends Request {
-  user: User;
-}
 
 @UseGuards(AuthGuard)
 @Controller('warehouse/')
