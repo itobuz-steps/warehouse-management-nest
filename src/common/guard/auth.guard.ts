@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import * as jwt from 'jsonwebtoken';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Model } from 'mongoose';
 import { User, UserDocument } from 'src/auth/entities/auth.entity';
 import { Request } from 'express';
 import { JwtPayload } from 'jsonwebtoken';
@@ -61,17 +61,12 @@ export class AuthGuard implements CanActivate {
         throw new UnauthorizedException('Invalid token payload');
       }
 
-      console.log('Decoded ID:', decoded.id);
-      console.log('Is valid ObjectId:', Types.ObjectId.isValid(decoded.id));
-
       const user = await this.userModel
         .findOne({
           _id: decoded.id,
           isDeleted: false,
         })
         .select('-password');
-
-      console.log('User:', user);
 
       if (!user) {
         throw new NotFoundException('User not found!');
