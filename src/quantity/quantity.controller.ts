@@ -1,12 +1,12 @@
-// quantity.controller.ts
 import { Controller, Post, Body, Put, Param, Get, Query } from '@nestjs/common';
 import { QuantityService } from './quantity.service';
 import { AddProductQuantityDto } from './dto/add-quantity.dto';
 import { UpdateQuantityDto } from './dto/update-quantity.dto';
 import { GetSpecificQuantityDto } from './dto/product-specific-quantity.dto';
 import { ProductsHavingQuantityDto } from './dto/product-having-quantity.dto';
+import { ProductIdParams } from './dto/product-params.dto';
 
-@Controller('product')
+@Controller('quantity')
 export class QuantityController {
   constructor(private readonly quantityService: QuantityService) {}
 
@@ -38,7 +38,6 @@ export class QuantityController {
   @Get('product-total-quantity/:productId')
   async getTotalProductQuantity(@Param('productId') productId: string) {
     const result = await this.quantityService.getTotalQuantity(productId);
-
     return {
       message: 'All Product Total Quantity',
       success: true,
@@ -79,6 +78,17 @@ export class QuantityController {
 
     return {
       message: 'Specific Warehouse all products',
+      success: true,
+      data: result,
+    };
+  }
+
+  @Get('product-specific-warehouses/:productId')
+  async getProductSpecificWarehouses(@Param() params: ProductIdParams) {
+    const result = await this.quantityService.findByProduct(params.productId);
+
+    return {
+      message: 'Warehouse where that specific Product is stored',
       success: true,
       data: result,
     };

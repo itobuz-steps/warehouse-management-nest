@@ -1,4 +1,3 @@
-// dto/products-having-quantity.dto.ts
 import {
   IsOptional,
   IsString,

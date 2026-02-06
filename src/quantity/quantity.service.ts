@@ -1,4 +1,3 @@
-// quantity.service.ts
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types, PipelineStage } from 'mongoose';
@@ -7,6 +6,8 @@ import { AddProductQuantityDto } from './dto/add-quantity.dto';
 import { UpdateQuantityDto } from './dto/update-quantity.dto';
 import { GetSpecificQuantityDto } from './dto/product-specific-quantity.dto';
 import { ProductsHavingQuantityDto } from './dto/product-having-quantity.dto';
+import { BadRequestException } from '@nestjs/common';
+import { SORT_CATEGORY } from 'src/products/constants/product.constant';
 
 export interface TotalQuantityResult {
   _id: string;
@@ -16,7 +17,6 @@ interface CountResult {
   count: number;
 }
 
-// interfaces/warehouse-products.interface.ts
 export interface WarehouseProductResult {
   _id: string;
   warehouseId: string;
@@ -28,7 +28,6 @@ export interface WarehouseProductResult {
     name: string;
     category: string;
     isArchived: boolean;
-    // ... add other product fields you need
   };
 }
 @Injectable()
@@ -46,15 +45,21 @@ export class QuantityService {
       .exec();
 
     if (!res) {
-      throw new NotFoundException('Could Not found Record');
+      throw new NotFoundException('Could Not find Record');
     }
 
     return res;
   }
 
   async updateLimit(id: string, dto: UpdateQuantityDto): Promise<Quantity> {
+    const { limit } = dto || {};
+
+    if (limit === undefined) {
+      throw new BadRequestException('Limit is required in the request body');
+    }
+
     const result = await this.quantityModel
-      .findByIdAndUpdate(id, { limit: dto.limit }, { new: true })
+      .findByIdAndUpdate(id, { limit }, { new: true })
       .populate('warehouseId productId')
       .exec();
 
@@ -66,7 +71,7 @@ export class QuantityService {
   }
 
   async getTotalQuantity(productId: string): Promise<TotalQuantityResult[]> {
-    return await this.quantityModel.aggregate([
+    const res: TotalQuantityResult[] = await this.quantityModel.aggregate([
       {
         $match: {
           productId: new Types.ObjectId(productId),
@@ -74,7 +79,7 @@ export class QuantityService {
       },
       {
         $lookup: {
-          from: 'products', // Ensure this matches your actual MongoDB collection name
+          from: 'products',
           localField: 'productId',
           foreignField: '_id',
           as: 'product',
@@ -84,11 +89,17 @@ export class QuantityService {
       { $match: { 'product.isArchived': false } },
       {
         $group: {
-          _id: productId,
+          _id: '$productId',
           totalQuantity: { $sum: '$quantity' },
         },
       },
     ]);
+
+    if (!res) {
+      throw new NotFoundException('Data Not Found');
+    }
+
+    return res;
   }
 
   async getSpecificWarehouseQuantity(
@@ -96,8 +107,14 @@ export class QuantityService {
   ): Promise<Quantity[]> {
     const { productId, warehouseId } = query;
 
+    const ptId = new Types.ObjectId(productId);
+    const wId = new Types.ObjectId(warehouseId);
+
     const res = await this.quantityModel
-      .find({ productId, warehouseId })
+      .find({
+        productId: ptId,
+        warehouseId: wId,
+      })
       .populate({
         path: 'productId',
         match: { isArchived: false },
@@ -108,6 +125,7 @@ export class QuantityService {
     if (!res) {
       throw new NotFoundException("Couldn't Find Record");
     }
+
     return res;
   }
 
@@ -115,14 +133,12 @@ export class QuantityService {
     const { search, category, sort, warehouseId, page, limit } = query;
     const pipeline: PipelineStage[] = [];
 
-    // 1. Initial Match (Warehouse)
     if (warehouseId) {
       pipeline.push({
         $match: { warehouseId: new Types.ObjectId(warehouseId) },
       });
     }
 
-    // 2. Join Products and filter archived
     pipeline.push(
       {
         $lookup: {
@@ -136,7 +152,6 @@ export class QuantityService {
       { $match: { 'product.isArchived': false } },
     );
 
-    // 3. Search and Category Filters
     if (search) {
       pipeline.push({
         $match: { 'product.name': { $regex: search, $options: 'i' } },
@@ -146,7 +161,6 @@ export class QuantityService {
       pipeline.push({ $match: { 'product.category': category } });
     }
 
-    // 4. Grouping
     pipeline.push({
       $group: {
         _id: '$productId',
@@ -155,22 +169,21 @@ export class QuantityService {
       },
     });
 
-    // 5. Sorting
     const sortConfig: Record<string, 1 | -1> = {};
     switch (sort) {
-      case 'name_asc':
+      case SORT_CATEGORY.NAME_ASC:
         sortConfig['product.name'] = 1;
         break;
-      case 'name_desc':
+      case SORT_CATEGORY.NAME_DESC:
         sortConfig['product.name'] = -1;
         break;
-      case 'category_asc':
+      case SORT_CATEGORY.CATEGORY_ASC:
         sortConfig['product.category'] = 1;
         break;
-      case 'quantity_asc':
+      case SORT_CATEGORY.CATEGORY_DESC:
         sortConfig['totalQuantity'] = 1;
         break;
-      case 'quantity_desc':
+      case SORT_CATEGORY.QUANTITY_DESC:
         sortConfig['totalQuantity'] = -1;
         break;
       default:
@@ -178,10 +191,8 @@ export class QuantityService {
     }
     pipeline.push({ $sort: sortConfig });
 
-    // 6. Pagination & Formatting
     const skip = (page - 1) * limit;
 
-    // We clone the pipeline for the count before adding skip/limit
     const countPipeline = [...pipeline, { $count: 'count' }];
 
     pipeline.push(
@@ -202,11 +213,12 @@ export class QuantityService {
     ]);
 
     const totalCount = countResult[0]?.count || 0;
+    const totalPages = Math.ceil(totalCount / limit);
 
     return {
       products,
       totalCount,
-      totalPages: Math.ceil(totalCount / limit),
+      totalPages: totalPages,
       currentPage: page,
       productsPerPage: limit,
     };
@@ -233,14 +245,13 @@ export class QuantityService {
       { $match: { 'product.isArchived': false } },
     ];
 
-    // Use the interface here to prevent "unsafe return" errors
     return await this.quantityModel
       .aggregate<WarehouseProductResult>(pipeline)
       .exec();
   }
 
-  async getProductWarehouses(productId: string): Promise<Quantity[]> {
-    const res = await this.quantityModel
+  async findByProduct(productId: string) {
+    return await this.quantityModel
       .find({ productId })
       .populate({
         path: 'productId',
@@ -248,10 +259,5 @@ export class QuantityService {
       })
       .populate('warehouseId')
       .exec();
-
-    if (!res) {
-      throw new NotFoundException('Record Could Not Be Found');
-    }
-    return res;
   }
 }

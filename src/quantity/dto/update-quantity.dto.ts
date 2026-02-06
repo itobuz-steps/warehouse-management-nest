@@ -1,4 +1,7 @@
-import { PartialType } from '@nestjs/mapped-types';
-import { AddProductQuantityDto } from './add-quantity.dto';
+import { Min, IsNumber } from 'class-validator';
 
-export class UpdateQuantityDto extends PartialType(AddProductQuantityDto) {}
+export class UpdateQuantityDto {
+  @IsNumber()
+  @Min(0)
+  limit: number;
+}
