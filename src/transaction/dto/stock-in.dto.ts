@@ -1,36 +1,21 @@
 import {
   IsArray,
+  IsEmail,
   IsMongoId,
-  IsNumber,
   IsOptional,
-  IsPositive,
   IsString,
-  Min,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-
-class StockInProductDto {
-  @IsMongoId()
-  productId: string;
-
-  @IsNumber()
-  @IsPositive()
-  quantity: number;
-
-  @IsOptional()
-  @IsNumber()
-  @Min(1)
-  limit?: number;
-}
+import { ProductItemDto } from './product-item.dto';
 
 export class StockInDto {
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => StockInProductDto)
-  products: StockInProductDto[];
+  @Type(() => ProductItemDto)
+  products: ProductItemDto[];
 
-  @IsString()
+  @IsEmail()
   supplier: string;
 
   @IsMongoId()
