@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { NotificationHelper } from './notification.helper';
-import { NOTIFICATION_TYPES } from './notification.types';
-import User from '../user/entities/user.entity';
-import Warehouse from '../warehouse/entities/warehouse.entity';
-import Product from '../product/entities/product.entity';
+import { NOTIFICATION_TYPES } from './notificationTypes';
+import { User } from 'src/auth/entities/auth.entity';
+import { Warehouse } from 'src/warehouse/schemas/warehouse.schema';
+import { Product } from 'src/products/entities/product.entity';
+import { USER_TYPES } from 'src/auth/userType';
 
 @Injectable()
 export class NotificationTriggerService {
@@ -63,6 +64,43 @@ export class NotificationTriggerService {
       warehouse,
       transactionId,
       transactionPerformedBy: performer,
+    });
+  }
+
+  async notifyTransaction(
+    productId: Types.ObjectId,
+    warehouseId: Types.ObjectId,
+    transactionId: string,
+    quantity: number,
+    transactionType: string,
+    performedBy: string,
+  ) {
+    const product = await Product.findById(productId);
+    const warehouse = await Warehouse.findById(warehouseId);
+    const transaction = await Transaction.findById(transactionId);
+
+    if (!product || !warehouse || !transaction) {
+      throw new Error('Missing product / warehouse / transaction');
+    }
+
+    const users = await User.find({
+      $or: [
+        { role: USER_TYPES.ADMIN },
+        { _id: { $in: warehouse.managerIds || [] } },
+      ],
+    });
+
+    if (!users.length) return;
+
+    await this.notificationHelper.notify({
+      users,
+      type: transactionType,
+      title: `Transaction ${transaction.type} Alert`,
+      message: `Transaction ${transaction.type} completed for ${product.name} (${quantity}) in ${warehouse.name}`,
+      relatedProduct: product,
+      warehouse,
+      transaction,
+      transactionPerformedBy: performedBy,
     });
   }
 }

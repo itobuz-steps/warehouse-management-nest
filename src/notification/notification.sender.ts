@@ -1,10 +1,11 @@
 import webPush from 'web-push';
 import { SubscriptionDocument } from './entities/subscription.entity';
+import config from '../config/config.service';
 
 webPush.setVapidDetails(
-  'mailto:admin@example.com',
-  process.env.VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!,
+  config().MAIL_USER as string,
+  config().VAPID_PUBLIC_KEY as string,
+  config().VAPID_PUBLIC_KEY as string,
 );
 
 export async function sendBrowserNotification(
@@ -14,16 +15,16 @@ export async function sendBrowserNotification(
   const payloadString = JSON.stringify(payload);
 
   await Promise.all(
-    subscriptions.map((sub) =>
+    subscriptions.map((subscription) =>
       webPush
         .sendNotification(
           {
-            endpoint: sub.endpoint,
-            expirationTime: sub.expirationTime
-              ? sub.expirationTime.getTime()
+            endpoint: subscription.endpoint,
+            expirationTime: subscription.expirationTime
+              ? subscription.expirationTime.getTime()
               : null,
 
-            keys: sub.keys,
+            keys: subscription.keys,
           },
           payloadString,
         )

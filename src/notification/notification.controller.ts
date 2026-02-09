@@ -11,6 +11,7 @@ import { NotificationService } from './notification.service';
 import { AuthGuard } from 'src/common/guard/auth.guard';
 import { Request } from 'express';
 import { SubscribeDto } from './dto/subscribe.dto';
+import { ShipmentParamsDto } from './dto/notification.dto';
 
 export interface RequestWithUser extends Request {
   userId: string;
@@ -23,7 +24,12 @@ export class NotificationController {
 
   @Post('subscribe')
   subscribe(@Req() req: RequestWithUser) {
-    return this.service.subscribe(req.userId, req.body as SubscribeDto);
+    return {
+      success: true,
+      message: 'Subscription saved in database.',
+      timestamp: new Date().toISOString(),
+      data: this.service.subscribe(req.userId, req.body as SubscribeDto),
+    };
   }
 
   @Get(':offset')

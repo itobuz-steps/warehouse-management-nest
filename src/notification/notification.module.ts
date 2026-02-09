@@ -12,9 +12,11 @@ import { NotificationController } from './notification.controller';
 import { NotificationService } from './notification.service';
 import { NotificationHelper } from './notification.helper';
 import { NotificationTriggerService } from './notification-trigger.service';
+import { ConfigModule } from 'src/config/config.module';
 
 @Module({
   imports: [
+    ConfigModule,
     MongooseModule.forFeature([
       { name: Notification.name, schema: NotificationSchema },
       { name: Subscription.name, schema: SubscriptionSchema },

@@ -7,15 +7,32 @@ import {
   SubscriptionDocument,
 } from './entities/subscription.entity';
 import { SubscribeDto } from './dto/subscribe.dto';
+import SendEmail from 'src/utils/SendEmail';
+import { Product } from 'src/products/entities/product.entity';
+import { Warehouse } from 'src/warehouse/schemas/warehouse.schema';
 
 @Injectable()
 export class NotificationService {
   constructor(
+    @InjectModel(Transaction.name)
+    private transactionModel: Model<Transaction>,
+
+    @InjectModel(Product.name)
+    private productModel: Model<Product>,
+
+    @InjectModel(Warehouse.name)
+    private warehouseModel: Model<Warehouse>,
+
+    @InjectModel(Quantity.name)
+    private quantityModel: Model<Quantity>,
+
     @InjectModel(Notification.name)
     private notificationModel: Model<Notification>,
 
     @InjectModel(Subscription.name)
     private subscriptionModel: Model<SubscriptionDocument>,
+
+    private readonly sendEmail: SendEmail,
   ) {}
 
   async subscribe(
@@ -103,17 +120,101 @@ export class NotificationService {
 
   async updateShipmentStatus(
     transactionId: string,
-    status: string,
+    status: 'shipped' | 'cancelled',
     reporterId: string,
   ) {
-    await this.notificationModel.updateMany(
-      { transactionId },
-      {
-        ...(status === 'shipped' && { isShipped: true }),
-        ...(status === 'cancelled' && { isCancelled: true }),
-        reportedBy: reporterId,
-        title: `Shipment ${status}`,
-      },
-    );
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      // 1️⃣ Fetch Transaction
+      const transaction = await this.transactionModel
+        .findById(transactionId)
+        .session(session)
+        .populate('product performedBy sourceWarehouse');
+
+      if (!transaction) {
+        throw new Error('Transaction not found');
+      }
+
+      // 2️⃣ Load Product & Warehouse
+      const product = await this.productModel.findById(transaction.product);
+      const warehouse = await this.warehouseModel.findById(
+        transaction.sourceWarehouse,
+      );
+
+      if (!product || !warehouse) {
+        throw new Error('Product or Warehouse not found');
+      }
+
+      // 3️⃣ If Cancelled → Restore Quantity
+      if (status === 'cancelled') {
+        const quantityRecord = await this.quantityModel
+          .findOne({
+            warehouseId: transaction.sourceWarehouse,
+            productId: transaction.product,
+          })
+          .session(session);
+
+        if (!quantityRecord) {
+          throw new Error('Quantity record not found');
+        }
+
+        quantityRecord.quantity += transaction.quantity;
+        await quantityRecord.save({ session });
+      }
+
+      // 4️⃣ Update Shipment Status
+      transaction.shipment =
+        status === 'shipped'
+          ? SHIPMENT_TYPES.SHIPPED
+          : SHIPMENT_TYPES.CANCELLED;
+
+      await transaction.save({ session });
+
+      // 5️⃣ Update Notifications
+      await this.notificationModel.updateMany(
+        { transactionId: transaction._id },
+        {
+          title:
+            status === 'shipped'
+              ? 'Pending Shipment Alert: Shipped'
+              : 'Pending Shipment Alert: Cancelled',
+
+          ...(status === 'shipped' && { isShipped: true }),
+          ...(status === 'cancelled' && { isCancelled: true }),
+
+          reportedBy: reporterId,
+
+          message:
+            status === 'shipped'
+              ? `Shipment done for ${product.name} from ${warehouse.name} of Quantity: ${transaction.quantity}.`
+              : `Shipment Cancelled for ${product.name} from ${warehouse.name} of Quantity: ${transaction.quantity}.`,
+        },
+        { session },
+      );
+
+      // 6️⃣ Send Email to Customer
+      if (status === 'shipped') {
+        await this.sendEmail.sendProductShippedEmailToCustomer(transaction);
+      } else {
+        await this.sendEmail.sendProductCancelEmailToCustomer(transaction);
+      }
+
+      await session.commitTransaction();
+
+      return {
+        success: true,
+        message:
+          status === 'shipped'
+            ? 'Status Changed to Shipped Successfully'
+            : 'Shipment cancelled and stock reverted successfully',
+      };
+    } catch (err) {
+      await session.abortTransaction();
+      throw err;
+    } finally {
+      await session.endSession();
+    }
   }
 }

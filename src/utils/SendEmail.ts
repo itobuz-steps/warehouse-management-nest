@@ -1,9 +1,14 @@
 import nodemailer from 'nodemailer';
 import Mail from 'nodemailer/lib/mailer/index.js';
 import config from '../config/config.service';
+import { WarehouseDocument } from 'src/warehouse/schemas/warehouse.schema';
+import { Product } from 'src/products/entities/product.entity';
+import { User } from 'src/auth/entities/auth.entity';
+import { Injectable } from '@nestjs/common';
 
 type AppConfig = ReturnType<typeof config>;
 
+@Injectable()
 export default class SendEmail {
   private appConfig: AppConfig = config();
 
@@ -77,5 +82,88 @@ export default class SendEmail {
 
     console.log('Email sent successfully: ', mailResponse);
     return 'Success';
+  };
+
+  sendLowStockEmail = async (
+    email: string,
+    user: User,
+    product: Product,
+    warehouse: WarehouseDocument,
+  ): Promise<void> => {
+    await this.mailSender(
+      email,
+      'Low Stock Alert',
+      `
+      <h2>Low Stock Alert</h2>
+      <p>Hello ${user.name || ''},</p>
+      <p>The product <b>${product.name}</b> in <b>${warehouse.name}</b> is below the stock limit.</p>
+      <p>Please restock it as soon as possible.</p>
+      `,
+    );
+
+    console.log('Low stock email sent');
+  };
+
+  sendPendingShipmentEmail = async (
+    email: string,
+    user: User,
+    product: Product,
+    warehouse: WarehouseDocument,
+  ): Promise<void> => {
+    await this.mailSender(
+      email,
+      'Pending Shipment Alert',
+      `
+      <h2>Pending Shipment Alert</h2>
+      <p>Hello ${user.name || ''},</p>
+      <p>A shipment for <b>${product.name}</b> in <b>${warehouse.name}</b> is still pending.</p>
+      `,
+    );
+
+    console.log('Pending shipment email sent');
+  };
+
+  sendProductShippedEmailToCustomer = async (
+    transaction: Transaction & Document,
+  ): Promise<void> => {
+    const invoice = (await generatePdf(transaction)) as Buffer;
+
+    await this.mailSender(
+      transaction.customerEmail as string,
+      'Product Shipment Details',
+      `
+      <h2>Shipment Delivered</h2>
+      <p>Hello ${transaction.customerName || ''},</p>
+      <p>Your shipment for Order ID <b>${transaction._id}</b> has been delivered.</p>
+      <p>Status: <b>${transaction.shipment}</b></p>
+      <p>Please find your invoice attached.</p>
+      <br>
+      <p>Thank you for your business!</p>
+      `,
+      invoice,
+    );
+
+    console.log('Shipment delivered email sent');
+  };
+
+  sendProductCancelEmailToCustomer = async (
+    transaction: Transaction & Document,
+  ): Promise<void> => {
+    const invoice = (await generatePdf(transaction)) as Buffer;
+
+    await this.mailSender(
+      transaction.customerEmail as string,
+      'Shipment Cancelled',
+      `
+      <h2>Shipment Cancelled</h2>
+      <p>Hello ${transaction.customerName || ''},</p>
+      <p>Your shipment for Order ID <b>${transaction._id}</b> has been cancelled.</p>
+      <p>Status: <b>${transaction.shipment}</b></p>
+      <p>For more information contact: ${(transaction.performedBy as IUser).email}</p>
+      `,
+      invoice,
+    );
+
+    console.log('Shipment cancellation email sent');
   };
 }
