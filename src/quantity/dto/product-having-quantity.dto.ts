@@ -6,6 +6,7 @@ import {
   Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import configService from 'src/config/config.service';
 
 export class ProductsHavingQuantityDto {
   @IsOptional()
@@ -28,11 +29,11 @@ export class ProductsHavingQuantityDto {
   @Type(() => Number)
   @IsNumber()
   @Min(1)
-  page: number = 1;
+  page: number = Number(configService().PAGE);
 
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(1)
-  limit: number = 10;
+  limit: number = Number(configService().LIMIT);
 }
