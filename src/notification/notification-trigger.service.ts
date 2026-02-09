@@ -10,6 +10,10 @@ import {
 } from 'src/warehouse/schemas/warehouse.schema';
 import { Product } from 'src/products/entities/product.entity';
 import { USER_TYPES } from 'src/auth/userType';
+import {
+  Transaction,
+  TransactionDocument,
+} from 'src/transaction/schemas/transaction.schema';
 
 @Injectable()
 export class NotificationTriggerService {
@@ -20,6 +24,9 @@ export class NotificationTriggerService {
     @InjectModel(Product.name) private productModel: Model<Product>,
     @InjectModel(Warehouse.name)
     private warehouseModel: Model<WarehouseDocument>,
+
+    @InjectModel(Transaction.name)
+    private transactionModel: Model<TransactionDocument>,
   ) {}
 
   async notifyLowStock(
@@ -93,7 +100,7 @@ export class NotificationTriggerService {
     const warehouse: WarehouseDocument = (await this.warehouseModel.findById(
       warehouseId,
     )) as WarehouseDocument;
-    const transaction = await Transaction.findById(transactionId);
+    const transaction = await this.transactionModel.findById(transactionId);
 
     if (!product || !warehouse || !transaction) {
       throw new Error('Missing product / warehouse / transaction');

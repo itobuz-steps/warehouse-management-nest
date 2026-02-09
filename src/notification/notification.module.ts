@@ -13,6 +13,15 @@ import { NotificationService } from './notification.service';
 import { NotificationHelper } from './notification.helper';
 import { NotificationTriggerService } from './notification-trigger.service';
 import { ConfigModule } from 'src/config/config.module';
+import {
+  Transaction,
+  TransactionSchema,
+} from 'src/transaction/schemas/transaction.schema';
+import { Product, ProductSchema } from 'src/products/entities/product.entity';
+import {
+  Quantity,
+  QuantitySchema,
+} from 'src/quantity/entities/quantity.entity';
 
 @Module({
   imports: [
@@ -20,6 +29,9 @@ import { ConfigModule } from 'src/config/config.module';
     MongooseModule.forFeature([
       { name: Notification.name, schema: NotificationSchema },
       { name: Subscription.name, schema: SubscriptionSchema },
+      { name: Transaction.name, schema: TransactionSchema },
+      { name: Product.name, schema: ProductSchema },
+      { name: Quantity.name, schema: QuantitySchema },
     ]),
   ],
   controllers: [NotificationController],

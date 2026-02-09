@@ -11,6 +11,7 @@ import SendEmail from 'src/utils/SendEmail';
 import { Product } from 'src/products/entities/product.entity';
 import { Warehouse } from 'src/warehouse/schemas/warehouse.schema';
 import { Quantity } from 'src/quantity/entities/quantity.entity';
+import { Transaction } from 'src/transaction/schemas/transaction.schema';
 
 @Injectable()
 export class NotificationService {
