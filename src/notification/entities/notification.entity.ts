@@ -1,6 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Types } from 'mongoose';
-import NOTIFICATION_TYPES from '../notificationTypes';
+import { NOTIFICATION_TYPES } from '../notificationTypes';
 
 @Schema({ timestamps: true })
 export class Notification {

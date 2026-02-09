@@ -14,12 +14,12 @@ import { WarehouseDocument } from 'src/warehouse/schemas/warehouse.schema';
 
 export interface NotificationPayload {
   users: UserDocument[];
-  type: NOTIFICATION_TYPES;
+  type: NOTIFICATION_TYPES | string;
   title: string;
   message: string;
 
-  product?: Product;
-  warehouse?: WarehouseDocument;
+  product: Product;
+  warehouse: WarehouseDocument;
 
   relatedProduct?: Types.ObjectId;
   warehouseId?: Types.ObjectId;
@@ -73,19 +73,22 @@ export class NotificationHelper {
       await Promise.all(
         payload.users.map(async (user) => {
           try {
-            if (payload.type === NOTIFICATION_TYPES.LOW_STOCK) {
+            if (
+              (payload.type as NOTIFICATION_TYPES) ===
+              NOTIFICATION_TYPES.LOW_STOCK
+            ) {
               await this.sendEmail.sendLowStockEmail(
                 user.email,
                 user,
-                payload.product as Product,
-                payload.warehouse as WarehouseDocument,
+                payload.product,
+                payload.warehouse,
               );
             } else {
               await this.sendEmail.sendPendingShipmentEmail(
                 user.email,
                 user,
-                payload.product as Product,
-                payload.warehouse as WarehouseDocument,
+                payload.product,
+                payload.warehouse,
               );
             }
           } catch (err) {

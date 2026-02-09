@@ -159,7 +159,7 @@ export default class SendEmail {
       <p>Hello ${transaction.customerName || ''},</p>
       <p>Your shipment for Order ID <b>${transaction._id}</b> has been cancelled.</p>
       <p>Status: <b>${transaction.shipment}</b></p>
-      <p>For more information contact: ${(transaction.performedBy as IUser).email}</p>
+      <p>For more information contact: ${(transaction.performedBy as User).email}</p>
       `,
       invoice,
     );

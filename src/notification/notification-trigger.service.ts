@@ -3,8 +3,11 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { NotificationHelper } from './notification.helper';
 import { NOTIFICATION_TYPES } from './notificationTypes';
-import { User } from 'src/auth/entities/auth.entity';
-import { Warehouse } from 'src/warehouse/schemas/warehouse.schema';
+import { User, UserDocument } from 'src/auth/entities/auth.entity';
+import {
+  Warehouse,
+  WarehouseDocument,
+} from 'src/warehouse/schemas/warehouse.schema';
 import { Product } from 'src/products/entities/product.entity';
 import { USER_TYPES } from 'src/auth/userType';
 
@@ -15,7 +18,8 @@ export class NotificationTriggerService {
 
     @InjectModel(User.name) private userModel: Model<User>,
     @InjectModel(Product.name) private productModel: Model<Product>,
-    @InjectModel(Warehouse.name) private warehouseModel: Model<Warehouse>,
+    @InjectModel(Warehouse.name)
+    private warehouseModel: Model<WarehouseDocument>,
   ) {}
 
   async notifyLowStock(
@@ -23,8 +27,12 @@ export class NotificationTriggerService {
     warehouseId: string,
     performedBy: string,
   ) {
-    const product = await this.productModel.findById(productId);
-    const warehouse = await this.warehouseModel.findById(warehouseId);
+    const product: Product = (await this.productModel.findById(
+      productId,
+    )) as Product;
+    const warehouse: WarehouseDocument = (await this.warehouseModel.findById(
+      warehouseId,
+    )) as WarehouseDocument;
 
     const users = await this.userModel.find({
       $or: [{ role: 'admin' }, { _id: { $in: warehouse?.managerIds || [] } }],
@@ -48,8 +56,12 @@ export class NotificationTriggerService {
     qty,
     performer,
   ) {
-    const product = await this.productModel.findById(productId);
-    const warehouse = await this.warehouseModel.findById(warehouseId);
+    const product: Product = (await this.productModel.findById(
+      productId,
+    )) as Product;
+    const warehouse: WarehouseDocument = (await this.warehouseModel.findById(
+      warehouseId,
+    )) as WarehouseDocument;
 
     const users = await this.userModel.find({
       $or: [{ role: 'admin' }, { _id: { $in: warehouse?.managerIds || [] } }],
@@ -75,15 +87,19 @@ export class NotificationTriggerService {
     transactionType: string,
     performedBy: string,
   ) {
-    const product = await Product.findById(productId);
-    const warehouse = await Warehouse.findById(warehouseId);
+    const product: Product = (await this.productModel.findById(
+      productId,
+    )) as Product;
+    const warehouse: WarehouseDocument = (await this.warehouseModel.findById(
+      warehouseId,
+    )) as WarehouseDocument;
     const transaction = await Transaction.findById(transactionId);
 
     if (!product || !warehouse || !transaction) {
       throw new Error('Missing product / warehouse / transaction');
     }
 
-    const users = await User.find({
+    const users: UserDocument[] = await this.userModel.find({
       $or: [
         { role: USER_TYPES.ADMIN },
         { _id: { $in: warehouse.managerIds || [] } },
@@ -92,7 +108,7 @@ export class NotificationTriggerService {
 
     if (!users.length) return;
 
-    await this.notificationHelper.notify({
+    await this.helper.notify({
       users,
       type: transactionType,
       title: `Transaction ${transaction.type} Alert`,
