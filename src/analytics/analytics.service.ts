@@ -5,15 +5,21 @@ import { Model } from 'mongoose';
 import { Warehouse } from 'src/warehouse/schemas/warehouse.schema';
 import { Product } from 'src/products/entities/product.entity';
 import { TwoProductQuery } from './dto/tow-product-query.dto';
+import { Quantity } from 'src/quantity/entities/quantity.entity';
+import { Transaction } from 'src/transaction/schemas/transaction.schema';
 import { ExcelService } from 'src/helper/excelGenerator';
+
+type CountMap = Record<string, number>;
 
 @Injectable()
 export class AnalyticsService {
   constructor(
+    private readonly excelService: ExcelService,
+
     @InjectModel('Warehouse') private warehouseModel: Model<Warehouse>,
     @InjectModel('Product') private productModel: Model<Product>,
     @InjectModel('Quantity') private quantityModel: Model<Quantity>,
-    private readonly excelService: ExcelService,
+    @InjectModel('Transaction') private transactionModel: Model<Transaction>,
   ) {}
 
   async getTwoProductQuantities(query: TwoProductQuery) {
@@ -23,8 +29,8 @@ export class AnalyticsService {
     if (!warehouse) throw new NotFoundException('Warehouse not found.');
 
     const [productAData, productBData] = await Promise.all([
-      this.productModel.findById(productA).lean(),
-      this.productModel.findById(productB).lean(),
+      this.productModel.findById(productA),
+      this.productModel.findById(productB),
     ]);
 
     if (!productAData || !productBData) {
@@ -32,8 +38,8 @@ export class AnalyticsService {
     }
 
     const [qtyA, qtyB] = await Promise.all([
-      this.quantityModel.findOne({ warehouseId, productA }).lean(),
-      this.quantityModel.findOne({ warehouseId, productB }).lean(),
+      this.quantityModel.findOne({ warehouseId, productA }),
+      this.quantityModel.findOne({ warehouseId, productB }),
     ]);
 
     return {
@@ -57,9 +63,9 @@ export class AnalyticsService {
 
     // 1. Validate existence in parallel
     const [warehouse, productAData, productBData] = await Promise.all([
-      this.warehouseModel.findById(warehouseId).lean(),
-      this.productModel.findById(productA).lean(),
-      this.productModel.findById(productB).lean(),
+      this.warehouseModel.findById(warehouseId),
+      this.productModel.findById(productA),
+      this.productModel.findById(productB),
     ]);
 
     if (!warehouse) throw new NotFoundException('Warehouse not found.');
@@ -75,19 +81,19 @@ export class AnalyticsService {
     startDate.setHours(0, 0, 0, 0);
 
     // 3. Fetch transactions
-    const transactions = await this.transactionModel
-      .find({
-        product: { $in: [productA, productB] },
-        createdAt: { $gte: startDate, $lte: endDate },
-        $or: [
-          { sourceWarehouse: warehouseId },
-          { destinationWarehouse: warehouseId },
-        ],
-      })
-      .lean();
-
+    const transactions = await this.transactionModel.find({
+      product: { $in: [productA, productB] },
+      createdAt: { $gte: startDate, $lte: endDate },
+      $or: [
+        { sourceWarehouse: warehouseId },
+        { destinationWarehouse: warehouseId },
+      ],
+    });
     // 4. Initialize counts and date list
-    const counts = { productA: {}, productB: {} };
+    const counts = {
+      productA: {} as CountMap,
+      productB: {} as CountMap,
+    };
     const dateList: string[] = [];
 
     for (let i = 0; i < 7; i++) {
@@ -136,9 +142,9 @@ export class AnalyticsService {
     const { warehouseId, productA, productB } = query;
 
     const [warehouse, productAData, productBData] = await Promise.all([
-      this.warehouseModel.findById(warehouseId).lean(),
-      this.productModel.findById(productA).lean(),
-      this.productModel.findById(productB).lean(),
+      this.warehouseModel.findById(warehouseId),
+      this.productModel.findById(productA),
+      this.productModel.findById(productB),
     ]);
 
     if (!warehouse) throw new NotFoundException('Warehouse not found.');
@@ -146,8 +152,8 @@ export class AnalyticsService {
       throw new NotFoundException('Products not found.');
 
     const [qtyA, qtyB] = await Promise.all([
-      this.quantityModel.findOne({ warehouseId, productA }).lean(),
-      this.quantityModel.findOne({ warehouseId, productB }).lean(),
+      this.quantityModel.findOne({ warehouseId, productA }),
+      this.quantityModel.findOne({ warehouseId, productB }),
     ]);
 
     return {
@@ -169,9 +175,9 @@ export class AnalyticsService {
     const { warehouseId, productA, productB } = query;
 
     const [warehouse, productAData, productBData] = await Promise.all([
-      this.warehouseModel.findById(warehouseId).lean(),
-      this.productModel.findById(productA).lean(),
-      this.productModel.findById(productB).lean(),
+      this.warehouseModel.findById(warehouseId),
+      this.productModel.findById(productA),
+      this.productModel.findById(productB),
     ]);
 
     if (!warehouse) throw new NotFoundException('Warehouse not found.');
@@ -186,17 +192,14 @@ export class AnalyticsService {
     startDate.setHours(0, 0, 0, 0);
 
     // 2. Fetch Transactions
-    const transactions = await this.transactionModel
-      .find({
-        product: { $in: [productA, productB] },
-        createdAt: { $gte: startDate, $lte: endDate },
-        $or: [
-          { sourceWarehouse: warehouseId },
-          { destinationWarehouse: warehouseId },
-        ],
-      })
-      .lean();
-
+    const transactions = await this.transactionModel.find({
+      product: { $in: [productA, productB] },
+      createdAt: { $gte: startDate, $lte: endDate },
+      $or: [
+        { sourceWarehouse: warehouseId },
+        { destinationWarehouse: warehouseId },
+      ],
+    });
     // 3. Initialize counts and date list
     const counts = {
       productA: {} as Record<string, number>,
@@ -255,6 +258,6 @@ export class AnalyticsService {
     query: TwoProductQuery,
   ): Promise<Buffer> {
     const data = await this.getTwoProductComparisonHistoryData(query);
-    return this.excelService.generateComparisonHistoryExcel(data);
+    return this.excelService.generateTwoProductTransactionExcel(data);
   }
 }
