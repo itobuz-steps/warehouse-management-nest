@@ -1,30 +1,28 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
+import { Controller, Get, Query, Res } from '@nestjs/common';
 import { AnalyticsService } from './analytics.service';
-import { CreateAnalyticsDto } from './dto/create-analytics.dto';
-import { UpdateAnalyticsDto } from './dto/update-analytics.dto';
-import { TwoProductQuery
+import type { Response } from 'express';
 
- } from './dto/tow-product-query.dto';
+import { TwoProductQuery } from './dto/tow-product-query.dto';
 @Controller('analytics')
 export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}
 
   @Get('product-quantities')
-  async getTwoProductQuantity(@Query() query:TwoProductQuery)
-  {
-    const result = await this.analyticsService.(query)
-    return 
-    {
-      sucess:true,
+  async getTwoProductQuantity(@Query() query: TwoProductQuery) {
+    const result =
+      await this.analyticsService.getTwoProductQuantitiesData(query);
+
+    return {
+      success: true,
       message: 'Product quantities fetched successfully for the warehouse.',
-      data:res
-    }
+      data: result,
+    };
   }
-  
-  @Get('comparison-history')
+  @Get('product-comparison-history')
   async getComparisonHistory(@Query() query: TwoProductQuery) {
-    const result = await this.analyticsService.getTwoProductComparisonHistory(query);
-    
+    const result =
+      await this.analyticsService.getTwoProductComparisonHistory(query);
+
     return {
       success: true,
       message: 'Transaction comparison history fetched successfully.',
@@ -32,21 +30,35 @@ export class AnalyticsController {
     };
   }
 
-  @Get('product-quantities/excel')
-  async downloadExcel(
-    @Query() query: TwoProductQuery, 
-    @Res() res: Response
-  ) {
-    const buffer = await this.analyticsService.getTwoProductQuantitiesExcel(query);
+  @Get('get-two-products-quantity-chart-data')
+  async downloadExcel(@Query() query: TwoProductQuery, @Res() res: Response) {
+    const buffer =
+      await this.analyticsService.getTwoProductQuantitiesExcel(query);
 
     res.set({
-      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Type':
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': 'attachment; filename=product-quantities.xlsx',
       'Content-Length': buffer.length,
     });
 
     res.end(buffer);
   }
-   
-  
+
+  @Get('get-two-products-transaction-chart-data')
+  async downloadComparisonExcel(
+    @Query() query: TwoProductQuery,
+    @Res() res: Response,
+  ) {
+    const buffer =
+      await this.analyticsService.getTwoProductComparisonHistoryExcel(query);
+
+    res.set({
+      'Content-Type':
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': 'attachment; filename=comparison-history.xlsx',
+    });
+
+    return res.status(200).send(buffer);
+  }
 }
