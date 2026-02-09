@@ -13,8 +13,8 @@ export class Quantity extends Document {
   @Prop({ required: true })
   quantity: number = Number(configService().DEFAULT_QUANTITY);
 
-  @Prop({ required: true })
-  limit: number = Number(configService().LIMIT);
+  // @Prop({ required: true })
+  limit?: number = Number(configService().LIMIT);
 }
 
 export const QuantitySchema = SchemaFactory.createForClass(Quantity);

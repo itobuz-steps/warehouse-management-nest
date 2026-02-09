@@ -1,0 +1,6 @@
+export enum TRANSACTION_TYPES {
+  IN = 'IN',
+  OUT = 'OUT',
+  ADJUSTMENT = 'ADJUSTMENT',
+  TRANSFER = 'TRANSFER',
+}
