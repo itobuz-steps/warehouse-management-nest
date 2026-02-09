@@ -10,6 +10,7 @@ import { SubscribeDto } from './dto/subscribe.dto';
 import SendEmail from 'src/utils/SendEmail';
 import { Product } from 'src/products/entities/product.entity';
 import { Warehouse } from 'src/warehouse/schemas/warehouse.schema';
+import { Quantity } from 'src/quantity/entities/quantity.entity';
 
 @Injectable()
 export class NotificationService {
