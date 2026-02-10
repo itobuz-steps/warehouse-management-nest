@@ -183,12 +183,14 @@ export class TransactionService {
           [
             {
               type: TRANSACTION_TYPES.IN,
-              product: item.productId,
+              product: new Types.ObjectId(item.productId),
               quantity: item.quantity,
               supplier: dto.supplier,
-              destinationWarehouse: dto.destinationWarehouse,
+              destinationWarehouse: new Types.ObjectId(
+                dto.destinationWarehouse,
+              ),
               notes: dto.notes,
-              performedBy: userId,
+              performedBy: new Types.ObjectId(userId),
             },
           ],
           { session },
@@ -273,14 +275,14 @@ export class TransactionService {
           [
             {
               type: TRANSACTION_TYPES.OUT,
-              product: productId,
+              product: new Types.ObjectId(productId),
               quantity,
               customerName: dto.customerName,
               customerEmail: dto.customerEmail,
               customerPhone: dto.customerPhone,
               customerAddress: dto.customerAddress,
               shipment: SHIPMENT_TYPES.PENDING,
-              sourceWarehouse: dto.sourceWarehouse,
+              sourceWarehouse: new Types.ObjectId(dto.sourceWarehouse),
               notes: dto.notes,
               performedBy: new Types.ObjectId(userId),
             },
@@ -404,12 +406,12 @@ export class TransactionService {
           [
             {
               type: TRANSACTION_TYPES.TRANSFER,
-              product: productId,
+              product: new Types.ObjectId(productId),
               quantity,
               notes,
-              sourceWarehouse,
-              destinationWarehouse,
-              performedBy: userId,
+              sourceWarehouse: new Types.ObjectId(sourceWarehouse),
+              destinationWarehouse: new Types.ObjectId(destinationWarehouse),
+              performedBy: new Types.ObjectId(userId),
             },
           ],
           { session },
@@ -482,12 +484,12 @@ export class TransactionService {
         [
           {
             type: TRANSACTION_TYPES.ADJUSTMENT,
-            product: productId,
+            product: new Types.ObjectId(productId),
             quantity,
             reason,
             notes,
-            destinationWarehouse: warehouseId,
-            performedBy: userId,
+            destinationWarehouse: new Types.ObjectId(warehouseId),
+            performedBy: new Types.ObjectId(userId),
           },
         ],
         { session },
