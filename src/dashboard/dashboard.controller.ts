@@ -1,8 +1,11 @@
-// src/dashboard/dashboard.controller.ts
-import { Controller, Get, Param, Query, Res } from '@nestjs/common';
+import { Controller, Get, Param, Query, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { DashboardService } from './dashboard.service';
+import { AuthGuard } from 'src/common/guard/auth.guard';
+import { ApiBearerAuth } from '@nestjs/swagger';
 
+@UseGuards(AuthGuard)
+@ApiBearerAuth()
 @Controller('dashboard')
 export class DashboardController {
   constructor(private readonly service: DashboardService) {}
@@ -40,7 +43,7 @@ export class DashboardController {
     @Param('warehouseId') warehouseId: string,
     @Res() res: Response,
   ) {
-    const buffer = (await this.service.generateWeeklyTransactionExcel(
+    const buffer = (await this.service.getProductTransactionExcel(
       warehouseId,
     )) as Buffer;
 
@@ -74,25 +77,43 @@ export class DashboardController {
   @Get('get-cancelled-orders/:warehouseId')
   getCancelledProducts(
     @Param('warehouseId') id: string,
-    @Query() query: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.service.getMostCancelledProducts(id, query);
+    return this.service.getMostCancelledProducts(id, {
+      startDate,
+      endDate,
+      limit: limit ? Number(limit) : 5,
+    });
   }
 
   @Get('get-most-adjusted-products/:warehouseId')
-  getAdjustedProducts(
+  getMostAdjustedProducts(
     @Param('warehouseId') id: string,
-    @Query('limit') limit?: number,
+    @Query('limit') limit?: string,
   ) {
-    return this.service.getMostAdjustedProducts(id, limit);
+    return this.service.getMostAdjustedProducts(id, {
+      limit: limit ? Number(limit) : 5,
+    });
   }
 
   @Get('get-profit-loss')
-  getProfitLoss(@Query() query: object) {
-    return this.service.getProfitLoss(query);
+  getProfitLoss(
+    @Query('period') period?: string,
+    @Query('warehouseId') id?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.service.getProfitLoss({
+      period,
+      id,
+      from,
+      to,
+    });
   }
 
-  @Get('/get-top-products/:warehouseId')
+  @Get('get-top-products/:warehouseId')
   async getTopFiveProducts(@Param('warehouseId') warehouseId: string) {
     const data = await this.service.getTopFiveProducts(warehouseId);
 
