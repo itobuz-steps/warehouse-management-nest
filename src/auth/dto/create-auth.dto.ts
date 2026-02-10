@@ -1,4 +1,4 @@
-import { IsEmail, IsNotEmpty, Matches } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsString, Matches } from 'class-validator';
 
 export const PASSWORD_REGEX =
   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
@@ -21,9 +21,10 @@ export class LoginDto {
   @IsEmail()
   email: string;
 
-  @Matches(PASSWORD_REGEX, {
-    message: invalidPasswordMessage,
-  })
+  // @Matches(PASSWORD_REGEX, {
+  //   message: invalidPasswordMessage,
+  // })
+  @IsString()
   password: string;
 }
 

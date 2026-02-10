@@ -3,6 +3,7 @@ import {
   Injectable,
   // BadRequestException,
   NotFoundException,
+  StreamableFile,
 } from '@nestjs/common';
 import { InjectModel, InjectConnection } from '@nestjs/mongoose';
 import { Model, Connection, Types } from 'mongoose';
@@ -13,7 +14,6 @@ import { USER_TYPES } from 'src/auth/userType';
 import { UserDocument } from 'src/auth/entities/auth.entity';
 import { WarehouseTransactionsQueryDto } from './dto/query/warehouse-transactions.query.dto';
 import { GetTransactionsQueryDto } from './dto/query/get-transactions.query.dto';
-// import Notification from '../utils/Notification';
 import type { ClientSession, ObjectId, QueryFilter } from 'mongoose';
 import { PdfService } from './services/pdf.service';
 import { PopulatedTransaction } from './types/types';
@@ -542,10 +542,11 @@ export class TransactionService {
 
     const pdf = await this.pdfService.generateTransactionPdf(transaction);
 
-    return {
-      file: Buffer.from(pdf),
-      contentType: 'application/pdf',
-      fileName: `invoice-${transaction._id.toString()}.pdf`,
-    };
+    const buffer = Buffer.from(pdf);
+
+    return new StreamableFile(buffer, {
+      type: 'application/pdf',
+      disposition: `attachment; filename=invoice-${transaction._id}.pdf`,
+    });
   }
 }
