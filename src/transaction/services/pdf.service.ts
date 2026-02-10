@@ -10,6 +10,7 @@ import { WarehouseDocument } from '../../warehouse/schemas/warehouse.schema';
 import { PopulatedTransaction } from '../types/types';
 import { drawImage, writeLine, writeText, drawBadge } from '../utils/pdf.utils';
 import { Fontkit } from 'pdf-lib/cjs/types/fontkit';
+import { urlsConstant } from '../constants/urlPathConstants';
 
 @Injectable()
 export class PdfService {
@@ -19,23 +20,13 @@ export class PdfService {
     const pdfDoc = await PDFDocument.create();
     const page = pdfDoc.addPage(PageSizes.A4);
 
-    /** ---- PATHS (Nest-safe) ---- */
     const rootPath = process.cwd();
 
-    const imagePath = path.join(
-      rootPath,
-      'src/assets/images/warehouse-logo-removebg-preview.png',
-    );
+    const imagePath = path.join(rootPath, urlsConstant.warehouseImage);
 
-    const regularFontPath = path.join(
-      rootPath,
-      'src/assets/fonts/NotoSans-Regular.ttf',
-    );
+    const regularFontPath = path.join(rootPath, urlsConstant.regularFontPath);
 
-    const boldFontPath = path.join(
-      rootPath,
-      'src/assets/fonts/NotoSans-Bold.ttf',
-    );
+    const boldFontPath = path.join(rootPath, urlsConstant.boldFontPath);
 
     /** ---- LOGO ---- */
     const imageBytes = await fs.readFile(imagePath);

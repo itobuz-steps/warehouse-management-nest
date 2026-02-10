@@ -4,7 +4,9 @@ import type { Response } from 'express';
 
 import { TwoProductQuery } from './dto/tow-product-query.dto';
 import { AuthGuard } from 'src/common/guard/auth.guard';
+import { ApiBearerAuth } from '@nestjs/swagger';
 @UseGuards(AuthGuard)
+@ApiBearerAuth()
 @Controller('analytics')
 export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}

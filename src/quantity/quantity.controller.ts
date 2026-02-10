@@ -5,8 +5,10 @@ import { UpdateQuantityDto } from './dto/update-quantity.dto';
 import { GetSpecificQuantityDto } from './dto/product-specific-quantity.dto';
 import { ProductsHavingQuantityDto } from './dto/product-having-quantity.dto';
 import { ProductIdParams } from './dto/product-params.dto';
+import { ApiBearerAuth } from '@nestjs/swagger';
 
 @Controller('quantity')
+@ApiBearerAuth()
 export class QuantityController {
   constructor(private readonly quantityService: QuantityService) {}
 
