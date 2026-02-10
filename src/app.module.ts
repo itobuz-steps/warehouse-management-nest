@@ -10,6 +10,8 @@ import { QuantityModule } from './quantity/quantity.module';
 import { ProfileModule } from './profile/profile.module';
 import { AdminModule } from './admin/admin.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { AnalyticsModule } from './analytics/analytics.module';
+import { TransactionModule } from './transaction/transaction.module';
 import configService from './config/config.service';
 
 @Module({
@@ -26,6 +28,8 @@ import configService from './config/config.service';
     QuantityModule,
     AdminModule,
     DashboardModule,
+    AnalyticsModule,
+    TransactionModule,
   ],
   controllers: [AppController],
   providers: [AppService],
