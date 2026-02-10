@@ -19,14 +19,15 @@ import { AuthGuard } from '../common/guard/auth.guard';
 import { multerStorage } from 'src/helper/multer';
 import { UserDocument } from 'src/auth/entities/auth.entity';
 import { FILE_FIELD, FOLDER_PATH } from 'src/common/constants/file.constant';
+import { ApiBearerAuth } from '@nestjs/swagger';
 
-// ✅ Proper Request Type
 export interface RequestWithUser extends Request {
   user: UserDocument;
 }
 
 @Controller('profile')
 @UseGuards(AuthGuard)
+@ApiBearerAuth()
 export class ProfileController {
   constructor(private readonly profileService: ProfileService) {}
 
