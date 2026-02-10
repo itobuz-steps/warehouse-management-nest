@@ -1,8 +1,10 @@
-import { Controller, Get, Query, Res } from '@nestjs/common';
+import { Controller, Get, Query, Res, UseGuards } from '@nestjs/common';
 import { AnalyticsService } from './analytics.service';
 import type { Response } from 'express';
 
 import { TwoProductQuery } from './dto/tow-product-query.dto';
+import { AuthGuard } from 'src/common/guard/auth.guard';
+@UseGuards(AuthGuard)
 @Controller('analytics')
 export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}
