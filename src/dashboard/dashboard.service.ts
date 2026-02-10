@@ -9,6 +9,8 @@ import { Product } from 'src/products/entities/product.entity';
 import { Transaction } from 'src/transaction/schemas/transaction.schema';
 import { TRANSACTION_TYPES } from 'src/transaction/constants/transactionConstants';
 import { SHIPMENT_TYPES } from 'src/transaction/constants/shipmentConstants';
+import { ExcelService } from 'src/helper/excelGenerator';
+import { TopProductExcelItem } from 'src/helper/types/exceldata.types';
 
 type InventoryByCategoryAggItem = {
   _id: string;
@@ -66,7 +68,7 @@ type ProfitLossItem = {
 @Injectable()
 export class DashboardService {
   constructor(
-    private excel: GenerateExcelService,
+    private excel: ExcelService,
 
     @InjectModel(Quantity.name)
     private readonly quantityModel: Model<Quantity>,
@@ -88,7 +90,7 @@ export class DashboardService {
   async getTopFiveProductsData(id: string) {
     const warehouseId = this.validateWarehouse(id);
 
-    const data: Quantity[] = await this.quantityModel.aggregate([
+    const data: TopProductExcelItem[] = await this.quantityModel.aggregate([
       { $match: { warehouseId } },
       { $group: { _id: '$productId', totalQuantity: { $sum: '$quantity' } } },
       { $sort: { totalQuantity: -1 } },
@@ -274,9 +276,9 @@ export class DashboardService {
     return sevenDays;
   }
 
-  async getProductTransactionExcel(id: string) {
+  async generateProductTransactionExcel(id: string) {
     const transactionDetails = await this.getProductTransactionData(id);
-    return this.excel.getProductTransactionExcel(transactionDetails);
+    return this.excel.generateProductTransactionExcel(transactionDetails);
   }
 
   async getProductTransaction(id: string) {

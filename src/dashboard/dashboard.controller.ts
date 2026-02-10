@@ -20,9 +20,8 @@ export class DashboardController {
     @Param('warehouseId') warehouseId: string,
     @Res() res: Response,
   ) {
-    const buffer = (await this.service.generateTopFiveProductsExcel(
-      warehouseId,
-    )) as Buffer;
+    const buffer =
+      await this.service.generateInventoryByCategoryExcel(warehouseId);
 
     res.set({
       'Content-Type':
@@ -43,9 +42,8 @@ export class DashboardController {
     @Param('warehouseId') warehouseId: string,
     @Res() res: Response,
   ) {
-    const buffer = (await this.service.getProductTransactionExcel(
-      warehouseId,
-    )) as Buffer;
+    const buffer =
+      await this.service.generateProductTransactionExcel(warehouseId);
 
     res.set({
       'Content-Type':
@@ -129,9 +127,7 @@ export class DashboardController {
     @Param('warehouseId') warehouseId: string,
     @Res() res: Response,
   ) {
-    const buffer = (await this.service.generateTopFiveProductsExcel(
-      warehouseId,
-    )) as Buffer;
+    const buffer = await this.service.generateTopFiveProductsExcel(warehouseId);
 
     res.set({
       'Content-Type':

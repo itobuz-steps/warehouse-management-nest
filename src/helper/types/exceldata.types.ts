@@ -1,3 +1,7 @@
+// For Product Analytics
+
+import mongoose from 'mongoose';
+
 export type TwoProductTransactionExcelRow = {
   date: string;
   productATransactions: number;
@@ -35,4 +39,26 @@ export type TwoProductQuantityResult = {
     name: string;
     quantity: number;
   };
+};
+
+// For Dashboard Analytics
+
+export type TopProductExcelItem = {
+  productId: mongoose.Types.ObjectId;
+  productName: string;
+  category: string;
+  price: number;
+  totalQuantity: number;
+};
+
+export type InventoryCategoryExcelItem = {
+  _id: string;
+  totalProducts: number;
+  products: { price: number }[];
+};
+
+export type WeeklyTransactionExcelItem = {
+  _id: string;
+  IN: number;
+  OUT: number;
 };
