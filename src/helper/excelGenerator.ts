@@ -8,8 +8,7 @@ import type {
   InventoryCategoryExcelItem,
   WeeklyTransactionExcelItem,
 } from './types/exceldata.types';
-import { EXCEL_THIN_BORDER } from './excel.constants';
-import { EXCEL_PRIMARY_FILL } from './excel.constants';
+import { EXCEL_THIN_BORDER, EXCEL_PRIMARY_FILL } from './excel.constants';
 
 @Injectable()
 export class ExcelService {

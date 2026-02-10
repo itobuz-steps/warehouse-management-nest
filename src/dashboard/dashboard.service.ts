@@ -1,7 +1,7 @@
 // src/dashboard/dashboard.service.ts
 import { Injectable, HttpException, BadRequestException } from '@nestjs/common';
-import mongoose, { Model, Types, QueryFilter } from 'mongoose';
-import { Quantity } from 'src/quantity/entities/quantity.entity.js';
+import mongoose, { Model, QueryFilter } from 'mongoose';
+import { Quantity } from 'src/quantity/entities/quantity.entity';
 
 import { subDays, eachDayOfInterval, format } from 'date-fns';
 import { InjectModel } from '@nestjs/mongoose';
@@ -10,60 +10,18 @@ import { Transaction } from 'src/transaction/schemas/transaction.schema';
 import { TRANSACTION_TYPES } from 'src/transaction/constants/transactionConstants';
 import { SHIPMENT_TYPES } from 'src/transaction/constants/shipmentConstants';
 import { ExcelService } from 'src/helper/excelGenerator';
-import { TopProductExcelItem } from 'src/helper/types/exceldata.types';
-
-type InventoryByCategoryAggItem = {
-  _id: string;
-  totalProducts: number;
-  products: any[];
-};
-
-type ProductTransactionDay = {
-  _id: string;
-  IN: number;
-  OUT: number;
-};
-
-type SalesOverview = {
-  totalSales: number;
-  saleQuantity: number;
-};
-
-type PurchaseOverview = {
-  totalPurchase: number;
-  purchaseQuantity: number;
-};
-
-type InventoryOverview = {
-  totalQuantity: number;
-};
-
-type TodayShipmentOverview = {
-  quantity: number;
-};
-
-type LowStockProduct = {
-  productId: Types.ObjectId;
-  quantity: number;
-  productName: string;
-};
-
-type TopSellingProduct = {
-  productId: Types.ObjectId;
-  productName: string;
-  category: string;
-  price: number;
-  totalSoldQuantity: number;
-  totalSalesAmount: number;
-  productImage?: string;
-};
-
-type ProfitLossItem = {
-  label: string;
-  profit: number;
-  loss: number;
-  net: number;
-};
+import {
+  TopProductItem,
+  InventoryByCategoryAggItem,
+  ProductTransactionDay,
+  SalesOverview,
+  PurchaseOverview,
+  InventoryOverview,
+  TodayShipmentOverview,
+  LowStockProduct,
+  TopSellingProduct,
+  ProfitLossItem,
+} from './types/dashboard.data.type';
 
 @Injectable()
 export class DashboardService {
@@ -90,7 +48,7 @@ export class DashboardService {
   async getTopFiveProductsData(id: string) {
     const warehouseId = this.validateWarehouse(id);
 
-    const data: TopProductExcelItem[] = await this.quantityModel.aggregate([
+    const data: TopProductItem[] = await this.quantityModel.aggregate([
       { $match: { warehouseId } },
       { $group: { _id: '$productId', totalQuantity: { $sum: '$quantity' } } },
       { $sort: { totalQuantity: -1 } },

@@ -1,0 +1,62 @@
+import { Types } from 'mongoose';
+
+export type TopProductItem = {
+  productId: Types.ObjectId;
+  productName: string;
+  category: string;
+  price: number;
+  totalQuantity: number;
+};
+
+export type InventoryByCategoryAggItem = {
+  _id: string;
+  totalProducts: number;
+  products: any[];
+};
+
+export type ProductTransactionDay = {
+  _id: string;
+  IN: number;
+  OUT: number;
+};
+
+export type SalesOverview = {
+  totalSales: number;
+  saleQuantity: number;
+};
+
+export type PurchaseOverview = {
+  totalPurchase: number;
+  purchaseQuantity: number;
+};
+
+export type InventoryOverview = {
+  totalQuantity: number;
+};
+
+export type TodayShipmentOverview = {
+  quantity: number;
+};
+
+export type LowStockProduct = {
+  productId: Types.ObjectId;
+  quantity: number;
+  productName: string;
+};
+
+export type TopSellingProduct = {
+  productId: Types.ObjectId;
+  productName: string;
+  category: string;
+  price: number;
+  totalSoldQuantity: number;
+  totalSalesAmount: number;
+  productImage?: string;
+};
+
+export type ProfitLossItem = {
+  label: string;
+  profit: number;
+  loss: number;
+  net: number;
+};
