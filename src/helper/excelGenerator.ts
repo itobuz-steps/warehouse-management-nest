@@ -1,45 +1,12 @@
-// excel.service.ts
 import { Injectable } from '@nestjs/common';
 import * as ExcelJS from 'exceljs';
-
-type TwoProductTransactionExcelRow = {
-  date: string;
-  productATransactions: number;
-  productBTransactions: number;
-};
-
-export type TwoProductHistoryResult = {
-  warehouse: string;
-  productA: {
-    id: string;
-    name: string;
-    history: TransactionHistoryItem[];
-  };
-  productB: {
-    id: string;
-    name: string;
-    history: TransactionHistoryItem[];
-  };
-};
-
-export type TransactionHistoryItem = {
-  date: string;
-  transactions: number;
-};
-
-export type TwoProductQuantityResult = {
-  warehouse: string;
-  productA: {
-    id: string;
-    name: string;
-    quantity: number;
-  };
-  productB: {
-    id: string;
-    name: string;
-    quantity: number;
-  };
-};
+import type {
+  TwoProductTransactionExcelRow,
+  TwoProductHistoryResult,
+  TwoProductQuantityResult,
+} from './types/exceldata.types';
+import { EXCEL_THIN_BORDER } from './excel.constants';
+import { EXCEL_PRIMARY_FILL } from './excel.constants';
 
 @Injectable()
 export class ExcelService {
@@ -53,37 +20,21 @@ export class ExcelService {
     const header = ['ID', 'Name', 'Quantity'];
     const headerRow = worksheet.addRow(header);
 
-    // Styling logic
     headerRow.eachCell((cell) => {
       cell.font = { bold: true, size: 12 };
-      cell.fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFDDEBF7' },
-      };
-      cell.border = {
-        top: { style: 'thin' },
-        left: { style: 'thin' },
-        bottom: { style: 'thin' },
-        right: { style: 'thin' },
-      };
+      cell.fill = EXCEL_PRIMARY_FILL;
+      cell.border = EXCEL_THIN_BORDER;
     });
 
     dataArray.forEach((item) => {
       const row = worksheet.addRow([item.id, item.name, item.quantity]);
       row.eachCell((cell) => {
-        cell.border = {
-          top: { style: 'thin' },
-          left: { style: 'thin' },
-          bottom: { style: 'thin' },
-          right: { style: 'thin' },
-        };
+        cell.border = EXCEL_THIN_BORDER;
       });
     });
 
-    // Auto-fit columns
     worksheet.columns.forEach((column) => {
-      column.width = 20; // Simplified for brevity
+      column.width = 20;
     });
 
     const buffer = await workbook.xlsx.writeBuffer();
@@ -96,11 +47,9 @@ export class ExcelService {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Two Product - Transactions');
 
-    // Header row
     const header = ['Date', data.productA.name, data.productB.name];
     const headerRow = worksheet.addRow(header);
 
-    // IMPORTANT FIX: use slice(), NOT splice()
     const dataA = data.productA.history.slice(-7);
     const dataB = data.productB.history.slice(-7);
 
@@ -114,24 +63,13 @@ export class ExcelService {
       });
     }
 
-    // ✅ Header styling
     headerRow.eachCell((cell) => {
       cell.font = { bold: true, size: 12 };
       cell.alignment = { horizontal: 'center', vertical: 'middle' };
-      cell.fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFDDEBF7' },
-      };
-      cell.border = {
-        top: { style: 'thin' },
-        left: { style: 'thin' },
-        bottom: { style: 'thin' },
-        right: { style: 'thin' },
-      };
+      cell.fill = EXCEL_PRIMARY_FILL;
+      cell.border = EXCEL_THIN_BORDER;
     });
 
-    // ✅ Add rows
     dataArray.forEach((item) => {
       const row = worksheet.addRow([
         item.date,
@@ -141,16 +79,10 @@ export class ExcelService {
 
       row.eachCell((cell) => {
         cell.alignment = { horizontal: 'center', vertical: 'middle' };
-        cell.border = {
-          top: { style: 'thin' },
-          left: { style: 'thin' },
-          bottom: { style: 'thin' },
-          right: { style: 'thin' },
-        };
+        cell.border = EXCEL_THIN_BORDER;
       });
     });
 
-    //  Auto column width
     worksheet.columns.forEach((column) => {
       let maxLength = 12;
 
@@ -165,7 +97,6 @@ export class ExcelService {
       column.width = maxLength + 2;
     });
 
-    //  Return Buffer
     const buffer = await workbook.xlsx.writeBuffer();
     return Buffer.from(buffer);
   }

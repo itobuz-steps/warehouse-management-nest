@@ -1,4 +1,3 @@
-// analytics.service.ts
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -26,7 +25,10 @@ export class AnalyticsService {
     const { warehouseId, productA, productB } = query;
 
     const warehouse = await this.warehouseModel.findById(warehouseId);
-    if (!warehouse) throw new NotFoundException('Warehouse not found.');
+
+    if (!warehouse) {
+      throw new NotFoundException('Warehouse not found.');
+    }
 
     const [productAData, productBData] = await Promise.all([
       this.productModel.findById(productA),
@@ -58,29 +60,27 @@ export class AnalyticsService {
   }
 
   async getTwoProductComparisonHistory(query: TwoProductQuery) {
-    // Destructuring with renaming to match your DTO keys
     const { warehouseId, productA, productB } = query;
 
-    // 1. Validate existence in parallel
     const [warehouse, productAData, productBData] = await Promise.all([
       this.warehouseModel.findById(warehouseId),
       this.productModel.findById(productA),
       this.productModel.findById(productB),
     ]);
 
-    if (!warehouse) throw new NotFoundException('Warehouse not found.');
+    if (!warehouse) {
+      throw new NotFoundException('Warehouse not found.');
+    }
     if (!productAData || !productBData) {
       throw new NotFoundException('One or both product(s) not found.');
     }
 
-    // 2. Set up date range (Last 7 days)
     const endDate = new Date();
     endDate.setHours(23, 59, 59, 999);
     const startDate = new Date(endDate);
     startDate.setDate(endDate.getDate() - 6);
     startDate.setHours(0, 0, 0, 0);
 
-    // 3. Fetch transactions
     const transactions = await this.transactionModel.find({
       product: { $in: [productA, productB] },
       createdAt: { $gte: startDate, $lte: endDate },
@@ -89,7 +89,7 @@ export class AnalyticsService {
         { destinationWarehouse: warehouseId },
       ],
     });
-    // 4. Initialize counts and date list
+
     const counts = {
       productA: {} as CountMap,
       productB: {} as CountMap,
@@ -99,24 +99,24 @@ export class AnalyticsService {
     for (let i = 0; i < 7; i++) {
       const d = new Date(startDate);
       d.setDate(startDate.getDate() + i);
-      const dateKey = d.toLocaleDateString('en-CA'); // YYYY-MM-DD
+      const dateKey = d.toLocaleDateString('en-CA');
       dateList.push(dateKey);
       counts.productA[dateKey] = 0;
       counts.productB[dateKey] = 0;
     }
 
-    // 5. Aggregate transaction counts
     for (const transaction of transactions) {
       const dateKey = new Date(transaction.createdAt).toLocaleDateString(
         'en-CA',
       );
-      if (String(transaction.product) === String(productA))
+      if (String(transaction.product) === String(productA)) {
         counts.productA[dateKey]++;
-      if (String(transaction.product) === String(productB))
+      }
+      if (String(transaction.product) === String(productB)) {
         counts.productB[dateKey]++;
+      }
     }
 
-    // 6. Format Result
     return {
       warehouse: warehouse.name,
       productA: {
@@ -147,9 +147,12 @@ export class AnalyticsService {
       this.productModel.findById(productB),
     ]);
 
-    if (!warehouse) throw new NotFoundException('Warehouse not found.');
-    if (!productAData || !productBData)
+    if (!warehouse) {
+      throw new NotFoundException('Warehouse not found.');
+    }
+    if (!productAData || !productBData) {
       throw new NotFoundException('Products not found.');
+    }
 
     const [qtyA, qtyB] = await Promise.all([
       this.quantityModel.findOne({ warehouseId, productA }),
@@ -180,18 +183,19 @@ export class AnalyticsService {
       this.productModel.findById(productB),
     ]);
 
-    if (!warehouse) throw new NotFoundException('Warehouse not found.');
-    if (!productAData || !productBData)
+    if (!warehouse) {
+      throw new NotFoundException('Warehouse not found.');
+    }
+    if (!productAData || !productBData) {
       throw new NotFoundException('Products not found.');
+    }
 
-    // 1. Setup Date Range
     const endDate = new Date();
     endDate.setHours(23, 59, 59, 999);
     const startDate = new Date(endDate);
     startDate.setDate(endDate.getDate() - 6);
     startDate.setHours(0, 0, 0, 0);
 
-    // 2. Fetch Transactions
     const transactions = await this.transactionModel.find({
       product: { $in: [productA, productB] },
       createdAt: { $gte: startDate, $lte: endDate },
@@ -200,10 +204,10 @@ export class AnalyticsService {
         { destinationWarehouse: warehouseId },
       ],
     });
-    // 3. Initialize counts and date list
+
     const counts = {
-      productA: {} as Record<string, number>,
-      productB: {} as Record<string, number>,
+      productA: {} as CountMap,
+      productB: {} as CountMap,
     };
     const dateList: string[] = [];
 
@@ -216,18 +220,18 @@ export class AnalyticsService {
       counts.productB[dateKey] = 0;
     }
 
-    // 4. Aggregate Transaction Counts
     for (const transaction of transactions) {
       const dateKey = new Date(transaction.createdAt).toLocaleDateString(
         'en-CA',
       );
-      if (String(transaction.product) === String(productA))
+      if (String(transaction.product) === String(productA)) {
         counts.productA[dateKey]++;
-      if (String(transaction.product) === String(productB))
+      }
+      if (String(transaction.product) === String(productB)) {
         counts.productB[dateKey]++;
+      }
     }
 
-    // 5. Construct Final Result
     return {
       warehouse: warehouse.name,
       productA: {
