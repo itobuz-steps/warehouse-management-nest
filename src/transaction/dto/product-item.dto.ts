@@ -1,4 +1,4 @@
-import { IsMongoId, IsNumber, Min } from 'class-validator';
+import { IsMongoId, IsNumber, IsOptional, Min } from 'class-validator';
 
 export class ProductItemDto {
   @IsMongoId()
@@ -7,4 +7,8 @@ export class ProductItemDto {
   @IsNumber()
   @Min(1)
   quantity: number;
+
+  @IsOptional()
+  @IsNumber()
+  limit?: number;
 }
