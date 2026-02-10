@@ -22,6 +22,7 @@ import {
   TopSellingProduct,
   ProfitLossItem,
 } from './types/dashboard.data.type';
+import { defaultDataLimit, TIME_RANGE, TIME_ZONE } from './dashboard.constants';
 
 @Injectable()
 export class DashboardService {
@@ -76,7 +77,7 @@ export class DashboardService {
         },
       },
 
-      { $limit: 5 },
+      { $limit: defaultDataLimit },
     ]);
 
     console.log(data);
@@ -443,7 +444,7 @@ export class DashboardService {
     };
   }
 
-  async getTopSellingProducts(id: string, limit = 5) {
+  async getTopSellingProducts(id: string, limit = defaultDataLimit) {
     const warehouseId = this.validateWarehouse(id);
 
     const topSellingProducts =
@@ -515,7 +516,7 @@ export class DashboardService {
     const { startDate, endDate } = options || {};
 
     const warehouseId = this.validateWarehouse(id);
-    const limit = Number(options?.limit || 5);
+    const limit = Number(options?.limit || defaultDataLimit);
 
     const match: QueryFilter<Transaction> = {
       shipment: SHIPMENT_TYPES.CANCELLED,
@@ -584,7 +585,7 @@ export class DashboardService {
     },
   ) {
     const warehouseId = this.validateWarehouse(id);
-    const limit = Number(options?.limit || 5);
+    const limit = Number(options?.limit || defaultDataLimit);
 
     const mostAdjustedProducts = await this.transactionModel.aggregate([
       {
@@ -651,7 +652,7 @@ export class DashboardService {
   }) {
     const warehouseId = this.validateWarehouse(query.id);
 
-    const period = query.period ?? 'week';
+    const period = query.period ?? TIME_RANGE.WEEK;
     const from = query.from;
     const to = query.to;
 
@@ -674,13 +675,17 @@ export class DashboardService {
 
       totalDays = Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
     } else {
-      if (!['week', 'month'].includes(period)) {
+      if (
+        ![TIME_RANGE.WEEK as string, TIME_RANGE.MONTH as string].includes(
+          period,
+        )
+      ) {
         throw new BadRequestException(
           'Invalid period. Allowed values: week, month',
         );
       }
 
-      totalDays = period === 'month' ? 30 : 7;
+      totalDays = period === (TIME_RANGE.MONTH as string) ? 30 : 7;
 
       start = new Date();
       start.setDate(start.getDate() - (totalDays - 1));
@@ -689,7 +694,6 @@ export class DashboardService {
       end = now;
     }
 
-    // 🧩 Match Stage (Strict Typed)
     const match: QueryFilter<Transaction> = {
       createdAt: { $gte: start, $lte: end },
     };
@@ -701,7 +705,6 @@ export class DashboardService {
       ];
     }
 
-    // 📊 Aggregation Pipeline
     const dbData = await this.transactionModel.aggregate<ProfitLossItem>([
       { $match: match },
 
@@ -757,7 +760,7 @@ export class DashboardService {
             $dateToString: {
               format: '%Y-%m-%d',
               date: '$createdAt',
-              timezone: 'Asia/Kolkata',
+              timezone: TIME_ZONE,
             },
           },
           profit: { $sum: '$profitAmount' },
