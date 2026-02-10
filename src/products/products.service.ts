@@ -129,7 +129,7 @@ export class ProductsService {
   }
 
   async findOne(id: string) {
-    const product = await this.productModel.findById(id).exec();
+    const product = await this.productModel.findById(id);
 
     if (!product) {
       throw new NotFoundException('Product not found');
