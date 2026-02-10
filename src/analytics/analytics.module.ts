@@ -16,6 +16,7 @@ import {
 } from 'src/quantity/entities/quantity.entity';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ExcelService } from 'src/helper/excelGenerator';
+import { User, UserSchema } from 'src/auth/entities/auth.entity';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { ExcelService } from 'src/helper/excelGenerator';
       { name: Product.name, schema: ProductSchema },
       { name: Warehouse.name, schema: WarehouseSchema },
       { name: Quantity.name, schema: QuantitySchema },
+      { name: User.name, schema: UserSchema },
     ]),
   ],
   controllers: [AnalyticsController],
