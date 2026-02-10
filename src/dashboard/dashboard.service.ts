@@ -5,6 +5,7 @@ import { Quantity } from 'src/quantity/entities/quantity.entity.js';
 
 import { subDays, eachDayOfInterval, format } from 'date-fns';
 import { InjectModel } from '@nestjs/mongoose';
+import { Product } from 'src/products/entities/product.entity';
 
 export interface InventoryByCategoryAggItem {
   _id: string;
@@ -25,6 +26,12 @@ export class DashboardService {
 
     @InjectModel(Quantity.name)
     private readonly quantityModel: Model<Quantity>,
+
+    @InjectModel(Product.name)
+    private readonly productModel: Model<Product>,
+
+    @InjectModel(Transaction.name)
+    private readonly transactionModel: Model<Transaction>,
   ) {}
 
   validateWarehouse(id?: string) {
@@ -222,9 +229,9 @@ export class DashboardService {
     return sevenDays;
   }
 
-  async generateWeeklyTransactionExcel(id: string) {
+  async getProductTransactionExcel(id: string) {
     const transactionDetails = await this.getProductTransactionData(id);
-    return this.excel.generateWeeklyTransactionExcel(transactionDetails);
+    return this.excel.getProductTransactionExcel(transactionDetails);
   }
 
   async getProductTransaction(id: string) {
