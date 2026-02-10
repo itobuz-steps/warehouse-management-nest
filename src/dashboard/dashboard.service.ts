@@ -80,7 +80,6 @@ export class DashboardService {
       { $limit: defaultDataLimit },
     ]);
 
-    console.log(data);
     return data;
   }
 
