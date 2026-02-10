@@ -10,6 +10,7 @@ import { QuantityModule } from './quantity/quantity.module';
 import { ProfileModule } from './profile/profile.module';
 import { AdminModule } from './admin/admin.module';
 import { NotificationModule } from './notification/notification.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 import { TransactionModule } from './transaction/transaction.module';
 import configService from './config/config.service';
 
@@ -27,6 +28,7 @@ import configService from './config/config.service';
     QuantityModule,
     AdminModule,
     NotificationModule,
+    AnalyticsModule,
     TransactionModule,
   ],
   controllers: [AppController],

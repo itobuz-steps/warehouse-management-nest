@@ -48,6 +48,9 @@ export class Transaction {
 
   @Prop({ type: Types.ObjectId, ref: 'Warehouse' })
   destinationWarehouse?: Types.ObjectId;
+
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export const TransactionSchema = SchemaFactory.createForClass(Transaction);

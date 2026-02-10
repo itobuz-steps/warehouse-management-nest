@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  StreamableFile,
 } from '@nestjs/common';
 import { InjectModel, InjectConnection } from '@nestjs/mongoose';
 import { Model, Connection, Types } from 'mongoose';
@@ -173,13 +174,14 @@ export class TransactionService {
       for (const item of dto.products) {
         const quantityRecord =
           (await this.quantityModel.findOne({
-            warehouseId: dto.destinationWarehouse,
-            productId: item.productId,
+            warehouseId: new Types.ObjectId(dto.destinationWarehouse),
+            productId: new Types.ObjectId(item.productId),
           })) ??
           new this.quantityModel({
-            warehouseId: dto.destinationWarehouse,
-            productId: item.productId,
+            warehouseId: new Types.ObjectId(dto.destinationWarehouse),
+            productId: new Types.ObjectId(item.productId),
             quantity: 0,
+            limit: item.limit,
           });
 
         quantityRecord.quantity += item.quantity;
@@ -189,12 +191,14 @@ export class TransactionService {
           [
             {
               type: TRANSACTION_TYPES.IN,
-              product: item.productId,
+              product: new Types.ObjectId(item.productId),
               quantity: item.quantity,
               supplier: dto.supplier,
-              destinationWarehouse: dto.destinationWarehouse,
+              destinationWarehouse: new Types.ObjectId(
+                dto.destinationWarehouse,
+              ),
               notes: dto.notes,
-              performedBy: userId,
+              performedBy: new Types.ObjectId(userId),
             },
           ],
           { session },
@@ -258,8 +262,8 @@ export class TransactionService {
         }
 
         const quantityRecord = await this.quantityModel.findOne({
-          productId,
-          warehouseId: dto.sourceWarehouse,
+          productId: new Types.ObjectId(productId),
+          warehouseId: new Types.ObjectId(dto.sourceWarehouse),
         });
 
         if (!quantityRecord) {
@@ -272,6 +276,12 @@ export class TransactionService {
           );
         }
 
+        if (quantity > quantityRecord.limit) {
+          throw new BadRequestException(
+            `Stock-out limit exceeded for ${product.name}`,
+          );
+        }
+
         const previousQty = quantityRecord.quantity;
 
         quantityRecord.quantity -= quantity;
@@ -281,14 +291,14 @@ export class TransactionService {
           [
             {
               type: TRANSACTION_TYPES.OUT,
-              product: productId,
+              product: new Types.ObjectId(productId),
               quantity,
               customerName: dto.customerName,
               customerEmail: dto.customerEmail,
               customerPhone: dto.customerPhone,
               customerAddress: dto.customerAddress,
               shipment: SHIPMENT_TYPES.PENDING,
-              sourceWarehouse: dto.sourceWarehouse,
+              sourceWarehouse: new Types.ObjectId(dto.sourceWarehouse),
               notes: dto.notes,
               performedBy: new Types.ObjectId(userId),
             },
@@ -299,8 +309,8 @@ export class TransactionService {
         transactions.push(transaction[0]);
 
         if (
-          quantityRecord.quantity <= (quantityRecord.limit as number) &&
-          previousQty > (quantityRecord.limit as number)
+          quantityRecord.quantity <= quantityRecord.limit &&
+          previousQty > quantityRecord.limit
         ) {
           lowStockNotifications.push({
             productId,
@@ -372,32 +382,50 @@ export class TransactionService {
         destQuantity: Quantity;
       }[] = [];
 
-      for (const { productId, quantity } of products) {
+      for (const { productId, quantity, limit } of products) {
         const product = await this.productModel.findById(productId);
         if (!product) throw new NotFoundException('Product not found');
 
         const sourceQty = await this.quantityModel.findOne({
-          warehouseId: sourceWarehouse,
-          productId,
+          warehouseId: new Types.ObjectId(sourceWarehouse),
+          productId: new Types.ObjectId(productId),
         });
 
         if (!sourceQty)
           throw new NotFoundException('Product not found in source warehouse');
 
+        if (sourceQty.quantity < quantity) {
+          throw new BadRequestException(
+            `Insufficient stock for ${product.name}`,
+          );
+        }
+
         const prevQty = sourceQty.quantity;
+
         sourceQty.quantity -= quantity;
         await sourceQty.save({ session });
 
         let destQty = await this.quantityModel.findOne({
-          warehouseId: destinationWarehouse,
-          productId,
+          warehouseId: new Types.ObjectId(destinationWarehouse),
+          productId: new Types.ObjectId(productId),
         });
+
+        if (!quantity) {
+          throw new BadRequestException('Quantity is required');
+        }
+
+        if (!destQty && !limit) {
+          throw new BadRequestException(
+            'Limit is required for new destination warehouse',
+          );
+        }
 
         if (!destQty) {
           destQty = new this.quantityModel({
-            warehouseId: destinationWarehouse,
-            productId,
-            quantity: 0,
+            warehouseId: new Types.ObjectId(destinationWarehouse),
+            productId: new Types.ObjectId(productId),
+            quantity,
+            limit,
           });
         }
 
@@ -414,12 +442,12 @@ export class TransactionService {
           [
             {
               type: TRANSACTION_TYPES.TRANSFER,
-              product: productId,
+              product: new Types.ObjectId(productId),
               quantity,
               notes,
-              sourceWarehouse,
-              destinationWarehouse,
-              performedBy: userId,
+              sourceWarehouse: new Types.ObjectId(sourceWarehouse),
+              destinationWarehouse: new Types.ObjectId(destinationWarehouse),
+              performedBy: new Types.ObjectId(userId),
             },
           ],
           { session },
@@ -428,8 +456,8 @@ export class TransactionService {
         transactions.push(tx[0]);
 
         if (
-          sourceQty.quantity <= (sourceQty.limit as number) &&
-          prevQty > (sourceQty.limit as number)
+          sourceQty.quantity <= sourceQty.limit &&
+          prevQty > sourceQty.limit
         ) {
           await this.notificationTriggerService.notifyLowStock(
             productId,
@@ -482,8 +510,8 @@ export class TransactionService {
       const { productId, quantity } = products[0];
 
       const quantityRecord = await this.quantityModel.findOne({
-        warehouseId,
-        productId,
+        warehouseId: new Types.ObjectId(warehouseId),
+        productId: new Types.ObjectId(productId),
       });
 
       if (!quantityRecord)
@@ -497,12 +525,12 @@ export class TransactionService {
         [
           {
             type: TRANSACTION_TYPES.ADJUSTMENT,
-            product: productId,
+            product: new Types.ObjectId(productId),
             quantity,
             reason,
             notes,
-            destinationWarehouse: warehouseId,
-            performedBy: userId,
+            destinationWarehouse: new Types.ObjectId(warehouseId),
+            performedBy: new Types.ObjectId(userId),
           },
         ],
         { session },
@@ -511,8 +539,8 @@ export class TransactionService {
       await session.commitTransaction();
 
       if (
-        quantityRecord.quantity <= (quantityRecord.limit as number) &&
-        prevQty > (quantityRecord.limit as number)
+        quantityRecord.quantity <= quantityRecord.limit &&
+        prevQty > quantityRecord.limit
       ) {
         await this.notificationTriggerService.notifyLowStock(
           productId,
@@ -561,10 +589,11 @@ export class TransactionService {
 
     const pdf = await this.pdfService.generateTransactionPdf(transaction);
 
-    return {
-      file: Buffer.from(pdf),
-      contentType: 'application/pdf',
-      fileName: `invoice-${transaction._id.toString()}.pdf`,
-    };
+    const buffer = Buffer.from(pdf);
+
+    return new StreamableFile(buffer, {
+      type: 'application/pdf',
+      disposition: `attachment; filename=invoice-${transaction._id}.pdf`,
+    });
   }
 }

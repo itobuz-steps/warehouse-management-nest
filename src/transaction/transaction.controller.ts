@@ -17,9 +17,11 @@ import type { RequestWithUserDocument } from './types/types';
 import { StockOutDto } from './dto/stock-out.dto';
 import { TransferDto } from './dto/transfer.dto';
 import { AdjustmentDto } from './dto/adjustment.dto';
+import { ApiBearerAuth } from '@nestjs/swagger';
 
 @Controller('transactions')
 @UseGuards(AuthGuard)
+@ApiBearerAuth()
 export class TransactionController {
   constructor(private readonly transactionService: TransactionService) {}
 
