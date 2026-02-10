@@ -18,10 +18,10 @@ export interface NotificationPayload {
   title: string;
   message: string;
 
+  relatedProduct?: Types.ObjectId;
+
   product: Product;
   warehouse: WarehouseDocument;
-
-  relatedProduct?: Types.ObjectId;
   warehouseId?: Types.ObjectId;
   transactionId?: Types.ObjectId;
   transactionPerformedBy?: Types.ObjectId;
@@ -50,8 +50,9 @@ export class NotificationHelper {
       type: payload.type,
       title: payload.title,
       message: payload.message,
+
       relatedProduct: payload.relatedProduct,
-      warehouse: payload.warehouseId,
+      warehouse: payload.warehouseId, // ✅ FIXED
       transactionId: payload.transactionId,
       transactionPerformedBy: payload.transactionPerformedBy,
     });
@@ -77,6 +78,7 @@ export class NotificationHelper {
               (payload.type as NOTIFICATION_TYPES) ===
               NOTIFICATION_TYPES.LOW_STOCK
             ) {
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-call
               await this.sendEmail.sendLowStockEmail(
                 user.email,
                 user,
@@ -84,6 +86,7 @@ export class NotificationHelper {
                 payload.warehouse,
               );
             } else {
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-call
               await this.sendEmail.sendPendingShipmentEmail(
                 user.email,
                 user,

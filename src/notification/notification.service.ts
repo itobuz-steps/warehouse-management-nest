@@ -12,6 +12,7 @@ import { Product } from 'src/products/entities/product.entity';
 import { Warehouse } from 'src/warehouse/schemas/warehouse.schema';
 import { Quantity } from 'src/quantity/entities/quantity.entity';
 import { Transaction } from 'src/transaction/schemas/transaction.schema';
+import { SHIPMENT_TYPES } from 'src/transaction/constants/shipmentConstants';
 
 @Injectable()
 export class NotificationService {
@@ -198,8 +199,10 @@ export class NotificationService {
 
       // 6️⃣ Send Email to Customer
       if (status === 'shipped') {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-call
         await this.sendEmail.sendProductShippedEmailToCustomer(transaction);
       } else {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-call
         await this.sendEmail.sendProductCancelEmailToCustomer(transaction);
       }
 

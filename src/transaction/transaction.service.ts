@@ -1,7 +1,6 @@
 import {
   BadRequestException,
   Injectable,
-  // BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel, InjectConnection } from '@nestjs/mongoose';
@@ -13,7 +12,6 @@ import { USER_TYPES } from 'src/auth/userType';
 import { UserDocument } from 'src/auth/entities/auth.entity';
 import { WarehouseTransactionsQueryDto } from './dto/query/warehouse-transactions.query.dto';
 import { GetTransactionsQueryDto } from './dto/query/get-transactions.query.dto';
-// import Notification from '../utils/Notification';
 import type { ClientSession, ObjectId, QueryFilter } from 'mongoose';
 import { PdfService } from './services/pdf.service';
 import { PopulatedTransaction } from './types/types';
@@ -24,6 +22,9 @@ import { Product } from 'src/products/entities/product.entity';
 import { SHIPMENT_TYPES } from './constants/shipmentConstants';
 import { TransferDto } from './dto/transfer.dto';
 import { AdjustmentDto } from './dto/adjustment.dto';
+import { NotificationService } from 'src/notification/notification.service';
+import { NotificationTriggerService } from 'src/notification/notification-trigger.service';
+import { NOTIFICATION_TYPES } from 'src/notification/notificationTypes';
 
 @Injectable()
 export class TransactionService {
@@ -43,9 +44,14 @@ export class TransactionService {
     @InjectConnection()
     private readonly connection: Connection,
 
-    // private readonly notification: Notification,
+    @InjectModel(Notification.name)
+    private readonly notification: Model<Notification>,
 
     private readonly pdfService: PdfService,
+
+    private readonly notificationService: NotificationService,
+
+    private readonly notificationTriggerService: NotificationTriggerService,
   ) {}
 
   async getTransactions(query: GetTransactionsQueryDto, user: UserDocument) {
@@ -201,17 +207,18 @@ export class TransactionService {
 
       const promises: Promise<void>[] = [];
 
-      // for (const tx of transactions) {
-      //   const notificationPromise = this.notification.notifyTransaction(
-      //     tx.product,
-      //     tx.destinationWarehouse,
-      //     tx._id.toString(),
-      //     tx.quantity,
-      //     'STOCK_IN',
-      //     userId,
-      //   );
-      // promises.push(notificationPromise);
-      // }
+      for (const tx of transactions) {
+        const notificationPromise =
+          this.notificationTriggerService.notifyTransaction(
+            tx.product._id,
+            tx.destinationWarehouse as Types.ObjectId,
+            tx._id.toString(),
+            tx.quantity,
+            NOTIFICATION_TYPES.STOCK_IN,
+            userId,
+          );
+        promises.push(notificationPromise);
+      }
 
       Promise.all(promises).catch(() =>
         console.error('Failed to send notification'),
@@ -234,11 +241,12 @@ export class TransactionService {
     const session: ClientSession = await this.connection.startSession();
     session.startTransaction();
 
-    const transactions: Transaction[] = [];
-    // const lowStockNotifications: {
-    //   productId: string;
-    //   warehouseId: string;
-    // }[] = [];
+    const transactions: TransactionDocument[] = [];
+
+    const lowStockNotifications: {
+      productId: string;
+      warehouseId: string;
+    }[] = [];
 
     try {
       for (const item of dto.products) {
@@ -264,7 +272,7 @@ export class TransactionService {
           );
         }
 
-        // const previousQty = quantityRecord.quantity;
+        const previousQty = quantityRecord.quantity;
 
         quantityRecord.quantity -= quantity;
         await quantityRecord.save({ session });
@@ -290,40 +298,42 @@ export class TransactionService {
 
         transactions.push(transaction[0]);
 
-        // if (
-        //   quantityRecord.quantity <= quantityRecord.limit &&
-        //   previousQty > quantityRecord.limit
-        // ) {
-        //   lowStockNotifications.push({
-        //     productId,
-        //     warehouseId: dto.sourceWarehouse,
-        //   });
-        // }
+        if (
+          quantityRecord.quantity <= (quantityRecord.limit as number) &&
+          previousQty > (quantityRecord.limit as number)
+        ) {
+          lowStockNotifications.push({
+            productId,
+            warehouseId: dto.sourceWarehouse,
+          });
+        }
       }
 
       await session.commitTransaction();
 
       const promises: Promise<void>[] = [];
 
-      // for (const trx of transactions) {
-      //   const notificationPromise = this.notificationService.notifyPendingShipment(
-      //     trx.product as Types.ObjectId,
-      //     trx.sourceWarehouse as Types.ObjectId,
-      //     trx._id.toString(),
-      //     trx.quantity,
-      //     userId,
-      //   );
-      // promises.push(notificationPromise);
-      // }
+      for (const trx of transactions) {
+        const notificationPromise =
+          this.notificationTriggerService.notifyPendingShipment(
+            trx.product._id,
+            trx.sourceWarehouse as Types.ObjectId,
+            trx._id,
+            trx.quantity,
+            userId,
+          );
+        promises.push(notificationPromise);
+      }
 
-      // for (const notif of lowStockNotifications) {
-      //   const lowStockNotificationPromise = this.notificationService.notifyLowStock(
-      //     notif.productId,
-      //     notif.warehouseId,
-      //     userId,
-      //   );
-      // promises.push(lowStockNotificationPromise);
-      // }
+      for (const notif of lowStockNotifications) {
+        const lowStockNotificationPromise =
+          this.notificationTriggerService.notifyLowStock(
+            notif.productId,
+            notif.warehouseId,
+            userId,
+          );
+        promises.push(lowStockNotificationPromise);
+      }
 
       Promise.all(promises).catch(() =>
         console.error('Failed to send notification'),
@@ -355,7 +365,7 @@ export class TransactionService {
         );
       }
 
-      const transactions: Transaction[] = [];
+      const transactions: TransactionDocument[] = [];
       const updatedQuantities: {
         productId: ObjectId | string;
         sourceQuantity: Quantity;
@@ -374,7 +384,7 @@ export class TransactionService {
         if (!sourceQty)
           throw new NotFoundException('Product not found in source warehouse');
 
-        // const prevQty = sourceQty.quantity;
+        const prevQty = sourceQty.quantity;
         sourceQty.quantity -= quantity;
         await sourceQty.save({ session });
 
@@ -417,29 +427,34 @@ export class TransactionService {
 
         transactions.push(tx[0]);
 
-        // if (
-        //   sourceQty.quantity <= sourceQty.limit &&
-        //   prevQty > sourceQty.limit
-        // ) {
-        //   await notification.notifyLowStock(productId, sourceWarehouse, userId);
-        // }
+        if (
+          sourceQty.quantity <= (sourceQty.limit as number) &&
+          prevQty > (sourceQty.limit as number)
+        ) {
+          await this.notificationTriggerService.notifyLowStock(
+            productId,
+            sourceWarehouse,
+            userId,
+          );
+        }
       }
 
       await session.commitTransaction();
 
       const promises: Promise<void>[] = [];
 
-      // for (const tx of transactions) {
-      //   const notificationPromise = notification.notifyTransaction(
-      //     tx.product,
-      //     tx.sourceWarehouse,
-      //     tx._id.toString(),
-      //     tx.quantity,
-      //     NOTIFICATION_TYPES.STOCK_TRANSFER,
-      //     userId,
-      //   );
-      // promises.push(notificationPromise);
-      // }
+      for (const tx of transactions) {
+        const notificationPromise =
+          this.notificationTriggerService.notifyTransaction(
+            tx.product,
+            tx.sourceWarehouse as Types.ObjectId,
+            tx._id.toString(),
+            tx.quantity,
+            NOTIFICATION_TYPES.STOCK_TRANSFER,
+            userId,
+          );
+        promises.push(notificationPromise);
+      }
 
       Promise.all(promises).catch(() =>
         console.error('Failed to send notification'),
@@ -474,7 +489,7 @@ export class TransactionService {
       if (!quantityRecord)
         throw new NotFoundException('Quantity record not found');
 
-      // const prevQty = quantityRecord.quantity;
+      const prevQty = quantityRecord.quantity;
       quantityRecord.quantity -= quantity;
       await quantityRecord.save({ session });
 
@@ -495,21 +510,25 @@ export class TransactionService {
 
       await session.commitTransaction();
 
-      // if (
-      //   quantityRecord.quantity <= quantityRecord.limit &&
-      //   prevQty > quantityRecord.limit
-      // ) {
-      //   await notification.notifyLowStock(productId, warehouseId, userId);
-      // }
+      if (
+        quantityRecord.quantity <= (quantityRecord.limit as number) &&
+        prevQty > (quantityRecord.limit as number)
+      ) {
+        await this.notificationTriggerService.notifyLowStock(
+          productId,
+          warehouseId,
+          userId,
+        );
+      }
 
-      // await notification.notifyTransaction(
-      //   tx[0].product,
-      //   tx[0].destinationWarehouse,
-      //   tx[0]._id.toString(),
-      //   tx[0].quantity,
-      //   NOTIFICATION_TYPES.STOCK_ADJUSTMENT,
-      //   userId,
-      // );
+      await this.notificationTriggerService.notifyTransaction(
+        tx[0].product,
+        tx[0].destinationWarehouse as Types.ObjectId,
+        tx[0]._id.toString(),
+        tx[0].quantity,
+        NOTIFICATION_TYPES.STOCK_ADJUSTMENT,
+        userId,
+      );
 
       return {
         success: true,

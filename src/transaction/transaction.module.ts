@@ -15,6 +15,11 @@ import {
 } from 'src/quantity/entities/quantity.entity';
 import { ConfigModule } from '@nestjs/config';
 import { Product, ProductSchema } from 'src/products/entities/product.entity';
+import { NotificationService } from 'src/notification/notification.service';
+import {
+  Notification,
+  NotificationSchema,
+} from 'src/notification/entities/notification.entity';
 // import Notification from '../utils/Notification';
 
 @Module({
@@ -26,9 +31,10 @@ import { Product, ProductSchema } from 'src/products/entities/product.entity';
       { name: Warehouse.name, schema: WarehouseSchema },
       { name: Product.name, schema: ProductSchema },
       { name: User.name, schema: UserSchema },
+      { name: Notification.name, schema: NotificationSchema },
     ]),
   ],
   controllers: [TransactionController],
-  providers: [TransactionService, PdfService], //Notification
+  providers: [TransactionService, PdfService, NotificationService],
 })
 export class TransactionModule {}
