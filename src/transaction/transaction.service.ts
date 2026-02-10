@@ -1,7 +1,6 @@
 import {
   BadRequestException,
   Injectable,
-  // BadRequestException,
   NotFoundException,
   StreamableFile,
 } from '@nestjs/common';
@@ -167,13 +166,14 @@ export class TransactionService {
       for (const item of dto.products) {
         const quantityRecord =
           (await this.quantityModel.findOne({
-            warehouseId: dto.destinationWarehouse,
-            productId: item.productId,
+            warehouseId: new Types.ObjectId(dto.destinationWarehouse),
+            productId: new Types.ObjectId(item.productId),
           })) ??
           new this.quantityModel({
-            warehouseId: dto.destinationWarehouse,
-            productId: item.productId,
+            warehouseId: new Types.ObjectId(dto.destinationWarehouse),
+            productId: new Types.ObjectId(item.productId),
             quantity: 0,
+            limit: item.limit,
           });
 
         quantityRecord.quantity += item.quantity;
@@ -252,8 +252,8 @@ export class TransactionService {
         }
 
         const quantityRecord = await this.quantityModel.findOne({
-          productId,
-          warehouseId: dto.sourceWarehouse,
+          productId: new Types.ObjectId(productId),
+          warehouseId: new Types.ObjectId(dto.sourceWarehouse),
         });
 
         if (!quantityRecord) {
@@ -263,6 +263,12 @@ export class TransactionService {
         if (quantityRecord.quantity < quantity) {
           throw new BadRequestException(
             `Insufficient stock for ${product.name}. Available: ${quantityRecord.quantity}`,
+          );
+        }
+
+        if (quantity > quantityRecord.limit) {
+          throw new BadRequestException(
+            `Stock-out limit exceeded for ${product.name}`,
           );
         }
 
@@ -364,32 +370,49 @@ export class TransactionService {
         destQuantity: Quantity;
       }[] = [];
 
-      for (const { productId, quantity } of products) {
+      for (const { productId, quantity, limit } of products) {
         const product = await this.productModel.findById(productId);
         if (!product) throw new NotFoundException('Product not found');
 
         const sourceQty = await this.quantityModel.findOne({
-          warehouseId: sourceWarehouse,
-          productId,
+          warehouseId: new Types.ObjectId(sourceWarehouse),
+          productId: new Types.ObjectId(productId),
         });
 
         if (!sourceQty)
           throw new NotFoundException('Product not found in source warehouse');
+
+        if (sourceQty.quantity < quantity) {
+          throw new BadRequestException(
+            `Insufficient stock for ${product.name}`,
+          );
+        }
 
         // const prevQty = sourceQty.quantity;
         sourceQty.quantity -= quantity;
         await sourceQty.save({ session });
 
         let destQty = await this.quantityModel.findOne({
-          warehouseId: destinationWarehouse,
-          productId,
+          warehouseId: new Types.ObjectId(destinationWarehouse),
+          productId: new Types.ObjectId(productId),
         });
+
+        if (!quantity) {
+          throw new BadRequestException('Quantity is required');
+        }
+
+        if (!destQty && !limit) {
+          throw new BadRequestException(
+            'Limit is required for new destination warehouse',
+          );
+        }
 
         if (!destQty) {
           destQty = new this.quantityModel({
-            warehouseId: destinationWarehouse,
-            productId,
-            quantity: 0,
+            warehouseId: new Types.ObjectId(destinationWarehouse),
+            productId: new Types.ObjectId(productId),
+            quantity,
+            limit,
           });
         }
 
@@ -469,8 +492,8 @@ export class TransactionService {
       const { productId, quantity } = products[0];
 
       const quantityRecord = await this.quantityModel.findOne({
-        warehouseId,
-        productId,
+        warehouseId: new Types.ObjectId(warehouseId),
+        productId: new Types.ObjectId(productId),
       });
 
       if (!quantityRecord)
