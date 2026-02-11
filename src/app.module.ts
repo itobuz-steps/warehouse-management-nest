@@ -10,6 +10,7 @@ import { QuantityModule } from './quantity/quantity.module';
 import { ProfileModule } from './profile/profile.module';
 import { AdminModule } from './admin/admin.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { NotificationModule } from './notification/notification.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { TransactionModule } from './transaction/transaction.module';
 import configService from './config/config.service';
@@ -28,6 +29,7 @@ import configService from './config/config.service';
     QuantityModule,
     AdminModule,
     DashboardModule,
+    NotificationModule,
     AnalyticsModule,
     TransactionModule,
   ],
