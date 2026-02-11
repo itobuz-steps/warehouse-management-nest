@@ -5,6 +5,8 @@ import { WarehouseDocument } from 'src/warehouse/schemas/warehouse.schema';
 import { Product } from 'src/products/entities/product.entity';
 import { User } from 'src/auth/entities/auth.entity';
 import { Injectable } from '@nestjs/common';
+import { PopulatedTransaction } from 'src/transaction/types/types';
+import { PdfService } from 'src/transaction/services/pdf.service';
 
 type AppConfig = ReturnType<typeof config>;
 
@@ -124,9 +126,11 @@ export default class SendEmail {
   };
 
   sendProductShippedEmailToCustomer = async (
-    transaction: Transaction & Document,
+    transaction: PopulatedTransaction,
   ): Promise<void> => {
-    const invoice = (await generatePdf(transaction)) as Buffer;
+    const invoice = (await new PdfService().generateTransactionPdf(
+      transaction,
+    )) as Buffer;
 
     await this.mailSender(
       transaction.customerEmail as string,
@@ -134,7 +138,7 @@ export default class SendEmail {
       `
       <h2>Shipment Delivered</h2>
       <p>Hello ${transaction.customerName || ''},</p>
-      <p>Your shipment for Order ID <b>${transaction._id}</b> has been delivered.</p>
+      <p>Your shipment for Order ID <b>${transaction._id.toString()}</b> has been delivered.</p>
       <p>Status: <b>${transaction.shipment}</b></p>
       <p>Please find your invoice attached.</p>
       <br>
@@ -147,9 +151,11 @@ export default class SendEmail {
   };
 
   sendProductCancelEmailToCustomer = async (
-    transaction: Transaction & Document,
+    transaction: PopulatedTransaction,
   ): Promise<void> => {
-    const invoice = (await generatePdf(transaction)) as Buffer;
+    const invoice = (await new PdfService().generateTransactionPdf(
+      transaction,
+    )) as Buffer;
 
     await this.mailSender(
       transaction.customerEmail as string,
@@ -157,9 +163,9 @@ export default class SendEmail {
       `
       <h2>Shipment Cancelled</h2>
       <p>Hello ${transaction.customerName || ''},</p>
-      <p>Your shipment for Order ID <b>${transaction._id}</b> has been cancelled.</p>
+      <p>Your shipment for Order ID <b>${transaction._id.toString()}</b> has been cancelled.</p>
       <p>Status: <b>${transaction.shipment}</b></p>
-      <p>For more information contact: ${(transaction.performedBy as User).email}</p>
+      <p>For more information contact: ${transaction.performedBy.email}</p>
       `,
       invoice,
     );

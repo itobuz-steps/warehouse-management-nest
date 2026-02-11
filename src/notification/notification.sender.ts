@@ -1,11 +1,13 @@
 import webPush from 'web-push';
 import { SubscriptionDocument } from './entities/subscription.entity';
-import config from '../config/config.service';
+import { configDotenv } from 'dotenv';
+
+configDotenv();
 
 webPush.setVapidDetails(
-  config().MAIL_USER as string,
-  config().VAPID_PUBLIC_KEY as string,
-  config().VAPID_PUBLIC_KEY as string,
+  'mailto: ' + process.env.MAIL_USER,
+  process.env.VAPID_PUBLIC_KEY as string,
+  process.env.VAPID_PRIVATE_KEY as string,
 );
 
 export async function sendBrowserNotification(

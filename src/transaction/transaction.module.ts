@@ -20,7 +20,12 @@ import {
   Notification,
   NotificationSchema,
 } from 'src/notification/entities/notification.entity';
-// import Notification from '../utils/Notification';
+import SendEmail from 'src/utils/SendEmail';
+import { NotificationModule } from 'src/notification/notification.module';
+import {
+  Subscription,
+  SubscriptionSchema,
+} from 'src/notification/entities/subscription.entity';
 
 @Module({
   imports: [
@@ -32,9 +37,12 @@ import {
       { name: Product.name, schema: ProductSchema },
       { name: User.name, schema: UserSchema },
       { name: Notification.name, schema: NotificationSchema },
+      { name: Subscription.name, schema: SubscriptionSchema },
     ]),
+    NotificationModule,
   ],
   controllers: [TransactionController],
-  providers: [TransactionService, PdfService, NotificationService],
+  providers: [TransactionService, PdfService, NotificationService, SendEmail],
+  exports: [SendEmail],
 })
 export class TransactionModule {}

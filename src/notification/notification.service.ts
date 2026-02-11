@@ -13,6 +13,7 @@ import { Warehouse } from 'src/warehouse/schemas/warehouse.schema';
 import { Quantity } from 'src/quantity/entities/quantity.entity';
 import { Transaction } from 'src/transaction/schemas/transaction.schema';
 import { SHIPMENT_TYPES } from 'src/transaction/constants/shipmentConstants';
+import { PopulatedTransaction } from 'src/transaction/types/types';
 
 @Injectable()
 export class NotificationService {
@@ -134,7 +135,7 @@ export class NotificationService {
       const transaction = await this.transactionModel
         .findById(transactionId)
         .session(session)
-        .populate('product performedBy sourceWarehouse');
+        .populate<PopulatedTransaction>('product performedBy sourceWarehouse');
 
       if (!transaction) {
         throw new Error('Transaction not found');

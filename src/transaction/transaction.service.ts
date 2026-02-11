@@ -8,6 +8,7 @@ import { InjectModel, InjectConnection } from '@nestjs/mongoose';
 import { Model, Connection, Types } from 'mongoose';
 import { Transaction, TransactionDocument } from './schemas/transaction.schema';
 import { StockInDto } from './dto/stock-in.dto';
+import { Notification } from 'src/notification/entities/notification.entity';
 import { Warehouse } from '../warehouse/schemas/warehouse.schema';
 import { USER_TYPES } from 'src/auth/userType';
 import { UserDocument } from 'src/auth/entities/auth.entity';

@@ -9,6 +9,14 @@ import { OTP, OTPSchema } from './entities/otp.entity';
 import { TokenGenerator } from 'src/utils/TokenGenerator';
 import { ConfigModule } from 'src/config/config.module';
 import OtpGenerator from 'src/utils/OtpGenerator';
+import SendEmail from 'src/utils/SendEmail';
+import { WarehouseModule } from 'src/warehouse/warehouse.module';
+import {
+  Warehouse,
+  WarehouseSchema,
+} from 'src/warehouse/schemas/warehouse.schema';
+import { Product, ProductSchema } from 'src/products/entities/product.entity';
+import { TransactionModule } from 'src/transaction/transaction.module';
 
 @Module({
   imports: [
@@ -16,10 +24,14 @@ import OtpGenerator from 'src/utils/OtpGenerator';
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
       { name: OTP.name, schema: OTPSchema },
+      { name: Warehouse.name, schema: WarehouseSchema },
+      { name: Product.name, schema: ProductSchema },
     ]),
+    WarehouseModule,
+    TransactionModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, TokenGenerator, OtpGenerator],
+  providers: [AuthService, TokenGenerator, OtpGenerator, SendEmail],
   exports: [OtpGenerator, TokenGenerator], // Optional if needed elsewhere
 })
 export class AuthModule {}

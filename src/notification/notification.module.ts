@@ -22,6 +22,13 @@ import {
   Quantity,
   QuantitySchema,
 } from 'src/quantity/entities/quantity.entity';
+import { User, UserSchema } from 'src/auth/entities/auth.entity';
+import {
+  Warehouse,
+  WarehouseSchema,
+} from 'src/warehouse/schemas/warehouse.schema';
+import SendEmail from 'src/utils/SendEmail';
+import { PdfService } from 'src/transaction/services/pdf.service';
 
 @Module({
   imports: [
@@ -32,6 +39,8 @@ import {
       { name: Transaction.name, schema: TransactionSchema },
       { name: Product.name, schema: ProductSchema },
       { name: Quantity.name, schema: QuantitySchema },
+      { name: User.name, schema: UserSchema },
+      { name: Warehouse.name, schema: WarehouseSchema },
     ]),
   ],
   controllers: [NotificationController],
@@ -39,6 +48,8 @@ import {
     NotificationService,
     NotificationHelper,
     NotificationTriggerService,
+    SendEmail,
+    PdfService,
   ],
   exports: [NotificationTriggerService],
 })
