@@ -11,6 +11,7 @@ export default class OtpGenerator {
   constructor(
     private readonly config: ConfigService,
     @InjectModel(OTP.name) private readonly otpModel: Model<OTPDocument>,
+    private readonly sendEmail: SendEmail,
   ) {}
 
   generateOtp = async (email: string) => {
@@ -25,7 +26,7 @@ export default class OtpGenerator {
     }
     await otpDoc.save();
 
-    const response = await new SendEmail().sendOtpViaMail(email, otp);
+    const response = await this.sendEmail.sendOtpViaMail(email, otp);
     return response;
   };
 }
