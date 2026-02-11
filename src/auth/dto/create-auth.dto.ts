@@ -25,6 +25,7 @@ export class LoginDto {
   //   message: invalidPasswordMessage,
   // })
   @IsString()
+  @IsNotEmpty()
   password: string;
 }
 
