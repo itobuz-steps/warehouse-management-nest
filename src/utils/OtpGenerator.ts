@@ -10,7 +10,7 @@ import { InjectModel } from '@nestjs/mongoose';
 export default class OtpGenerator {
   constructor(
     private readonly config: ConfigService,
-    @InjectModel(OTP.name) private readonly otpModel: Model<OTPDocument>
+    @InjectModel(OTP.name) private readonly otpModel: Model<OTPDocument>,
   ) {}
 
   generateOtp = async (email: string) => {
