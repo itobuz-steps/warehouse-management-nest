@@ -49,7 +49,7 @@ export class SupplierController {
   @Roles(USER_TYPES.ADMIN)
   @Delete(':id')
   async removeSupplier(@Param('id') id: string) {
-    const res = await this.supplierService.delete(id);
+    await this.supplierService.delete(id);
 
     return {
       message: 'Supplier deleted successfully',

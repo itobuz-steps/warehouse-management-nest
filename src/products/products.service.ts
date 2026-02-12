@@ -1,12 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, QueryFilter } from 'mongoose';
 import { Product, ProductDocument } from './entities/product.entity';
 import { GetProductsQueryDto } from './dto/get-product-query.dto';
 import { updateProductDto } from './dto/update-product.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { SORT_CATEGORY } from './constants/product.constant';
 import * as QRCode from 'qrcode';
+import { SortOrder } from 'mongoose';
 
 @Injectable()
 export class ProductsService {
@@ -17,7 +18,7 @@ export class ProductsService {
   async getProducts(queryDto: GetProductsQueryDto) {
     const { search, category, sort, page = '1', limit = '10' } = queryDto;
 
-    const filter: Record<string, any> = { isArchived: false };
+    const filter: QueryFilter<ProductDocument> = { isArchived: false };
 
     if (category) {
       filter.category = category;
@@ -155,7 +156,7 @@ export class ProductsService {
       query.where('name').regex(new RegExp(search, 'i'));
     }
 
-    const sortMap: Record<string, any> = {
+    const sortMap: Record<string, Record<string, SortOrder>> = {
       [SORT_CATEGORY.NAME_ASC]: { name: 1 },
       [SORT_CATEGORY.NAME_DESC]: { name: -1 },
       [SORT_CATEGORY.CATEGORY_ASC]: { category: 1 },
