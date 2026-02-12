@@ -13,6 +13,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { NotificationModule } from './notification/notification.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { TransactionModule } from './transaction/transaction.module';
+import { SupplierModule } from './supplier/supplier.module';
 import configService from './config/config.service';
 
 @Module({
@@ -32,6 +33,7 @@ import configService from './config/config.service';
     NotificationModule,
     AnalyticsModule,
     TransactionModule,
+    SupplierModule,
   ],
   controllers: [AppController],
   providers: [AppService],

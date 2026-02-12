@@ -16,9 +16,8 @@ import { ShipmentParamsDto } from './dto/notification.dto';
 export interface RequestWithUser extends Request {
   userId: string;
 }
-
-@Controller('notification')
 @UseGuards(AuthGuard)
+@Controller('notifications')
 export class NotificationController {
   constructor(private readonly service: NotificationService) {}
 
