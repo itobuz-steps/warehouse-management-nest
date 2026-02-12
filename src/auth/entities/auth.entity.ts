@@ -1,8 +1,8 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { HydratedDocument } from 'mongoose';
 import { USER_TYPES } from '../userType';
 
-export type UserDocument = User & Document;
+export type UserDocument = HydratedDocument<User>;
 
 @Schema({ timestamps: true })
 export class User {
@@ -16,7 +16,7 @@ export class User {
   password?: string;
 
   @Prop({ required: true, enum: Object.values(USER_TYPES) })
-  role: string;
+  role: USER_TYPES;
 
   @Prop({ default: false })
   isVerified: boolean;

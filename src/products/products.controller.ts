@@ -18,13 +18,22 @@ import { ProductsService } from './products.service';
 import { GetProductsQueryDto } from './dto/get-product-query.dto';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { updateProductDto } from './dto/update-product.dto';
-import { storageConfig } from 'src/helper/multer';
+import { multerStorage } from 'src/helper/multer';
 import type { Request, Response } from 'express';
 import { CreateProductDto } from './dto/create-product.dto';
 import { ConfigService } from '@nestjs/config';
 import { AuthGuard } from 'src/common/guard/auth.guard';
+import {
+  FILE_COUNT,
+  FILE_FIELD,
+  FOLDER_PATH,
+} from 'src/common/constants/file.constant';
+import { ApiBearerAuth } from '@nestjs/swagger';
+import { Roles } from 'src/common/guard/roles.decorator';
+import { USER_TYPES } from 'src/auth/userType';
 
 @UseGuards(AuthGuard)
+@ApiBearerAuth()
 @Controller('product/')
 export class ProductsController {
   constructor(
@@ -44,7 +53,9 @@ export class ProductsController {
 
   @Put(':id')
   @UseInterceptors(
-    FilesInterceptor('productImage', 8, { storage: storageConfig }),
+    FilesInterceptor(FILE_FIELD.productImage, FILE_COUNT, {
+      storage: multerStorage(FOLDER_PATH.product),
+    }),
   )
   async updateProduct(
     @Param('id') id: string,
@@ -76,11 +87,13 @@ export class ProductsController {
 
   @Post()
   @UseInterceptors(
-    FilesInterceptor('productImage', 8, { storage: storageConfig }),
+    FilesInterceptor(FILE_FIELD.productImage, FILE_COUNT, {
+      storage: multerStorage(FOLDER_PATH.product),
+    }),
   )
   async createProduct(
     @Body() createProductDto: CreateProductDto,
-    @UploadedFiles() files: Array<Express.Multer.File>,
+    @UploadedFiles() files: Express.Multer.File[],
     @Req() req: Request,
   ) {
     let imageUrls: string[] = [];
@@ -105,8 +118,9 @@ export class ProductsController {
   }
 
   @Delete(':id')
-  async deleteProduct(@Param('id') id: string) {
-    await this.productsService.remove(id);
+  @Roles(USER_TYPES.ADMIN)
+  async deleteProduct(@Param() params: updateProductDto) {
+    await this.productsService.remove(params.id);
 
     return {
       success: true,
@@ -115,8 +129,8 @@ export class ProductsController {
   }
 
   @Patch(':id')
-  async restoreProduct(@Param('id') id: string) {
-    await this.productsService.restore(id);
+  async restoreProduct(@Param() params: updateProductDto) {
+    await this.productsService.restore(params.id);
 
     return {
       success: true,
@@ -125,7 +139,7 @@ export class ProductsController {
   }
 
   @Get('archived/all')
-  // @UseGuards(AdminGuard)
+  @Roles(USER_TYPES.ADMIN)
   async getArchivedProducts(@Query() queryDto: GetProductsQueryDto) {
     const data = await this.productsService.findArchived(queryDto);
 
@@ -152,7 +166,7 @@ export class ProductsController {
     res.send(qrBuffer);
   }
 
-  @Get(':id')
+  @Post('/qr/:id')
   async getProductById(@Param('id') id: string) {
     const product = await this.productsService.findOne(id);
 

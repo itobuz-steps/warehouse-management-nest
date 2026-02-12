@@ -10,7 +10,7 @@ import {
 import * as jwt from 'jsonwebtoken';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { User } from 'src/auth/entities/auth.entity';
+import { User, UserDocument } from 'src/auth/entities/auth.entity';
 import { Request } from 'express';
 import { JwtPayload } from 'jsonwebtoken';
 import configService from 'src/config/config.service';
@@ -26,7 +26,7 @@ interface AuthenticatedRequest extends Request {
 
 @Injectable()
 export class AuthGuard implements CanActivate {
-  constructor(@InjectModel(User.name) private userModel: Model<User>) {}
+  constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();

@@ -26,6 +26,11 @@ export const config = {
 
   VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY,
   VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY,
+
+  LIMIT: process.env.LIMIT,
+  PAGE: process.env.PAGE,
+
+  DEFAULT_QUANTITY: process.env.DEFAULT_QUANTITY,
 };
 
 export default registerAs('app', () => {
@@ -54,5 +59,10 @@ export default registerAs('app', () => {
 
     VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY,
     VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY,
+
+    LIMIT: process.env.LIMIT,
+    PAGE: process.env.PAGE,
+
+    DEFAULT_QUANTITY: process.env.DEFAULT_QUANTITY,
   };
 });

@@ -15,5 +15,8 @@ export enum SORT_CATEGORY {
   NAME_ASC = 'name_asc',
   NAME_DESC = 'name_desc',
   CATEGORY_ASC = 'category_asc',
+  CATEGORY_DESC = 'category_desc',
   LATEST = 'latest',
+  QUANTITY_ASC = 'quantity_asc',
+  QUANTITY_DESC = 'quantity_desc',
 }

@@ -1,6 +1,7 @@
+import type { Request } from 'express';
 import { USER_TYPES } from 'src/auth/userType';
 
-type User = {
+export type User = {
   _id: string;
   email: string;
   role: USER_TYPES;
@@ -15,4 +16,9 @@ type User = {
   updatedAt: Date;
   warehouseId?: string | null;
 };
+
+export type RequestWithUser = Request & {
+  user: User;
+};
+
 export default User;

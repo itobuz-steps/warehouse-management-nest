@@ -38,6 +38,8 @@ export class AuthService {
     @InjectModel(OTP.name) private readonly otpModel: Model<OTPDocument>,
     private readonly tokenGenerator: TokenGenerator,
     private readonly otpGenerator: OtpGenerator,
+
+    private readonly sendEmail: SendEmail,
   ) {}
 
   async signup(dto: SignupDto) {
@@ -56,7 +58,7 @@ export class AuthService {
 
     const link = `http://${config().FRONTEND_URL}/signup?token=${inviteToken}`;
 
-    const response = new SendEmail().sendInvitationEmail(email, link);
+    const response = await this.sendEmail.sendInvitationEmail(email, link);
     console.log(response);
 
     return {
