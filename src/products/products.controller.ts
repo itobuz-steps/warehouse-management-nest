@@ -65,7 +65,7 @@ export class ProductsController {
   ) {
     let imageUrls: string[] | undefined;
 
-    if (files && files.length) {
+    if (files?.length) {
       imageUrls = files.map(
         (file) =>
           `${req.protocol}://${req.get('host')}/${file.path.replace(/\\/g, '/')}`,
@@ -98,7 +98,7 @@ export class ProductsController {
   ) {
     let imageUrls: string[] = [];
 
-    if (files && files.length) {
+    if (files?.length) {
       imageUrls = files.map(
         (file) =>
           `${req.protocol}://${req.get('host')}/${file.path.replace(/\\/g, '/')}`,

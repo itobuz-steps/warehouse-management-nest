@@ -78,7 +78,6 @@ export class NotificationHelper {
               (payload.type as NOTIFICATION_TYPES) ===
               NOTIFICATION_TYPES.LOW_STOCK
             ) {
-              // eslint-disable-next-line @typescript-eslint/no-unsafe-call
               await this.sendEmail.sendLowStockEmail(
                 user.email,
                 user,
@@ -86,7 +85,6 @@ export class NotificationHelper {
                 payload.warehouse,
               );
             } else {
-              // eslint-disable-next-line @typescript-eslint/no-unsafe-call
               await this.sendEmail.sendPendingShipmentEmail(
                 user.email,
                 user,
