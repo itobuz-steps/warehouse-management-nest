@@ -36,7 +36,7 @@ export class SupplierService {
     const existingSupplier = await this.supplierModel.findById(id);
 
     if (!existingSupplier) {
-      throw new NotFoundException('Supplier donot Exists');
+      throw new NotFoundException('Supplier Not Found');
     }
 
     if (updatedData.email) {
@@ -56,7 +56,7 @@ export class SupplierService {
     const existingSupplier = await this.supplierModel.findById(id);
 
     if (!existingSupplier) {
-      throw new NotFoundException('Supplier donot Exists');
+      throw new NotFoundException('Supplier Not Found');
     }
 
     const res = await this.supplierModel.findByIdAndUpdate(
