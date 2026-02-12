@@ -19,7 +19,7 @@ import { TransferDto } from './dto/transfer.dto';
 import { AdjustmentDto } from './dto/adjustment.dto';
 import { ApiBearerAuth } from '@nestjs/swagger';
 
-@Controller('transactions')
+@Controller('transaction')
 @UseGuards(AuthGuard)
 @ApiBearerAuth()
 export class TransactionController {
