@@ -4,11 +4,11 @@ import { Types } from 'mongoose';
 
 export class AddProductQuantityDto {
   @IsMongoId()
-  @Transform(({ value }) => new Types.ObjectId(value))
+  @Transform(({ value }) => new Types.ObjectId(value as string))
   productId: Types.ObjectId;
 
   @IsMongoId()
-  @Transform(({ value }) => new Types.ObjectId(value))
+  @Transform(({ value }) => new Types.ObjectId(value as string))
   warehouseId: Types.ObjectId;
 
   @IsNumber()

@@ -1,4 +1,5 @@
 import { Types } from 'mongoose';
+import { Product } from 'src/products/entities/product.entity';
 
 export type TopProductItem = {
   productId: Types.ObjectId;
@@ -11,7 +12,7 @@ export type TopProductItem = {
 export type InventoryByCategoryAggItem = {
   _id: string;
   totalProducts: number;
-  products: any[];
+  products: Product[];
 };
 
 export type ProductTransactionDay = {
