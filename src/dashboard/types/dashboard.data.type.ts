@@ -1,5 +1,4 @@
 import { Types } from 'mongoose';
-import {} from 'src/products/dto/create-product.dto';
 import { Product } from 'src/products/entities/product.entity';
 
 export type TopProductItem = {
