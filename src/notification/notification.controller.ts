@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Param,
+  Patch,
   Post,
   Put,
   Req,
@@ -11,7 +12,6 @@ import { NotificationService } from './notification.service';
 import { AuthGuard } from 'src/common/guard/auth.guard';
 import { Request } from 'express';
 import { SubscribeDto } from './dto/subscribe.dto';
-import { ShipmentParamsDto } from './dto/notification.dto';
 
 export interface RequestWithUser extends Request {
   userId: string;
@@ -45,18 +45,15 @@ export class NotificationController {
     return { success: true, message: 'All marked as seen' };
   }
 
-  @Put('change-shipment-status/:id')
-  async ship(@Req() req: RequestWithUser, @Param() params: ShipmentParamsDto) {
-    await this.service.updateShipmentStatus(params.id, 'shipped', req.userId);
+  @Patch('change-shipment-status/:id')
+  async ship(@Req() req: RequestWithUser, @Param() id: string) {
+    await this.service.updateShipmentStatus(id, 'shipped', req.userId);
     return { success: true, message: 'Shipment marked shipped' };
   }
 
-  @Put('cancel-shipment/:id')
-  async cancel(
-    @Req() req: RequestWithUser,
-    @Param() params: ShipmentParamsDto,
-  ) {
-    await this.service.updateShipmentStatus(params.id, 'cancelled', req.userId);
+  @Patch('cancel-shipment/:id')
+  async cancel(@Req() req: RequestWithUser, @Param() id: string) {
+    await this.service.updateShipmentStatus(id, 'cancelled', req.userId);
     return { success: true, message: 'Shipment cancelled' };
   }
 }

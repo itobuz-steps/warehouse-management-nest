@@ -5,7 +5,3 @@ export class SubscribeDto {
     auth?: string;
   };
 }
-
-export class ShipmentParamsDto {
-  id: string;
-}
