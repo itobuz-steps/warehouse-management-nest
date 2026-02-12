@@ -1,11 +1,9 @@
 import {
-  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
-// import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Supplier } from './entities/supplier.entity';
 import { SupplierDocument } from './entities/supplier.entity';
@@ -20,15 +18,6 @@ export class SupplierService {
   ) {}
   async create(supplierData: CreateSupplierDto) {
     const data = { ...supplierData };
-
-    console.log(data);
-
-    if (!data.email.toLocaleLowerCase()) {
-      throw new BadRequestException('Supplier must have an email');
-    }
-    if (!data.name) {
-      throw new BadRequestException('Supplier must have a name');
-    }
 
     const existingSupplier = await this.supplierModel.findOne({
       email: data.email,

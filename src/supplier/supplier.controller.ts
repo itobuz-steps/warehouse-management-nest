@@ -3,7 +3,6 @@ import {
   Get,
   Post,
   Body,
-  Patch,
   Param,
   Delete,
   UseGuards,
@@ -15,14 +14,12 @@ import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { AuthGuard } from 'src/common/guard/auth.guard';
 import { Roles } from 'src/common/guard/roles.decorator';
 import { USER_TYPES } from 'src/auth/userType';
-// import { updateProductDto } from 'src/products/dto/update-product.dto';
 
 @UseGuards(AuthGuard)
 @Controller('supplier')
 export class SupplierController {
   constructor(private readonly supplierService: SupplierService) {}
 
-  //create supplier
   @Post()
   async addSupplier(@Body() newSupplier: CreateSupplierDto) {
     const res = await this.supplierService.create(newSupplier);
@@ -34,7 +31,6 @@ export class SupplierController {
     };
   }
 
-  //update
   @Roles(USER_TYPES.ADMIN)
   @Put(':id')
   async updateSupplier(
@@ -50,8 +46,7 @@ export class SupplierController {
     };
   }
 
-  //delete
-  // @Roles(USER_TYPES.ADMIN)
+  @Roles(USER_TYPES.ADMIN)
   @Delete(':id')
   async removeSupplier(@Param('id') id: string) {
     const res = await this.supplierService.delete(id);
@@ -62,7 +57,6 @@ export class SupplierController {
     };
   }
 
-  //get all suppliers
   @Get()
   async getAllSupplier() {
     const res = await this.supplierService.getAll();
