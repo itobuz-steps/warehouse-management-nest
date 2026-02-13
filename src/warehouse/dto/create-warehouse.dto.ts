@@ -27,6 +27,9 @@ export class CreateWarehouseDto {
 
   @IsNumber()
   capacity: number;
+
+  @IsNumber()
+  maxTransactionPriceLimit: number;
 }
 
 //strip unknown will be handled by global ValidationPipe({ whitelist: true })
