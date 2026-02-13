@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import mongoose, { Model } from 'mongoose';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
+import mongoose, { Connection, Model, Types } from 'mongoose';
 import { Notification } from './entities/notification.entity';
 import {
   Subscription,
@@ -35,6 +35,8 @@ export class NotificationService {
 
     @InjectModel(Subscription.name)
     private subscriptionModel: Model<SubscriptionDocument>,
+
+    @InjectConnection() private readonly connection: Connection,
 
     private readonly sendEmail: SendEmail,
   ) {}
@@ -127,13 +129,12 @@ export class NotificationService {
     status: 'shipped' | 'cancelled',
     reporterId: string,
   ) {
-    const session = await mongoose.startSession();
+    const session = await this.connection.startSession();
     session.startTransaction();
 
     try {
-      // 1️⃣ Fetch Transaction
       const transaction = await this.transactionModel
-        .findById(transactionId)
+        .findById(new Types.ObjectId(transactionId))
         .session(session)
         .populate<PopulatedTransaction>('product performedBy sourceWarehouse');
 
@@ -141,7 +142,6 @@ export class NotificationService {
         throw new Error('Transaction not found');
       }
 
-      // 2️⃣ Load Product & Warehouse
       const product = await this.productModel.findById(transaction.product);
       const warehouse = await this.warehouseModel.findById(
         transaction.sourceWarehouse,
@@ -151,12 +151,11 @@ export class NotificationService {
         throw new Error('Product or Warehouse not found');
       }
 
-      // 3️⃣ If Cancelled → Restore Quantity
       if (status === 'cancelled') {
         const quantityRecord = await this.quantityModel
           .findOne({
-            warehouseId: transaction.sourceWarehouse,
-            productId: transaction.product,
+            warehouseId: transaction.sourceWarehouse._id,
+            productId: transaction.product._id,
           })
           .session(session);
 
@@ -168,7 +167,6 @@ export class NotificationService {
         await quantityRecord.save({ session });
       }
 
-      // 4️⃣ Update Shipment Status
       transaction.shipment =
         status === 'shipped'
           ? SHIPMENT_TYPES.SHIPPED
@@ -176,7 +174,6 @@ export class NotificationService {
 
       await transaction.save({ session });
 
-      // 5️⃣ Update Notifications
       await this.notificationModel.updateMany(
         { transactionId: transaction._id },
         {
@@ -188,7 +185,7 @@ export class NotificationService {
           ...(status === 'shipped' && { isShipped: true }),
           ...(status === 'cancelled' && { isCancelled: true }),
 
-          reportedBy: reporterId,
+          reportedBy: new Types.ObjectId(reporterId),
 
           message:
             status === 'shipped'
@@ -198,12 +195,9 @@ export class NotificationService {
         { session },
       );
 
-      // 6️⃣ Send Email to Customer
       if (status === 'shipped') {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-call
         await this.sendEmail.sendProductShippedEmailToCustomer(transaction);
       } else {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-call
         await this.sendEmail.sendProductCancelEmailToCustomer(transaction);
       }
 

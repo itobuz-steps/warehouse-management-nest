@@ -38,7 +38,7 @@ export class Notification {
   isCancelled: boolean;
 
   @Prop({ type: Types.ObjectId, ref: 'User' })
-  reportedBy?: Types.ObjectId;
+  reportedBy: Types.ObjectId;
 }
 
 export const NotificationSchema = SchemaFactory.createForClass(Notification);
