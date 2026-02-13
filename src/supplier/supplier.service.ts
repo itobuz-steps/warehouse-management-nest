@@ -69,9 +69,14 @@ export class SupplierService {
   }
 
   async getAll() {
-    const allActiveSupplier = await this.supplierModel.find({
-      isActive: false,
-    });
+    const allActiveSupplier = await this.supplierModel.find(
+      {
+        isActive: true,
+      },
+      {
+        __v: 0,
+      },
+    );
 
     return allActiveSupplier;
   }
