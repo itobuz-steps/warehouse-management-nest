@@ -16,7 +16,6 @@ import { SubscribeDto } from './dto/subscribe.dto';
 export interface RequestWithUser extends Request {
   userId: string;
 }
-
 @UseGuards(AuthGuard)
 @Controller('notifications')
 export class NotificationController {

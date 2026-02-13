@@ -19,7 +19,8 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "prepare": "husky",
-    "commitlint": "commitlint --edit"
+    "commitlint": "commitlint --edit",
+    "commit": "git-cz --disable-emoji"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
@@ -38,8 +39,9 @@
     "dotenv": "^17.2.4",
     "exceljs": "^4.4.0",
     "fontkit": "^2.0.4",
+    "git-cz": "^4.9.0",
     "jsonwebtoken": "^9.0.3",
-    "mongoose": "^9.1.5",
+    "mongoose": "^9.2.1",
     "multer": "^2.0.2",
     "nodemailer": "^7.0.13",
     "passport": "^0.7.0",
