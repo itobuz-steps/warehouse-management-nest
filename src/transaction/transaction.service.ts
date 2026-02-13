@@ -331,7 +331,7 @@ export class TransactionService {
             trx.sourceWarehouse as Types.ObjectId,
             trx._id,
             trx.quantity,
-            userId,
+            new Types.ObjectId(userId),
           );
         promises.push(notificationPromise);
       }
