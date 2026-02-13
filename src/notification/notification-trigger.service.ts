@@ -57,11 +57,11 @@ export class NotificationTriggerService {
   }
 
   async notifyPendingShipment(
-    productId,
-    warehouseId,
-    transactionId,
-    qty,
-    performer,
+    productId: Types.ObjectId,
+    warehouseId: Types.ObjectId,
+    transactionId: Types.ObjectId,
+    qty: number,
+    performer: Types.ObjectId,
   ) {
     const product: Product = (await this.productModel.findById(
       productId,
