@@ -8,7 +8,6 @@ export enum PRODUCT_CATEGORY_TYPES {
   AUTOMOTIVE_PARTS = 'Automotive Parts',
   OFFICE_SUPPLIES = 'Office Supplies',
   ACCESSORIES = 'Accessories',
-  OTHERS = 'Others',
 }
 
 export enum SORT_CATEGORY {
