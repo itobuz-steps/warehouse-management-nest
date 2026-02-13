@@ -12,12 +12,16 @@ import User from './types/userType';
 import mongoose from 'mongoose';
 import { CreateWarehouseDto } from './dto/create-warehouse.dto';
 import { UpdateWarehouseDto } from './dto/update-warehouse.dto';
+import { Quantity } from 'src/quantity/entities/quantity.entity';
 
 @Injectable()
 export class WarehouseService {
   constructor(
     @InjectModel(Warehouse.name)
     private readonly warehouseModel: Model<WarehouseDocument>,
+
+    @InjectModel(Quantity.name)
+    private readonly quantityModel: Model<Quantity>,
   ) {}
 
   async getWarehouses(user: User) {
@@ -108,23 +112,25 @@ export class WarehouseService {
       throw new NotFoundException('Warehouse not found');
     }
 
-    // const totalAgg = await Quantity.aggregate<{ totalQuantity: number }>([
-    //   { $match: { warehouseId: new Types.ObjectId(warehouse._id) } },
-    //   {
-    //     $group: {
-    //       _id: null,
-    //       totalQuantity: { $sum: '$quantity' },
-    //     },
-    //   },
-    // ]);
+    const totalAgg = await this.quantityModel.aggregate<{
+      totalQuantity: number;
+    }>([
+      { $match: { warehouseId: warehouse._id } },
+      {
+        $group: {
+          _id: null,
+          totalQuantity: { $sum: '$quantity' },
+        },
+      },
+    ]);
 
-    // const totalQuantity = totalAgg[0]?.totalQuantity ?? 0;
+    const totalQuantity = totalAgg[0]?.totalQuantity ?? 0;
     const capacity = warehouse.capacity || 0;
 
-    // let percentage: number | null = null;
-    // if (capacity > 0) {
-    //   percentage = Number(((totalQuantity / capacity) * 100).toFixed(2));
-    // }
+    let percentage: number | null = null;
+    if (capacity > 0) {
+      percentage = Number(((totalQuantity / capacity) * 100).toFixed(2));
+    }
 
     return {
       success: true,
@@ -134,8 +140,8 @@ export class WarehouseService {
           name: warehouse.name,
           capacity,
         },
-        // totalQuantity,
-        // percentage,
+        totalQuantity,
+        percentage,
       },
     };
   }
@@ -145,10 +151,16 @@ export class WarehouseService {
       (id) => new mongoose.Types.ObjectId(id),
     );
 
-    return this.warehouseModel.create({
+    const data = await this.warehouseModel.create({
       ...dto,
       managerIds,
     });
+
+    return {
+      message: 'Warehouses Created Successfully',
+      success: true,
+      data: data,
+    };
   }
 
   async updateWarehouse(id: string, dto: UpdateWarehouseDto) {
@@ -156,27 +168,37 @@ export class WarehouseService {
       (id) => new mongoose.Types.ObjectId(id),
     );
 
-    const warehouse = await this.warehouseModel.findByIdAndUpdate(
+    const data = await this.warehouseModel.findByIdAndUpdate(
       id,
       { ...dto, managerIds },
       { new: true },
     );
 
-    if (!warehouse) {
+    if (!data) {
       throw new NotFoundException('Warehouse not found');
     }
 
-    return warehouse;
+    return {
+      message: 'Warehouses Updated Successfully',
+      success: true,
+      data: data,
+    };
   }
 
   async deleteWarehouse(id: string) {
-    const warehouse = await this.warehouseModel.findOneAndUpdate(
+    const data = await this.warehouseModel.findOneAndUpdate(
       { _id: id, active: true },
       { active: false },
     );
 
-    if (!warehouse) {
+    if (!data) {
       throw new NotFoundException('Warehouse not found');
     }
+
+    return {
+      message: 'Warehouses Deleted Successfully',
+      success: true,
+      data: data,
+    };
   }
 }
