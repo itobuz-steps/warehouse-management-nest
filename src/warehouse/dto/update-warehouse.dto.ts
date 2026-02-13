@@ -35,5 +35,5 @@ export class UpdateWarehouseDto extends PartialType(CreateWarehouseDto) {
 
   @IsNumber()
   @IsOptional()
-  maxTransactionPriceLimit: number;
+  maxTransactionPriceLimit?: number;
 }
