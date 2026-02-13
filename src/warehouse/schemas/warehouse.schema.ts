@@ -14,6 +14,9 @@ export class Warehouse {
   @Prop()
   description?: string;
 
+  @Prop()
+  image?: string;
+
   @Prop({
     type: [{ type: Types.ObjectId, ref: 'User' }],
   })
@@ -24,6 +27,9 @@ export class Warehouse {
 
   @Prop({ required: true, default: 10000 })
   capacity: number;
+
+  @Prop({ required: true, default: 10000 })
+  maxTransactionPriceLimit: number; // for approval of admin to set stock updates upto a certain amount of whole batch
 }
 
 export const WarehouseSchema = SchemaFactory.createForClass(Warehouse);
