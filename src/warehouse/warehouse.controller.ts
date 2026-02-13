@@ -4,7 +4,7 @@ import {
   Delete,
   Get,
   Param,
-  Patch,
+  Put,
   Post,
   Req,
   UseGuards,
@@ -51,7 +51,7 @@ export class WarehouseController {
     return this.service.addWarehouse(dto);
   }
 
-  @Patch('/:id')
+  @Put('/:id')
   @Roles(USER_TYPES.ADMIN)
   updateWarehouse(@Param('id') id: string, @Body() dto: UpdateWarehouseDto) {
     return this.service.updateWarehouse(id, dto);
