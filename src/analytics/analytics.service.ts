@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Warehouse } from 'src/warehouse/schemas/warehouse.schema';
 import { Product } from 'src/products/entities/product.entity';
 import { TwoProductQuery } from './dto/tow-product-query.dto';
@@ -155,8 +155,14 @@ export class AnalyticsService {
     }
 
     const [qtyA, qtyB] = await Promise.all([
-      this.quantityModel.findOne({ warehouseId, productA }),
-      this.quantityModel.findOne({ warehouseId, productB }),
+      this.quantityModel.findOne({
+        warehouseId: new Types.ObjectId(warehouseId),
+        productId: new Types.ObjectId(productA),
+      }),
+      this.quantityModel.findOne({
+        warehouseId: new Types.ObjectId(warehouseId),
+        productId: new Types.ObjectId(productB),
+      }),
     ]);
 
     return {
