@@ -55,8 +55,6 @@ export class QuantityService {
       .populate('warehouseId productId')
       .exec();
 
-    console.log(result);
-
     if (!result) {
       throw new NotFoundException('Quantity record not found');
     }
