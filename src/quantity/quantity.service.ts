@@ -47,7 +47,11 @@ export class QuantityService {
     }
 
     const result = await this.quantityModel
-      .findByIdAndUpdate(id, { limit }, { new: true })
+      .findOneAndUpdate(
+        { productId: new Types.ObjectId(id) },
+        { limit },
+        { new: true },
+      )
       .populate('warehouseId productId')
       .exec();
 
@@ -58,7 +62,7 @@ export class QuantityService {
     return result;
   }
 
-  async getTotalQuantity(productId: string): Promise<TotalQuantityResult[]> {
+  async getTotalQuantity(productId: string): Promise<TotalQuantityResult> {
     const res: TotalQuantityResult[] = await this.quantityModel.aggregate([
       {
         $match: {
@@ -87,15 +91,15 @@ export class QuantityService {
       throw new NotFoundException('Data Not Found');
     }
 
-    return res;
+    return res[0];
   }
 
   async getSpecificWarehouseQuantity(
     query: GetSpecificQuantityDto,
-  ): Promise<Quantity[]> {
+  ): Promise<Quantity> {
     const { productId, warehouseId } = query;
 
-    if (productId || warehouseId) {
+    if (!productId || !warehouseId) {
       throw new NotFoundException('Id from params don"t exists');
     }
 
@@ -118,7 +122,7 @@ export class QuantityService {
       throw new NotFoundException("Couldn't Find Record");
     }
 
-    return res;
+    return res[0];
   }
 
   async getProductsHavingQuantity(query: ProductsHavingQuantityDto) {
