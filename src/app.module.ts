@@ -14,6 +14,7 @@ import { NotificationModule } from './notification/notification.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { TransactionModule } from './transaction/transaction.module';
 import { SupplierModule } from './supplier/supplier.module';
+import { CustomerModule } from './customer/customer.module';
 import configService from './config/config.service';
 
 @Module({
@@ -34,6 +35,7 @@ import configService from './config/config.service';
     AnalyticsModule,
     TransactionModule,
     SupplierModule,
+    CustomerModule,
   ],
   controllers: [AppController],
   providers: [AppService],
