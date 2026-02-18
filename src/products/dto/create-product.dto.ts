@@ -11,7 +11,6 @@ import {
   IsEnum,
 } from 'class-validator';
 import { PRODUCT_CATEGORY_TYPES } from '../constants/product.constant';
-// import CATEGORY_TYPES from '../constants/product.constant';
 
 export class CreateProductDto {
   @IsString()
@@ -49,7 +48,6 @@ export class CreateProductDto {
   @IsOptional()
   isArchived?: boolean;
 
-  @IsString()
-  @IsNotEmpty({ message: 'Created by is required' })
-  createdBy: string;
+  @IsOptional()
+  createdBy?: string;
 }

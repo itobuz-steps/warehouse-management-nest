@@ -71,7 +71,7 @@ export class ProductsService {
   ) {
     const updates = { ...updateProductDto };
 
-    if (imageUrls && imageUrls.length > 0) {
+    if (imageUrls && imageUrls.length) {
       updates['productImage'] = imageUrls;
     }
 
