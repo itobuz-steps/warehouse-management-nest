@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param, Req } from '@nestjs/common';
+import { Controller, Post, Body, Param, Req, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 
 import {
@@ -8,6 +8,8 @@ import {
   SendOtpDto,
   ForgotPasswordDto,
 } from './dto/create-auth.dto';
+import type { RequestWithUser } from 'src/warehouse/types/userType';
+import { AuthGuard } from 'src/common/guard/auth.guard';
 
 @Controller('user/auth')
 export class AuthController {
@@ -43,8 +45,9 @@ export class AuthController {
     return this.authService.forgotPassword(dto);
   }
 
+  @UseGuards(AuthGuard)
   @Post('refresh')
-  refresh(@Req() req: { userId: string }) {
-    return this.authService.refresh(req.userId);
+  refresh(@Req() req: RequestWithUser) {
+    return this.authService.refresh(req.user._id);
   }
 }
