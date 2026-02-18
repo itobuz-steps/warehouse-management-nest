@@ -34,7 +34,7 @@ export class CustomerController {
     return {
       message: 'All customers retrieved successfully',
       success: true,
-      data: await this.customerService.findAll(),
+      data: (await this.customerService.findAll()) || [],
     };
   }
 
@@ -43,7 +43,7 @@ export class CustomerController {
     return {
       message: `Specific Customer retrieved successfully`,
       success: true,
-      data: await this.customerService.findOne(id),
+      data: (await this.customerService.findOne(id)) || [],
     };
   }
 
