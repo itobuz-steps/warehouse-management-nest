@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { User, UserDocument } from '../auth/entities/auth.entity';
 import { USER_TYPES } from '../auth/userType';
 import { Request } from 'express';
@@ -65,13 +65,13 @@ export class ProfileService {
   async changeStatus(managerId: string) {
     const manager = await this.userModel.findOneAndUpdate(
       {
-        _id: managerId,
+        _id: new Types.ObjectId(managerId),
         role: USER_TYPES.MANAGER,
         isVerified: true,
         isDeleted: false,
       },
       [{ $set: { isActive: { $not: '$isActive' } } }],
-      { new: true },
+      { new: true, updatePipeline: true },
     );
 
     if (!manager) {
