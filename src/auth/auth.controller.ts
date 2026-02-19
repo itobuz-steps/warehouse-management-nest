@@ -12,7 +12,7 @@ import {
 import {
   ResetPasswordGuard,
   type ResetPasswordRequest,
-} from 'src/common/guard/reset.password.guard';
+} from 'src/common/guard/resetPassword.guard';
 import type { RequestWithUser } from 'src/warehouse/types/userType';
 import { AuthGuard } from 'src/common/guard/auth.guard';
 
