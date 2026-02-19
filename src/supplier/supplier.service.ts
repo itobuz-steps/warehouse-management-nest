@@ -7,7 +7,7 @@ import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Supplier } from './entities/supplier.entity';
 import { SupplierDocument } from './entities/supplier.entity';
-import { Model } from 'mongoose';
+import { Model, QueryFilter } from 'mongoose';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
 
 @Injectable()
@@ -68,16 +68,26 @@ export class SupplierService {
     return res;
   }
 
-  async getAll() {
-    const allActiveSupplier = await this.supplierModel.find(
-      {
-        isActive: true,
-      },
-      {
-        __v: 0,
-      },
-    );
+  async getAll(search?: string) {
+    const filter: QueryFilter<SupplierDocument> = {};
 
-    return allActiveSupplier;
+    if (search) {
+      filter.$or = [
+        { email: { $regex: search, $options: 'i' } },
+        { name: { $regex: search, $options: 'i' } },
+        { phoneNumber: { $regex: search, $options: 'i' } },
+        { address: { $regex: search, $options: 'i' } },
+        {
+          suppliedProduct: {
+            $elemMatch: {
+              $regex: search,
+              $options: 'i',
+            },
+          },
+        },
+      ];
+    }
+
+    return this.supplierModel.find(filter, { __v: 0 }).sort({ isActive: -1 });
   }
 }
