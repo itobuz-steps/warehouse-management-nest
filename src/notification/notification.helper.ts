@@ -84,7 +84,10 @@ export class NotificationHelper {
                 payload.product,
                 payload.warehouse,
               );
-            } else {
+            } else if (
+              (payload.type as NOTIFICATION_TYPES) ===
+              NOTIFICATION_TYPES.PENDING_SHIPMENT
+            ) {
               await this.sendEmail.sendPendingShipmentEmail(
                 user.email,
                 user,

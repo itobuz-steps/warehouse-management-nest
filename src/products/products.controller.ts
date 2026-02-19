@@ -34,7 +34,7 @@ import { USER_TYPES } from 'src/auth/userType';
 
 @UseGuards(AuthGuard)
 @ApiBearerAuth()
-@Controller('product/')
+@Controller('product')
 export class ProductsController {
   constructor(
     private readonly productsService: ProductsService,

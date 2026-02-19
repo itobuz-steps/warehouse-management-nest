@@ -13,6 +13,8 @@ import {
   ResetPasswordGuard,
   type ResetPasswordRequest,
 } from 'src/common/guard/reset.password.guard';
+import type { RequestWithUser } from 'src/warehouse/types/userType';
+import { AuthGuard } from 'src/common/guard/auth.guard';
 
 @Controller('user/auth')
 export class AuthController {
@@ -57,8 +59,9 @@ export class AuthController {
     return await this.authService.forgotPassword(req.userEmail, dto);
   }
 
+  @UseGuards(AuthGuard)
   @Post('refresh')
-  refresh(@Req() req: { userId: string }) {
-    return this.authService.refresh(req.userId);
+  refresh(@Req() req: RequestWithUser) {
+    return this.authService.refresh(req.user._id);
   }
 }

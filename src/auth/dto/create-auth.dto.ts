@@ -21,9 +21,6 @@ export class LoginDto {
   @IsEmail()
   email: string;
 
-  // @Matches(PASSWORD_REGEX, {
-  //   message: invalidPasswordMessage,
-  // })
   @IsString()
   @IsNotEmpty()
   password: string;
