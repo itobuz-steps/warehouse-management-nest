@@ -52,4 +52,12 @@ export class updateProductDto {
   @IsString()
   @IsOptional()
   createdBy?: string;
+
+  @IsOptional()
+  @IsString()
+  brand?: string;
+
+  @IsOptional()
+  @IsString()
+  label?: string;
 }
