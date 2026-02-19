@@ -52,4 +52,10 @@ export class CreateProductDto {
   @IsString()
   @IsNotEmpty({ message: 'Created by is required' })
   createdBy: string;
+
+  @IsString()
+  brand: string;
+
+  @IsString()
+  label: string;
 }
