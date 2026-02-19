@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, QueryFilter } from 'mongoose';
+import { Model, QueryFilter, Types } from 'mongoose';
 import { Product, ProductDocument } from './entities/product.entity';
 import { GetProductsQueryDto } from './dto/get-product-query.dto';
 import { updateProductDto } from './dto/update-product.dto';
@@ -76,7 +76,7 @@ export class ProductsService {
     }
 
     const updatedProduct = await this.productModel.findByIdAndUpdate(
-      id,
+      new Types.ObjectId(id),
       updates,
       { new: true, runValidators: true },
     );

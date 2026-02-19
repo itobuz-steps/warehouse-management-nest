@@ -182,7 +182,7 @@ export class TransactionService {
             warehouseId: new Types.ObjectId(dto.destinationWarehouse),
             productId: new Types.ObjectId(item.productId),
             quantity: 0,
-            limit: item.limit,
+            limit: 10,
           });
 
         quantityRecord.quantity += item.quantity;
