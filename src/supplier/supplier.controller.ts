@@ -7,6 +7,7 @@ import {
   Delete,
   UseGuards,
   Put,
+  Query,
 } from '@nestjs/common';
 import { SupplierService } from './supplier.service';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
@@ -58,8 +59,8 @@ export class SupplierController {
   }
 
   @Get()
-  async getAllSupplier() {
-    const res = await this.supplierService.getAll();
+  async getAllSupplier(@Query('search') search?: string) {
+    const res = await this.supplierService.getAll(search);
 
     return {
       success: true,
