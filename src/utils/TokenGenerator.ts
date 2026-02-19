@@ -21,6 +21,20 @@ export class TokenGenerator {
     return invitation;
   }
 
+  resetPasswordToken(email: string): string {
+    const token_secret = this.config.get<string>('TOKEN_SECRET', 'secret_key');
+
+    const resetToken = jwt.sign(
+      { email: email, purpose: 'password-reset' },
+      token_secret,
+      {
+        expiresIn: this.config.get<string>('TOKEN_EXPIRE') as unknown as number,
+      },
+    );
+
+    return resetToken;
+  }
+
   generateToken(id: string): AuthTokens {
     const access = this.config.get<string>('ACCESS_SECRET_KEY');
     const refresh = this.config.get<string>('REFRESH_SECRET_KEY');
