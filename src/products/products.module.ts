@@ -5,13 +5,17 @@ import { MongooseModule } from '@nestjs/mongoose';
 
 import { Product, ProductSchema } from './entities/product.entity';
 import { User, UserSchema } from '../auth/entities/auth.entity';
+import { Variant, VariantSchema } from 'src/variant/schemas/variant.schema';
+import { VariantModule } from 'src/variant/variant.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: Product.name, schema: ProductSchema },
       { name: User.name, schema: UserSchema },
+      { name: Variant.name, schema: VariantSchema },
     ]),
+    VariantModule,
   ],
   controllers: [ProductsController],
   providers: [ProductsService],

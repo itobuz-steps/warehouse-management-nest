@@ -43,6 +43,9 @@ export class Product {
 
   @Prop({ default: false })
   isArchived: boolean;
+
+  @Prop({ type: Number, default: 0 })
+  variantCount: number;
 }
 
 export const ProductSchema = SchemaFactory.createForClass(Product);

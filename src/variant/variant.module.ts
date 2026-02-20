@@ -16,5 +16,6 @@ import { User, UserSchema } from 'src/auth/entities/auth.entity';
   ],
   controllers: [VariantController],
   providers: [VariantService],
+  exports: [VariantService],
 })
 export class VariantModule {}

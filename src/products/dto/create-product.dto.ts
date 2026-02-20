@@ -9,9 +9,9 @@ import {
   Max,
   IsBoolean,
   IsEnum,
+  IsObject,
 } from 'class-validator';
 import { PRODUCT_CATEGORY_TYPES } from '../constants/product.constant';
-// import CATEGORY_TYPES from '../constants/product.constant';
 
 export class CreateProductDto {
   @IsString()
@@ -56,6 +56,7 @@ export class CreateProductDto {
   @IsString()
   brand: string;
 
-  @IsString()
-  label: string;
+  @IsOptional()
+  @IsObject()
+  variantAttributes?: Record<string, string>;
 }

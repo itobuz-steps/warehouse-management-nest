@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { ClientSession, Model, Types } from 'mongoose';
 import { Variant, VariantDocument } from './schemas/variant.schema';
 import { CreateVariantDto } from './dto/create-variant.dto';
 import { Product, ProductDocument } from 'src/products/entities/product.entity';
@@ -25,8 +25,10 @@ export class VariantService {
       .slice(0, length);
   }
 
-  private generateVariantCode(attributes: Record<string, string>): string {
-    if (!attributes) return 'BASE';
+  private generateVariantCode(attributes?: Record<string, string>): string {
+    if (!attributes || Object.keys(attributes).length === 0) {
+      return 'BASE';
+    }
 
     const sortedKeys = Object.keys(attributes).sort();
 
@@ -48,34 +50,12 @@ export class VariantService {
   }
 
   async create(dto: CreateVariantDto) {
-    const product = await this.productModel.findById(dto.product);
-
-    if (!product) {
-      throw new BadRequestException('Product not found');
-    }
-
-    const sku = this.generateSku(
-      product.category,
-      product.brand,
-      product.label,
-      dto.attributes || {},
-    );
-
-    const existing = await this.variantModel.findOne({ sku });
-    if (existing) {
-      throw new BadRequestException('Variant already exists');
-    }
-
-    const variant = new this.variantModel({
-      product: new Types.ObjectId(dto.product),
-      attributes: dto.attributes,
-      sku,
-    });
+    const data = await this.createInternal(dto.product, dto.attributes || {});
 
     return {
       success: true,
       message: 'Variant created successfully',
-      data: await variant.save(),
+      data,
     };
   }
 
@@ -87,5 +67,48 @@ export class VariantService {
         product: new Types.ObjectId(productId),
       }),
     };
+  }
+
+  async createInternal(
+    productId: string,
+    attributes: Record<string, string> = {},
+    session?: ClientSession,
+  ) {
+    const product = await this.productModel
+      .findById(productId)
+      .session(session || null);
+
+    if (!product) {
+      throw new BadRequestException('Product not found');
+    }
+
+    const sku = this.generateSku(
+      product.category,
+      product.brand,
+      product.label,
+      attributes || {},
+    );
+
+    const existing = await this.variantModel
+      .findOne({ sku })
+      .session(session || null);
+
+    if (existing) {
+      throw new BadRequestException('Variant already exists');
+    }
+
+    const variant = new this.variantModel({
+      product: new Types.ObjectId(productId),
+      attributes,
+      sku,
+    }).save({ session });
+
+    await this.productModel.updateOne(
+      { _id: productId },
+      { $inc: { variantCount: 1 } },
+      { session },
+    );
+
+    return variant;
   }
 }
