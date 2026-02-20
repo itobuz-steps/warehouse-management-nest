@@ -17,10 +17,8 @@ interface CreateLogInput<A extends LogActionWithMetadata> {
   entityType: LogEntityType;
   entityId: string;
 
-  /** user from AuthGuard (req.user) */
   performedBy: UserDocument;
 
-  /** action-specific metadata */
   metadata: LogMetadataMap[A];
 }
 
