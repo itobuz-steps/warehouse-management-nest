@@ -6,35 +6,30 @@ export type BatchDocument = Batch & Document;
 
 @Schema({ timestamps: true })
 export class Batch {
-  @Prop({ required: true, unique: true })
-  batchNo: string;
-
   @Prop({ required: true, enum: TRANSACTION_TYPES })
   transactionType: TRANSACTION_TYPES;
 
-  @Prop({ type: Types.ObjectId, ref: 'Warehouse', required: false })
+  @Prop({ type: Types.ObjectId, ref: 'Warehouse' })
   sourceWarehouse?: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, ref: 'Warehouse', required: false })
+  @Prop({ type: Types.ObjectId, ref: 'Warehouse' })
   destinationWarehouse?: Types.ObjectId;
 
   @Prop({
     type: [
       {
-        product: { type: Types.ObjectId, ref: 'Product', required: true },
         variant: { type: Types.ObjectId, ref: 'Variant', required: true },
-        sku: { type: String, default: '' }, // leave blank for now
-        quantity: { type: Number, required: true },
+        quantity: { type: Number, required: true, min: 1 },
       },
     ],
     required: true,
   })
   items: {
-    product: Types.ObjectId;
     variant: Types.ObjectId;
-    sku: string;
     quantity: number;
   }[];
 }
 
 export const BatchSchema = SchemaFactory.createForClass(Batch);
+
+BatchSchema.index({ createdAt: -1 });
