@@ -12,6 +12,7 @@ import {
   TransactionCancelLog,
   StockAdjustLog,
 } from './transaction-log.type';
+import { UserStatusChangeLog } from './user-status-log.type';
 
 export type LogMetadata =
   | ProductCreateLog
@@ -25,4 +26,5 @@ export type LogMetadata =
   | CustomerUpdateLog
   | TransactionCreateLog
   | TransactionCancelLog
+  | UserStatusChangeLog
   | StockAdjustLog;

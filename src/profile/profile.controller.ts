@@ -72,10 +72,13 @@ export class ProfileController {
   }
 
   @Patch('change-user-status/:managerId')
-  async changeStatus(@Param() params: ManagerParamsDto) {
+  async changeStatus(
+    @Param() params: ManagerParamsDto,
+    @Req() req: RequestWithUser,
+  ) {
     return {
       success: true,
-      ...(await this.profileService.changeStatus(params.managerId)),
+      ...(await this.profileService.changeStatus(params.managerId, req.user)),
     };
   }
 }
