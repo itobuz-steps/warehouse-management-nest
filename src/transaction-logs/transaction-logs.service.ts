@@ -6,8 +6,9 @@ import {
 } from './entities/transaction-log.entity';
 import { Model } from 'mongoose';
 import { LogEntityType } from './enums/log-entity-type.enum';
-import { ActionUser } from 'src/common/types/action-user.type';
 import type { LogMetadataMap } from './types/log-metadata-map.type';
+import type { UserDocument } from 'src/auth/entities/auth.entity';
+import { PerformedBy } from './types/performed-by.type';
 
 type LogActionWithMetadata = keyof LogMetadataMap;
 
@@ -15,7 +16,11 @@ interface CreateLogInput<A extends LogActionWithMetadata> {
   action: A;
   entityType: LogEntityType;
   entityId: string;
-  performedBy: ActionUser;
+
+  /** user from AuthGuard (req.user) */
+  performedBy: UserDocument;
+
+  /** action-specific metadata */
   metadata: LogMetadataMap[A];
 }
 
@@ -29,7 +34,17 @@ export class TransactionLogsService {
   async createLog<A extends LogActionWithMetadata>(
     input: CreateLogInput<A>,
   ): Promise<void> {
-    await this.logModel.create(input);
+    const performedBy: PerformedBy = {
+      userId: input.performedBy._id,
+    };
+
+    await this.logModel.create({
+      action: input.action,
+      entityType: input.entityType,
+      entityId: input.entityId,
+      performedBy,
+      metadata: input.metadata,
+    });
   }
 
   async findAll(): Promise<TransactionLogDocument[]> {

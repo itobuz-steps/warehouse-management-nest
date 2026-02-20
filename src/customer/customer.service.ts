@@ -4,10 +4,10 @@ import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { Customer } from './entities/customer.entity';
 import { Model } from 'mongoose';
 import { InjectModel } from '@nestjs/mongoose';
+import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
+import { UserDocument } from 'src/auth/entities/auth.entity';
 import { LogAction } from 'src/transaction-logs/enums/log-action.enum';
 import { LogEntityType } from 'src/transaction-logs/enums/log-entity-type.enum';
-import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
-import { ActionUser } from 'src/common/types/action-user.type';
 
 @Injectable()
 export class CustomerService {
@@ -16,7 +16,7 @@ export class CustomerService {
     private readonly logsService: TransactionLogsService,
   ) {}
 
-  async create(createCustomerDto: CreateCustomerDto, user: ActionUser) {
+  async create(createCustomerDto: CreateCustomerDto, user: UserDocument) {
     const customer = await this.customerModel.create(createCustomerDto);
 
     await this.logsService.createLog({
@@ -25,9 +25,10 @@ export class CustomerService {
       entityId: customer._id.toHexString(),
       performedBy: user,
       metadata: {
-        name: customer.name as string,
+        name: customer.name,
         email: customer.email,
         phoneNumber: customer.phoneNumber,
+        address: customer.address,
       },
     });
 
@@ -45,7 +46,7 @@ export class CustomerService {
   async update(
     id: string,
     updateCustomerDto: UpdateCustomerDto,
-    user: ActionUser,
+    user: UserDocument,
   ) {
     const existingCustomer = await this.customerModel.findOne({
       _id: id,
@@ -88,9 +89,10 @@ export class CustomerService {
         newValue,
       },
     });
+    return updatedCustomer;
   }
 
-  async remove(id: string, user: ActionUser) {
+  async remove(id: string, user: UserDocument) {
     const deletedCustomer = await this.customerModel.findByIdAndUpdate(
       id,
       { isActive: false },
@@ -107,6 +109,9 @@ export class CustomerService {
       entityId: deletedCustomer._id.toHexString(),
       performedBy: user,
       metadata: {
+        name: deletedCustomer.name,
+        address: deletedCustomer.address,
+        phoneNumber: deletedCustomer.phoneNumber,
         email: deletedCustomer.email,
       },
     });

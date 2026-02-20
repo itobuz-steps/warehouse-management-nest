@@ -1,6 +1,5 @@
-// src/transaction-logs/types/performed-by.type.ts
+import { Types } from 'mongoose';
+
 export interface PerformedBy {
-  userId: string; // User._id
-  email: string; // snapshot
-  role: string; // USER_TYPES
+  userId: Types.ObjectId;
 }

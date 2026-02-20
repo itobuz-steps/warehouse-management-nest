@@ -11,13 +11,18 @@ import * as jwt from 'jsonwebtoken';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User, UserDocument } from 'src/auth/entities/auth.entity';
+import { Request } from 'express';
 import { JwtPayload } from 'jsonwebtoken';
 import configService from 'src/config/config.service';
-import { AuthenticatedRequest } from '../types/authenticated-request.type';
 
 type TokenPayload = JwtPayload & {
   id: string;
 };
+
+interface AuthenticatedRequest extends Request {
+  userId?: string;
+  user?: User;
+}
 
 @Injectable()
 export class AuthGuard implements CanActivate {

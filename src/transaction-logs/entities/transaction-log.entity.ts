@@ -1,6 +1,6 @@
 // src/transaction-logs/schemas/transaction-log.schema.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
+import { HydratedDocument, Types } from 'mongoose';
 import { LogAction } from '../enums/log-action.enum';
 import { LogEntityType } from '../enums/log-entity-type.enum';
 import { LogStatus } from '../enums/log-status.enum';
@@ -23,10 +23,9 @@ export class TransactionLog {
   entityId: string;
 
   @Prop({
+    _id: false,
     type: {
-      userId: { type: String, required: true },
-      email: { type: String, required: true },
-      role: { type: String, required: true },
+      userId: { type: Types.ObjectId, required: true },
     },
     required: true,
   })
