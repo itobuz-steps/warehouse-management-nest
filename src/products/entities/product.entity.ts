@@ -15,6 +15,12 @@ export class Product {
   })
   category: string;
 
+  @Prop({ required: true, uppercase: true, trim: true })
+  brand: string;
+
+  @Prop({ required: true, uppercase: true, trim: true })
+  label: string;
+
   @Prop()
   description: string;
 

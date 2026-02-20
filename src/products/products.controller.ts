@@ -35,7 +35,7 @@ import type { RequestWithUser } from 'src/warehouse/types/userType';
 
 @UseGuards(AuthGuard)
 @ApiBearerAuth()
-@Controller('product/')
+@Controller('product')
 export class ProductsController {
   constructor(
     private readonly productsService: ProductsService,

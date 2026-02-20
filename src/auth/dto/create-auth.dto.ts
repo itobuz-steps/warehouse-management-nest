@@ -21,9 +21,6 @@ export class LoginDto {
   @IsEmail()
   email: string;
 
-  // @Matches(PASSWORD_REGEX, {
-  //   message: invalidPasswordMessage,
-  // })
   @IsString()
   @IsNotEmpty()
   password: string;
@@ -44,13 +41,15 @@ export class SendOtpDto {
   email: string;
 }
 
-export class ForgotPasswordDto {
+export class VerifyOtpDto {
   @IsEmail()
   email: string;
 
   @IsNotEmpty()
   otp: string;
+}
 
+export class ForgotPasswordDto {
   @Matches(PASSWORD_REGEX, {
     message: invalidPasswordMessage,
   })

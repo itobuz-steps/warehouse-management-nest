@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param, Req } from '@nestjs/common';
+import { Controller, Post, Body, Param, Req, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 
 import {
@@ -7,7 +7,14 @@ import {
   SetPasswordDto,
   SendOtpDto,
   ForgotPasswordDto,
+  VerifyOtpDto,
 } from './dto/create-auth.dto';
+import {
+  ResetPasswordGuard,
+  type ResetPasswordRequest,
+} from 'src/common/guard/resetPassword.guard';
+import type { RequestWithUser } from 'src/warehouse/types/userType';
+import { AuthGuard } from 'src/common/guard/auth.guard';
 
 @Controller('user/auth')
 export class AuthController {
@@ -34,17 +41,27 @@ export class AuthController {
   }
 
   @Post('send-otp')
-  sendOtp(@Body() dto: SendOtpDto) {
-    return this.authService.sendOtp(dto);
+  async sendOtp(@Body() dto: SendOtpDto) {
+    return await this.authService.sendOtp(dto);
+  }
+
+  @Post('verify-otp')
+  async verifyOtp(@Body() dto: VerifyOtpDto) {
+    return await this.authService.verifyOtp(dto);
   }
 
   @Post('forgot-password')
-  forgotPassword(@Body() dto: ForgotPasswordDto) {
-    return this.authService.forgotPassword(dto);
+  @UseGuards(ResetPasswordGuard)
+  async forgotPassword(
+    @Req() req: ResetPasswordRequest,
+    @Body() dto: ForgotPasswordDto,
+  ) {
+    return await this.authService.forgotPassword(req.userEmail, dto);
   }
 
+  @UseGuards(AuthGuard)
   @Post('refresh')
-  refresh(@Req() req: { userId: string }) {
-    return this.authService.refresh(req.userId);
+  refresh(@Req() req: RequestWithUser) {
+    return this.authService.refresh(req.user._id);
   }
 }

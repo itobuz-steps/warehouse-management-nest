@@ -2,6 +2,7 @@ import {
   Injectable,
   BadRequestException,
   UnauthorizedException,
+  NotFoundException,
 } from '@nestjs/common';
 
 import { InjectModel } from '@nestjs/mongoose';
@@ -19,6 +20,7 @@ import {
   SetPasswordDto,
   SendOtpDto,
   ForgotPasswordDto,
+  VerifyOtpDto,
 } from './dto/create-auth.dto.js';
 
 import config from '../config/config.service';
@@ -159,8 +161,8 @@ export class AuthService {
     };
   }
 
-  async forgotPassword(dto: ForgotPasswordDto) {
-    const { email, otp, password } = dto;
+  async verifyOtp(dto: VerifyOtpDto) {
+    const { email, otp } = dto;
 
     const otpDoc = await this.otpModel.findOne({ email }).exec();
 
@@ -168,11 +170,29 @@ export class AuthService {
       throw new UnauthorizedException('Invalid OTP');
     }
 
-    const hashedPassword: string = await bcrypt.hash(password, 10);
+    const resetToken = this.tokenGenerator.resetPasswordToken(email);
 
-    await this.userModel.updateOne({ email }, { password: hashedPassword });
+    return {
+      message: 'OTP verified successfully',
+      success: true,
+      data: { resetToken },
+    };
+  }
 
-    return { message: 'Password reset successful', success: true };
+  async forgotPassword(email: string, dto: ForgotPasswordDto) {
+    const user = await this.userModel.findOne({ email }).exec();
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    user.password = await bcrypt.hash(dto.password, 10);
+    await user.save();
+
+    return {
+      success: true,
+      message: 'Password reset successful',
+    };
   }
 
   refresh(userId: string) {
