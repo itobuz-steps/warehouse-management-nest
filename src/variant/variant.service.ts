@@ -26,7 +26,7 @@ export class VariantService {
   }
 
   private generateVariantCode(attributes?: Record<string, string>): string {
-    if (!attributes || Object.keys(attributes).length === 0) {
+    if (!attributes || !Object.keys(attributes).length) {
       return 'BASE';
     }
 

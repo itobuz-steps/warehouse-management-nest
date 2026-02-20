@@ -74,7 +74,7 @@ export class ProductsService {
   ) {
     const updates = { ...updateProductDto };
 
-    if (imageUrls && imageUrls.length > 0) {
+    if (imageUrls && imageUrls.length) {
       updates['productImage'] = imageUrls;
     }
 
@@ -111,7 +111,7 @@ export class ProductsService {
 
       const attributes =
         createProductDto.variantAttributes &&
-        Object.keys(createProductDto.variantAttributes).length > 0
+        Object.keys(createProductDto.variantAttributes).length
           ? createProductDto.variantAttributes
           : {};
 

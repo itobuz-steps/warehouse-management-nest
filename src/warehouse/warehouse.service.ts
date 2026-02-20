@@ -133,7 +133,7 @@ export class WarehouseService {
     const capacity = warehouse.capacity || 0;
 
     let percentage: number | null = null;
-    if (capacity > 0) {
+    if (capacity) {
       percentage = Number(((totalQuantity / capacity) * 100).toFixed(2));
     }
 
