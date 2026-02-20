@@ -1,23 +1,16 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Patch,
-  Param,
-  Delete,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { BatchService } from './batch.service';
 import { CreateBatchDto } from './dto/create-batch.dto';
-import { UpdateBatchDto } from './dto/update-batch.dto';
+import { AuthGuard } from 'src/common/guard/auth.guard';
 
 @Controller('batch')
+@UseGuards(AuthGuard)
 export class BatchController {
   constructor(private readonly batchService: BatchService) {}
 
   @Post()
-  create(@Body() createBatchDto: CreateBatchDto) {
-    return this.batchService.create(createBatchDto);
+  create(@Body() dto: CreateBatchDto) {
+    return this.batchService.create(dto);
   }
 
   @Get()
@@ -27,16 +20,6 @@ export class BatchController {
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.batchService.findOne(+id);
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateBatchDto: UpdateBatchDto) {
-    return this.batchService.update(+id, updateBatchDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.batchService.remove(+id);
+    return this.batchService.findOne(id);
   }
 }
