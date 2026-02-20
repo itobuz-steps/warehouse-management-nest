@@ -22,11 +22,16 @@ export class ProfileService {
     if (!file) {
       throw new NotFoundException('Please select an image');
     }
+    const fileName = file.filename;
+    const imageUrl = `${req.protocol}://${req.get('host')}/uploads/user/${fileName}`;
 
-    user.profileImage = `${req.protocol}://${req.get('host')}/${file.path.replace(/\\/g, '/')}`;
+    user.profileImage = imageUrl;
     await user.save();
 
-    return { message: 'User profile updated successfully!' };
+    return {
+      message: 'User profile updated successfully!',
+      profileImage: imageUrl,
+    };
   }
 
   getCurrentUser(user: User) {
