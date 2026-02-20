@@ -33,7 +33,11 @@ export class WarehouseService {
         })
         .populate('managerIds', 'name email role');
 
-      return { success: true, data: warehouses };
+      return {
+        success: true,
+        message: 'Assigned Warehouses',
+        data: warehouses,
+      };
     }
 
     if (user.role === USER_TYPES.ADMIN) {
@@ -42,8 +46,8 @@ export class WarehouseService {
         .populate('managerIds', 'name email role');
 
       return {
-        message: 'All Warehouses',
         success: true,
+        message: 'All Warehouses',
         data: warehouses,
       };
     }
@@ -70,6 +74,7 @@ export class WarehouseService {
 
       return {
         success: true,
+        message: 'Warehouse Details',
         data: {
           manager: {
             id: user._id,
@@ -134,6 +139,7 @@ export class WarehouseService {
 
     return {
       success: true,
+      message: 'Warehouse Capacity Details',
       data: {
         warehouse: {
           id: warehouse._id,
@@ -157,8 +163,8 @@ export class WarehouseService {
     });
 
     return {
-      message: 'Warehouses Created Successfully',
       success: true,
+      message: 'Warehouses Created Successfully',
       data: data,
     };
   }
@@ -179,8 +185,8 @@ export class WarehouseService {
     }
 
     return {
-      message: 'Warehouses Updated Successfully',
       success: true,
+      message: 'Warehouses Updated Successfully',
       data: data,
     };
   }
@@ -196,8 +202,8 @@ export class WarehouseService {
     }
 
     return {
-      message: 'Warehouses Deleted Successfully',
       success: true,
+      message: 'Warehouses Deleted Successfully',
       data: data,
     };
   }

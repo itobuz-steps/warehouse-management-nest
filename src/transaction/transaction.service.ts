@@ -100,6 +100,7 @@ export class TransactionService {
 
     return {
       success: true,
+      message: 'Transactions retrieved successfully',
       data: {
         transactions,
         pagination: {
@@ -153,6 +154,7 @@ export class TransactionService {
 
     return {
       success: true,
+      message: 'Warehouse transactions retrieved successfully',
       data: {
         transactions,
         pagination: {

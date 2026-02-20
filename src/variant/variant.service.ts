@@ -72,10 +72,20 @@ export class VariantService {
       sku,
     });
 
-    return variant.save();
+    return {
+      success: true,
+      message: 'Variant created successfully',
+      data: await variant.save(),
+    };
   }
 
   async findByProduct(productId: string) {
-    return this.variantModel.find({ product: new Types.ObjectId(productId) });
+    return {
+      success: true,
+      message: 'Variants retrieved successfully',
+      data: await this.variantModel.find({
+        product: new Types.ObjectId(productId),
+      }),
+    };
   }
 }
