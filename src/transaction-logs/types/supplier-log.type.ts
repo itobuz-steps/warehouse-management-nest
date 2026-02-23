@@ -1,21 +1,20 @@
-// src/transaction-logs/types/supplier-log.types.ts
-export interface SupplierCreateLog {
+export type SupplierCreateLog = {
   name: string;
   email: string;
   suppliedProduct: string[];
   address: string;
   phoneNumber: string;
-}
+};
 
-export interface SupplierUpdateLog {
+export type SupplierUpdateLog = {
   oldValue: Partial<SupplierCreateLog>;
   newValue: Partial<SupplierCreateLog>;
-}
+};
 
-export interface SupplierDeleteLog {
+export type SupplierDeleteLog = {
   name?: string;
   email?: string;
   address?: string;
   phoneNumber?: string;
   suppliedProduct?: string[];
-}
+};

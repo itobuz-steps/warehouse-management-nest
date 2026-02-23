@@ -1,5 +1,4 @@
-// src/transaction-logs/types/transaction-log.types.ts
-export interface TransactionCreateLog {
+export type TransactionCreateLog = {
   transactionType: string; // TRANSACTION_TYPES
   productId: string;
   quantity: number;
@@ -10,14 +9,14 @@ export interface TransactionCreateLog {
 
   sourceWarehouse?: string;
   destinationWarehouse?: string;
-}
+};
 
-export interface TransactionCancelLog {
+export type TransactionCancelLog = {
   reason: string;
-}
+};
 
-export interface StockAdjustLog {
+export type StockAdjustLog = {
   previousQuantity: number;
   adjustedQuantity: number;
   difference: number;
-}
+};

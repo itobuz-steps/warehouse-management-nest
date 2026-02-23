@@ -1,18 +1,18 @@
-export interface CustomerCreateLog {
+export type CustomerCreateLog = {
   name?: string;
   email: string;
   phoneNumber?: string;
   address?: string;
-}
+};
 
-export interface CustomerUpdateLog {
+export type CustomerUpdateLog = {
   oldValue: Partial<CustomerCreateLog>;
   newValue: Partial<CustomerCreateLog>;
-}
+};
 
-export interface CustomerDeleteLog {
+export type CustomerDeleteLog = {
   name?: string;
   email: string;
   phoneNumber?: string;
   address?: string;
-}
+};

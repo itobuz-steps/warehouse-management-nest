@@ -12,7 +12,7 @@ import {
 } from './supplier-log.type';
 import { UserStatusChangeLog } from './user-status-log.type';
 
-export interface LogMetadataMap {
+export type LogMetadataMap = {
   [LogAction.CUSTOMER_CREATED]: CustomerCreateLog;
   [LogAction.CUSTOMER_UPDATED]: CustomerUpdateLog;
   [LogAction.CUSTOMER_DELETED]: CustomerDeleteLog;
@@ -23,4 +23,4 @@ export interface LogMetadataMap {
 
   [LogAction.USER_BLOCKED]: UserStatusChangeLog;
   [LogAction.USER_UNBLOCKED]: UserStatusChangeLog;
-}
+};

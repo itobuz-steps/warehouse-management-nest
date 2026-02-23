@@ -1,5 +1,4 @@
-// src/transaction-logs/types/user-status-log.types.ts
-export interface UserStatusChangeLog {
+export type UserStatusChangeLog = {
   oldValue: {
     name: string;
     email: string;
@@ -10,4 +9,4 @@ export interface UserStatusChangeLog {
     email: string;
     isActive: boolean;
   };
-}
+};

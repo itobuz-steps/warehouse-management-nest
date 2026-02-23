@@ -1,5 +1,5 @@
 import { Types } from 'mongoose';
 
-export interface PerformedBy {
+export type PerformedBy = {
   userId: Types.ObjectId;
-}
+};

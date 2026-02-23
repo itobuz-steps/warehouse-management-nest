@@ -1,4 +1,3 @@
-// src/transaction-logs/types/log-metadata.type.ts
 import {
   ProductCreateLog,
   ProductUpdateLog,

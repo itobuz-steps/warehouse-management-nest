@@ -3,7 +3,7 @@ import { LogEntityType } from '../enums/log-entity-type.enum';
 import { LogStatus } from '../enums/log-status.enum';
 import type { LogMetadata } from '../types/log-metadata.type';
 
-export interface CreateTransactionLogInput {
+export type CreateTransactionLogInput = {
   action: LogAction;
   entityType: LogEntityType;
   entityId: string;
@@ -16,4 +16,4 @@ export interface CreateTransactionLogInput {
 
   metadata: LogMetadata;
   status?: LogStatus;
-}
+};

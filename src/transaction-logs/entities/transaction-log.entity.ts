@@ -1,4 +1,3 @@
-// src/transaction-logs/schemas/transaction-log.schema.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
 import { LogAction } from '../enums/log-action.enum';

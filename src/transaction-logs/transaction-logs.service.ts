@@ -12,7 +12,7 @@ import { PerformedBy } from './types/performed-by.type';
 
 type LogActionWithMetadata = keyof LogMetadataMap;
 
-interface CreateLogInput<A extends LogActionWithMetadata> {
+type CreateLogInput<A extends LogActionWithMetadata> = {
   action: A;
   entityType: LogEntityType;
   entityId: string;
@@ -20,7 +20,7 @@ interface CreateLogInput<A extends LogActionWithMetadata> {
   performedBy: UserDocument;
 
   metadata: LogMetadataMap[A];
-}
+};
 
 @Injectable()
 export class TransactionLogsService {
