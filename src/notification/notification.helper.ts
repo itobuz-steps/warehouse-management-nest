@@ -27,6 +27,19 @@ export interface NotificationPayload {
   transactionPerformedBy?: Types.ObjectId;
 }
 
+interface SubscriptionKeys {
+  p256dh: string;
+  auth: string;
+}
+
+export interface LeanSubscription {
+  _id: Types.ObjectId;
+  userId: Types.ObjectId;
+  endpoint: string;
+  expirationTime?: Date | null;
+  keys: SubscriptionKeys;
+}
+
 @Injectable()
 export class NotificationHelper {
   constructor(
@@ -39,67 +52,138 @@ export class NotificationHelper {
     private readonly sendEmail: SendEmail,
   ) {}
 
+  // async notify(payload: NotificationPayload) {
+  //   if (!payload.users?.length) return;
+
+  //   const stringIds: string[] = payload.users.map((u) => {
+  //     const id = u._id;
+  //     return id instanceof Types.ObjectId ? id.toHexString() : String(id);
+  //   });
+
+  //   console.log('userIds to search:', stringIds);
+
+  //   await this.notificationModel.create({
+  //     userIds: stringIds,
+  //     type: payload.type,
+  //     title: payload.title,
+  //     message: payload.message,
+  //     relatedProduct: payload.relatedProduct,
+  //     warehouse: payload.warehouseId,
+  //     transactionId: payload.transactionId,
+  //     transactionPerformedBy: payload.transactionPerformedBy,
+  //   });
+
+  //   const subscriptions = (await this.subscriptionModel
+  //     .find({
+  //       userId: {
+  //         $in: [...stringIds, ...stringIds.map((id) => new Types.ObjectId(id))],
+  //       },
+  //     })
+  //     .lean()) as unknown as LeanSubscription[];
+
+  //   console.log('subscriptions fetched:', subscriptions);
+
+  //   if (subscriptions.length > 0) {
+  //     await sendBrowserNotification(subscriptions, {
+  //       title: payload.title,
+  //       body: payload.message,
+  //       type: payload.type,
+  //     });
+  //   }
+
+  //   if (payload.product && payload.warehouse) {
+  //     await Promise.all(
+  //       payload.users.map(async (user) => {
+  //         try {
+  //           // No need for 'any' here; TS now knows 'user' is a Mongoose Document
+  //           if (payload.type === NOTIFICATION_TYPES.LOW_STOCK) {
+  //             await this.sendEmail.sendLowStockEmail(
+  //               user.email,
+  //               user,
+  //               payload.product!,
+  //               payload.warehouse!,
+  //             );
+  //           } else if (payload.type === NOTIFICATION_TYPES.PENDING_SHIPMENT) {
+  //             await this.sendEmail.sendPendingShipmentEmail(
+  //               user.email,
+  //               user,
+  //               payload.product!,
+  //               payload.warehouse!,
+  //             );
+  //           }
+  //         } catch (err) {
+  //           console.error(`Email failed for ${user.email}:`, err);
+  //         }
+  //       }),
+  //     );
+  //   }
+  // }
+
   async notify(payload: NotificationPayload) {
     if (!payload.users?.length) return;
 
-    const userIds = payload.users.map((u) => new Types.ObjectId(u._id));
+    // Convert all IDs to strings for the DB notification record
+    const stringIds: string[] = payload.users.map((u) => {
+      const id = u._id;
+      return id instanceof Types.ObjectId ? id.toHexString() : String(id);
+    });
 
-    // 1️⃣ Save notification in DB
+    // Create the database record
     await this.notificationModel.create({
-      userIds,
+      userIds: stringIds,
       type: payload.type,
       title: payload.title,
       message: payload.message,
-
       relatedProduct: payload.relatedProduct,
-      warehouse: payload.warehouseId, // ✅ FIXED
+      warehouse: payload.warehouseId,
       transactionId: payload.transactionId,
       transactionPerformedBy: payload.transactionPerformedBy,
     });
 
-    // 2️⃣ Fetch subscriptions
-    const subscriptions = await this.subscriptionModel.find({
-      userId: { $in: userIds },
-    });
+    const subscriptions = await this.subscriptionModel
+      .find({ userId: { $in: stringIds } })
+      .lean<LeanSubscription[]>()
+      .exec();
 
-    // 3️⃣ Send browser push
-    await sendBrowserNotification(subscriptions, {
-      title: payload.title,
-      message: payload.message,
-      type: payload.type,
-    });
+    if (subscriptions.length > 0) {
+      await sendBrowserNotification(subscriptions, {
+        title: payload.title,
+        body: payload.message,
+        type: payload.type,
+      });
+    }
 
-    // 4️⃣ Send Emails (same logic as Express)
+    // Handle Emails
     if (payload.product && payload.warehouse) {
-      await Promise.all(
-        payload.users.map(async (user) => {
-          try {
-            if (
-              (payload.type as NOTIFICATION_TYPES) ===
-              NOTIFICATION_TYPES.LOW_STOCK
-            ) {
-              await this.sendEmail.sendLowStockEmail(
-                user.email,
-                user,
-                payload.product,
-                payload.warehouse,
-              );
-            } else if (
-              (payload.type as NOTIFICATION_TYPES) ===
-              NOTIFICATION_TYPES.PENDING_SHIPMENT
-            ) {
-              await this.sendEmail.sendPendingShipmentEmail(
-                user.email,
-                user,
-                payload.product,
-                payload.warehouse,
-              );
-            }
-          } catch (err) {
-            console.error('Email failed:', user.email, err);
+      const emailPromises = payload.users.map(async (user) => {
+        try {
+          if (
+            (payload.type as NOTIFICATION_TYPES) ===
+            NOTIFICATION_TYPES.LOW_STOCK
+          ) {
+            await this.sendEmail.sendLowStockEmail(
+              user.email,
+              user,
+              payload.product,
+              payload.warehouse,
+            );
+          } else if (
+            (payload.type as NOTIFICATION_TYPES) ===
+            NOTIFICATION_TYPES.PENDING_SHIPMENT
+          ) {
+            await this.sendEmail.sendPendingShipmentEmail(
+              user.email,
+              user,
+              payload.product,
+              payload.warehouse,
+            );
           }
-        }),
-      );
+        } catch (err) {
+          console.error(`Email failed for ${user.email}:`, err);
+        }
+      });
+
+      await Promise.all(emailPromises);
     }
   }
 }
