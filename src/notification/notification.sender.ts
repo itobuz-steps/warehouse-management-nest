@@ -27,9 +27,6 @@ export interface IBaseSubscription {
 
 configDotenv();
 
-console.log('PKey', process.env.VAPID_PUBLIC_KEY);
-console.log('pvtKey', process.env.VAPID_PRIVATE_KEY);
-
 webPush.setVapidDetails(
   'mailto: ' + process.env.MAIL_USER,
   process.env.VAPID_PUBLIC_KEY as string,
@@ -41,9 +38,6 @@ export async function sendBrowserNotification(
   payload: object,
 ) {
   const payloadString = JSON.stringify(payload);
-  console.log('subs', subscriptions);
-
-  console.log('Payload:', payloadString);
 
   await Promise.all(
     subscriptions.map((subscription) =>
