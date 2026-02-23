@@ -23,11 +23,7 @@ import type { Request, Response } from 'express';
 import { CreateProductDto } from './dto/create-product.dto';
 import { ConfigService } from '@nestjs/config';
 import { AuthGuard } from 'src/common/guard/auth.guard';
-import {
-  FILE_COUNT,
-  FILE_FIELD,
-  FOLDER_PATH,
-} from 'src/common/constants/file.constant';
+import { FILE_COUNT, FILE_FIELD } from 'src/common/constants/file.constant';
 import { ApiBearerAuth } from '@nestjs/swagger';
 import { Roles } from 'src/common/guard/roles.decorator';
 import { USER_TYPES } from 'src/auth/userType';
@@ -55,7 +51,7 @@ export class ProductsController {
   @Put(':id')
   @UseInterceptors(
     FilesInterceptor(FILE_FIELD.productImage, FILE_COUNT, {
-      storage: multerStorage(FOLDER_PATH.product),
+      storage: multerStorage(),
     }),
   )
   async updateProduct(
@@ -89,7 +85,7 @@ export class ProductsController {
   @Post()
   @UseInterceptors(
     FilesInterceptor(FILE_FIELD.productImage, FILE_COUNT, {
-      storage: multerStorage(FOLDER_PATH.product),
+      storage: multerStorage(),
     }),
   )
   async createProduct(
