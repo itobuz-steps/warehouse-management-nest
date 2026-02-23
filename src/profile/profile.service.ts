@@ -9,10 +9,16 @@ import { Model, Types } from 'mongoose';
 import { User, UserDocument } from '../auth/entities/auth.entity';
 import { USER_TYPES } from '../auth/userType';
 import { Request } from 'express';
+import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
+import { LogAction } from 'src/transaction-logs/enums/log-action.enum';
+import { LogEntityType } from 'src/transaction-logs/enums/log-entity-type.enum';
 
 @Injectable()
 export class ProfileService {
-  constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) {}
+  constructor(
+    @InjectModel(User.name) private userModel: Model<UserDocument>,
+    private readonly logsService: TransactionLogsService,
+  ) {}
 
   async updateProfile(
     user: UserDocument,
@@ -67,24 +73,57 @@ export class ProfileService {
     return { message: 'User deleted successfully!' };
   }
 
-  async changeStatus(managerId: string) {
-    const manager = await this.userModel.findOneAndUpdate(
-      {
-        _id: new Types.ObjectId(managerId),
-        role: USER_TYPES.MANAGER,
-        isVerified: true,
-        isDeleted: false,
-      },
+  async changeStatus(managerId: string, user: UserDocument) {
+    const existingManager = await this.userModel.findOne({
+      _id: new Types.ObjectId(managerId),
+      role: USER_TYPES.MANAGER,
+      isVerified: true,
+      isDeleted: false,
+    });
+
+    if (!existingManager) {
+      throw new NotFoundException('Manager does not exist');
+    }
+
+    const oldValue = {
+      name: existingManager.name as string,
+      email: existingManager.email,
+      isActive: existingManager.isActive,
+    };
+
+    const updatedManager = await this.userModel.findOneAndUpdate(
+      { _id: existingManager._id },
       [{ $set: { isActive: { $not: '$isActive' } } }],
       { new: true, updatePipeline: true },
     );
 
-    if (!manager) {
-      throw new NotFoundException('Manager does not exist');
+    if (!updatedManager) {
+      throw new NotFoundException('Manager update failed');
     }
 
+    const newValue = {
+      name: updatedManager.name as string,
+      email: updatedManager.email,
+      isActive: updatedManager.isActive,
+    };
+
+    const action = updatedManager.isActive
+      ? LogAction.USER_UNBLOCKED
+      : LogAction.USER_BLOCKED;
+
+    await this.logsService.createLog({
+      action,
+      entityType: LogEntityType.USER,
+      entityId: updatedManager._id.toHexString(),
+      performedBy: user,
+      metadata: {
+        oldValue,
+        newValue,
+      },
+    });
+
     return {
-      message: manager.isActive
+      message: updatedManager.isActive
         ? 'Manager Unblocked Successfully'
         : 'Manager Blocked Successfully',
     };
