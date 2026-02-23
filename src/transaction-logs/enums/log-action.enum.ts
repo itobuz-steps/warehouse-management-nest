@@ -1,4 +1,3 @@
-// src/transaction-logs/enums/log-action.enum.ts
 export enum LogAction {
   // Product
   PRODUCT_CREATED = 'PRODUCT_CREATED',

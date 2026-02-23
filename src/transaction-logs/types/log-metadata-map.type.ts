@@ -1,4 +1,3 @@
-// src/transaction-logs/types/log-metadata-map.ts
 import { LogAction } from '../enums/log-action.enum';
 import {
   CustomerCreateLog,
