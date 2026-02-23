@@ -9,14 +9,20 @@ import { Supplier } from './entities/supplier.entity';
 import { SupplierDocument } from './entities/supplier.entity';
 import { Model, QueryFilter } from 'mongoose';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
+import { UserDocument } from 'src/auth/entities/auth.entity';
+import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
+import { LogAction } from 'src/transaction-logs/enums/log-action.enum';
+import { LogEntityType } from 'src/transaction-logs/enums/log-entity-type.enum';
 
 @Injectable()
 export class SupplierService {
   constructor(
     @InjectModel(Supplier.name)
     private readonly supplierModel: Model<SupplierDocument>,
+    private readonly logsService: TransactionLogsService,
   ) {}
-  async create(supplierData: CreateSupplierDto) {
+
+  async create(supplierData: CreateSupplierDto, user: UserDocument) {
     const data = { ...supplierData };
 
     const existingSupplier = await this.supplierModel.findOne({
@@ -29,43 +35,100 @@ export class SupplierService {
 
     const newSupplier = await this.supplierModel.create(data);
 
+    await this.logsService.createLog({
+      action: LogAction.SUPPLIER_CREATED,
+      entityType: LogEntityType.SUPPLIER,
+      entityId: newSupplier._id.toHexString(),
+      performedBy: user,
+      metadata: {
+        name: newSupplier.name,
+        email: newSupplier.email,
+        phoneNumber: newSupplier.phoneNumber,
+        address: newSupplier.address,
+        suppliedProduct: newSupplier.suppliedProduct,
+      },
+    });
+
     return newSupplier;
   }
 
-  async update(id: string, updatedData: UpdateSupplierDto) {
+  async update(id: string, updatedData: UpdateSupplierDto, user: UserDocument) {
     const existingSupplier = await this.supplierModel.findById(id);
 
     if (!existingSupplier) {
       throw new NotFoundException('Supplier Not Found');
     }
 
-    if (updatedData.email) {
-      updatedData.email = updatedData.email.toLowerCase().trim();
-    }
+    const oldValue = {
+      name: existingSupplier.name,
+      email: existingSupplier.email,
+      phoneNumber: existingSupplier.phoneNumber,
+      address: existingSupplier.address,
+      suppliedProduct: existingSupplier.suppliedProduct,
+    };
 
-    const updatedSupplierData = await this.supplierModel.findByIdAndUpdate(
+    const updatedSupplier = await this.supplierModel.findByIdAndUpdate(
       id,
       { $set: updatedData },
       { new: true },
     );
 
-    return updatedSupplierData;
+    if (!updatedSupplier) {
+      throw new NotFoundException('Supplier Not Found After Update');
+    }
+
+    await this.logsService.createLog({
+      action: LogAction.SUPPLIER_UPDATED,
+      entityType: LogEntityType.SUPPLIER,
+      entityId: updatedSupplier._id.toHexString(),
+      performedBy: user,
+      metadata: {
+        oldValue,
+        newValue: {
+          name: updatedSupplier.name,
+          email: updatedSupplier.email,
+          phoneNumber: updatedSupplier.phoneNumber,
+          address: updatedSupplier.address,
+          suppliedProduct: updatedSupplier.suppliedProduct,
+        },
+      },
+    });
+
+    return updatedSupplier;
   }
 
-  async delete(id: string) {
+  async delete(id: string, user: UserDocument) {
     const existingSupplier = await this.supplierModel.findById(id);
 
     if (!existingSupplier) {
       throw new NotFoundException('Supplier Not Found');
     }
 
-    const res = await this.supplierModel.findByIdAndUpdate(
+    const deletedSupplier = await this.supplierModel.findByIdAndUpdate(
       id,
       { isActive: false },
       { new: true },
     );
 
-    return res;
+    if (!deletedSupplier) {
+      throw new NotFoundException('Supplier Not Found After Deletion');
+    }
+
+    await this.logsService.createLog({
+      action: LogAction.SUPPLIER_DELETED,
+      entityType: LogEntityType.SUPPLIER,
+      entityId: deletedSupplier._id.toHexString(),
+      performedBy: user,
+      metadata: {
+        name: deletedSupplier.name,
+        email: deletedSupplier.email,
+        phoneNumber: deletedSupplier.phoneNumber,
+        address: deletedSupplier.address,
+        suppliedProduct: deletedSupplier.suppliedProduct,
+      },
+    });
+
+    return deletedSupplier;
   }
 
   async getAll(search?: string) {

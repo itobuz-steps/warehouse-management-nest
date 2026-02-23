@@ -1,6 +1,29 @@
 import webPush from 'web-push';
-import { SubscriptionDocument } from './entities/subscription.entity';
+
 import { configDotenv } from 'dotenv';
+import { Types } from 'mongoose';
+
+interface SubscriptionKeys {
+  p256dh: string;
+  auth: string;
+}
+
+export interface LeanSubscription {
+  _id: Types.ObjectId;
+  userId: Types.ObjectId;
+  endpoint: string;
+  expirationTime?: Date | null;
+  keys: SubscriptionKeys;
+}
+
+export interface IBaseSubscription {
+  endpoint: string;
+  expirationTime?: Date | number | null;
+  keys: {
+    p256dh: string;
+    auth: string;
+  };
+}
 
 configDotenv();
 
@@ -11,7 +34,7 @@ webPush.setVapidDetails(
 );
 
 export async function sendBrowserNotification(
-  subscriptions: SubscriptionDocument[],
+  subscriptions: IBaseSubscription[],
   payload: object,
 ) {
   const payloadString = JSON.stringify(payload);
@@ -22,15 +45,13 @@ export async function sendBrowserNotification(
         .sendNotification(
           {
             endpoint: subscription.endpoint,
-            expirationTime: subscription.expirationTime
-              ? subscription.expirationTime.getTime()
-              : null,
-
             keys: subscription.keys,
           },
           payloadString,
         )
-        .catch(() => null),
+        .catch(() => {
+          console.log('push failed');
+        }),
     ),
   );
 }

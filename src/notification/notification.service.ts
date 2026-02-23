@@ -60,8 +60,7 @@ export class NotificationService {
     });
 
     if (existing) {
-      Object.assign(existing, subscriptionData);
-      return await existing.save();
+      return existing;
     }
 
     return await this.subscriptionModel.create(subscriptionData);

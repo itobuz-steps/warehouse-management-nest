@@ -7,12 +7,14 @@ import {
   Param,
   Delete,
   UseGuards,
+  Req,
 } from '@nestjs/common';
 import { CustomerService } from './customer.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { AuthGuard } from 'src/common/guard/auth.guard';
 import { ApiBearerAuth } from '@nestjs/swagger';
+import type { RequestWithUser } from 'src/profile/profile.controller';
 
 @UseGuards(AuthGuard)
 @ApiBearerAuth()
@@ -21,11 +23,14 @@ export class CustomerController {
   constructor(private readonly customerService: CustomerService) {}
 
   @Post()
-  async create(@Body() createCustomerDto: CreateCustomerDto) {
+  async create(
+    @Body() createCustomerDto: CreateCustomerDto,
+    @Req() req: RequestWithUser,
+  ) {
     return {
       message: 'Customer created successfully',
       success: true,
-      data: await this.customerService.create(createCustomerDto),
+      data: await this.customerService.create(createCustomerDto, req.user),
     };
   }
 
@@ -51,20 +56,21 @@ export class CustomerController {
   async update(
     @Param('id') id: string,
     @Body() updateCustomerDto: UpdateCustomerDto,
+    @Req() req: RequestWithUser,
   ) {
     return {
       message: `Customer updated successfully`,
       success: true,
-      data: await this.customerService.update(id, updateCustomerDto),
+      data: await this.customerService.update(id, updateCustomerDto, req.user),
     };
   }
 
   @Delete(':id')
-  async remove(@Param('id') id: string) {
+  async remove(@Param('id') id: string, @Req() req: RequestWithUser) {
     return {
       message: `Customer removed successfully`,
       success: true,
-      data: await this.customerService.remove(id),
+      data: await this.customerService.remove(id, req.user),
     };
   }
 }

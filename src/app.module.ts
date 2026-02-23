@@ -16,6 +16,7 @@ import { TransactionModule } from './transaction/transaction.module';
 import { SupplierModule } from './supplier/supplier.module';
 import { CustomerModule } from './customer/customer.module';
 import { VariantModule } from './variant/variant.module';
+import { TransactionLogsModule } from './transaction-logs/transaction-logs.module';
 import { BatchModule } from './batch/batch.module';
 import { StorageModule } from './storage/storage.module';
 import configService from './config/config.service';
@@ -40,6 +41,7 @@ import configService from './config/config.service';
     SupplierModule,
     CustomerModule,
     VariantModule,
+    TransactionLogsModule,
     BatchModule,
     StorageModule,
   ],
