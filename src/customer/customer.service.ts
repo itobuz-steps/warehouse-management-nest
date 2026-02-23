@@ -25,7 +25,7 @@ export class CustomerService {
       entityId: customer._id.toHexString(),
       performedBy: user,
       metadata: {
-        name: customer.name,
+        name: customer.name as string,
         email: customer.email,
         phoneNumber: customer.phoneNumber,
         address: customer.address,
@@ -109,9 +109,7 @@ export class CustomerService {
       entityId: deletedCustomer._id.toHexString(),
       performedBy: user,
       metadata: {
-        name: deletedCustomer.name,
-        address: deletedCustomer.address,
-        phoneNumber: deletedCustomer.phoneNumber,
+        name: deletedCustomer.name as string,
         email: deletedCustomer.email,
       },
     });

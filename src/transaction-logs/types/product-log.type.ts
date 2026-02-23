@@ -3,7 +3,12 @@ export type ProductCreateLog = {
   category: string;
   brand: string;
   label: string;
+  description: string;
+  productImage: string[];
   price: number;
+  markup: number;
+  isArchived: boolean;
+  variantCount: number;
 };
 
 export type ProductUpdateLog = {
@@ -12,5 +17,6 @@ export type ProductUpdateLog = {
 };
 
 export type ProductArchiveLog = {
+  name: string;
   isArchived: boolean;
 };

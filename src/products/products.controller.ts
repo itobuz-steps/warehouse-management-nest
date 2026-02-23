@@ -31,7 +31,7 @@ import {
 import { ApiBearerAuth } from '@nestjs/swagger';
 import { Roles } from 'src/common/guard/roles.decorator';
 import { USER_TYPES } from 'src/auth/userType';
-import type { RequestWithUser } from 'src/warehouse/types/userType';
+import type { RequestWithUser } from 'src/profile/profile.controller';
 
 @UseGuards(AuthGuard)
 @ApiBearerAuth()
@@ -97,7 +97,7 @@ export class ProductsController {
     @UploadedFiles() files: Express.Multer.File[],
     @Req() req: RequestWithUser,
   ) {
-    createProductDto.createdBy = req.user._id;
+    createProductDto.createdBy = req.user._id.toHexString();
 
     let imageUrls: string[] = [];
 
@@ -111,6 +111,7 @@ export class ProductsController {
     const product = await this.productsService.create(
       createProductDto,
       imageUrls,
+      req.user,
     );
 
     return {

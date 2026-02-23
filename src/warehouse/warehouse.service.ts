@@ -4,15 +4,17 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose'; //Types
+import { Model, Types } from 'mongoose';
 import { Warehouse, WarehouseDocument } from './schemas/warehouse.schema';
 import { USER_TYPES } from 'src/auth/userType';
-// import Quantity from '../models/quantityModel'; // TEMP: will be injected later
-import User from './types/userType';
 import mongoose from 'mongoose';
 import { CreateWarehouseDto } from './dto/create-warehouse.dto';
 import { UpdateWarehouseDto } from './dto/update-warehouse.dto';
 import { Quantity } from 'src/quantity/entities/quantity.entity';
+import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
+import { LogAction } from 'src/transaction-logs/enums/log-action.enum';
+import { LogEntityType } from 'src/transaction-logs/enums/log-entity-type.enum';
+import { User, UserDocument } from 'src/auth/entities/auth.entity';
 
 @Injectable()
 export class WarehouseService {
@@ -22,9 +24,14 @@ export class WarehouseService {
 
     @InjectModel(Quantity.name)
     private readonly quantityModel: Model<Quantity>,
+
+    @InjectModel(User.name)
+    private readonly userModel: Model<User>,
+
+    private readonly logService: TransactionLogsService,
   ) {}
 
-  async getWarehouses(user: User) {
+  async getWarehouses(user: UserDocument) {
     if (user.role === USER_TYPES.MANAGER) {
       const warehouses = await this.warehouseModel
         .find({
@@ -55,7 +62,7 @@ export class WarehouseService {
     throw new ForbiddenException('User role not allowed to fetch warehouses');
   }
 
-  async getWarehouseById(warehouseId: string, user: User) {
+  async getWarehouseById(warehouseId: string, user: UserDocument) {
     let warehouse: WarehouseDocument | null = null;
 
     if (user.role === USER_TYPES.MANAGER) {
@@ -101,7 +108,7 @@ export class WarehouseService {
     };
   }
 
-  async getWarehouseCapacity(warehouseId: string, user: User) {
+  async getWarehouseCapacity(warehouseId: string, user: UserDocument) {
     let warehouse: WarehouseDocument | null = null;
 
     if (user.role === USER_TYPES.MANAGER) {
@@ -152,59 +159,159 @@ export class WarehouseService {
     };
   }
 
-  async addWarehouse(dto: CreateWarehouseDto) {
-    const managerIds = dto.managers?.map(
-      (id) => new mongoose.Types.ObjectId(id),
-    );
+  async addWarehouse(dto: CreateWarehouseDto, user: UserDocument) {
+    const managerIds =
+      dto.managers?.map((id) => new mongoose.Types.ObjectId(id)) ?? [];
 
-    const data = await this.warehouseModel.create({
+    const managers = await this.userModel
+      .find({ _id: { $in: managerIds } })
+      .select('_id name email')
+      .lean();
+
+    const warehouse = await this.warehouseModel.create({
       ...dto,
       managerIds,
+    });
+
+    await this.logService.createLog({
+      action: LogAction.WAREHOUSE_CREATED,
+      entityType: LogEntityType.WAREHOUSE,
+      entityId: warehouse._id.toHexString(),
+      performedBy: user,
+      metadata: {
+        name: warehouse.name,
+        address: warehouse.address,
+        capacity: warehouse.capacity,
+        active: warehouse.active,
+        managers: managers.map((m) => ({
+          userId: m._id,
+          name: m.name as string,
+        })),
+        maxTransactionPriceLimit: warehouse.maxTransactionPriceLimit,
+      },
     });
 
     return {
       success: true,
       message: 'Warehouses Created Successfully',
-      data: data,
+      data: warehouse,
     };
   }
 
-  async updateWarehouse(id: string, dto: UpdateWarehouseDto) {
-    const managerIds = dto.managers?.map(
-      (id) => new mongoose.Types.ObjectId(id),
-    );
+  async updateWarehouse(
+    id: string,
+    dto: UpdateWarehouseDto,
+    user: UserDocument,
+  ) {
+    const managerIds: Types.ObjectId[] =
+      dto.managers?.map((id) => new Types.ObjectId(id)) ?? [];
 
-    const data = await this.warehouseModel.findByIdAndUpdate(
+    const oldWarehouse = await this.warehouseModel.findById(id).lean();
+
+    if (!oldWarehouse) {
+      throw new NotFoundException('Warehouse not found');
+    }
+
+    const oldManagers =
+      oldWarehouse.managerIds?.length > 0
+        ? await this.userModel
+            .find({ _id: { $in: oldWarehouse.managerIds } })
+            .select('_id name email')
+            .lean()
+        : [];
+
+    const newManagers =
+      managerIds.length > 0
+        ? await this.userModel
+            .find({ _id: { $in: managerIds } })
+            .select('_id name email')
+            .lean()
+        : [];
+
+    const updatedWarehouse = await this.warehouseModel.findByIdAndUpdate(
       id,
-      { ...dto, managerIds },
+      {
+        ...dto,
+        managerIds,
+      },
       { new: true },
     );
 
-    if (!data) {
+    if (!updatedWarehouse) {
       throw new NotFoundException('Warehouse not found');
     }
 
+    await this.logService.createLog({
+      action: LogAction.WAREHOUSE_UPDATED,
+      entityType: LogEntityType.WAREHOUSE,
+      entityId: id,
+      performedBy: user,
+      metadata: {
+        oldValue: {
+          name: oldWarehouse.name,
+          address: oldWarehouse.address,
+          capacity: oldWarehouse.capacity,
+          active: oldWarehouse.active,
+          maxTransactionPriceLimit: oldWarehouse.maxTransactionPriceLimit,
+          managers: oldManagers.map((m) => ({
+            userId: m._id,
+            name: m.name ?? 'Unknown',
+            email: m.email,
+          })),
+        },
+        newValue: {
+          name: updatedWarehouse.name,
+          address: updatedWarehouse.address,
+          capacity: updatedWarehouse.capacity,
+          active: updatedWarehouse.active,
+          maxTransactionPriceLimit: updatedWarehouse.maxTransactionPriceLimit,
+          managers: newManagers.map((m) => ({
+            userId: m._id,
+            name: m.name ?? 'Unknown',
+            email: m.email,
+          })),
+        },
+      },
+    });
+
     return {
       success: true,
-      message: 'Warehouses Updated Successfully',
-      data: data,
+      message: 'Warehouse Updated Successfully',
+      data: updatedWarehouse,
     };
   }
 
-  async deleteWarehouse(id: string) {
-    const data = await this.warehouseModel.findOneAndUpdate(
-      { _id: id, active: true },
-      { active: false },
-    );
+  async deleteWarehouse(id: string, user: UserDocument) {
+    const warehouse = await this.warehouseModel.findById(id).lean();
 
-    if (!data) {
+    if (!warehouse) {
       throw new NotFoundException('Warehouse not found');
     }
 
+    await this.warehouseModel.findByIdAndUpdate(
+      id,
+      {
+        active: false,
+      },
+      {
+        new: true,
+      },
+    );
+
+    await this.logService.createLog({
+      action: LogAction.WAREHOUSE_DELETED,
+      entityType: LogEntityType.WAREHOUSE,
+      entityId: id,
+      performedBy: user,
+      metadata: {
+        name: warehouse.name,
+        active: warehouse.active,
+      },
+    });
+
     return {
       success: true,
-      message: 'Warehouses Deleted Successfully',
-      data: data,
+      message: 'Warehouse Deleted Successfully',
     };
   }
 }

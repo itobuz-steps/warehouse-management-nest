@@ -1,5 +1,5 @@
 export type CustomerCreateLog = {
-  name?: string;
+  name: string;
   email: string;
   phoneNumber?: string;
   address?: string;
@@ -11,8 +11,6 @@ export type CustomerUpdateLog = {
 };
 
 export type CustomerDeleteLog = {
-  name?: string;
-  email: string;
-  phoneNumber?: string;
-  address?: string;
+  name: string;
+  email?: string;
 };

@@ -122,9 +122,6 @@ export class SupplierService {
       metadata: {
         name: deletedSupplier.name,
         email: deletedSupplier.email,
-        phoneNumber: deletedSupplier.phoneNumber,
-        address: deletedSupplier.address,
-        suppliedProduct: deletedSupplier.suppliedProduct,
       },
     });
 

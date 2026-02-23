@@ -9,6 +9,10 @@ import { SORT_CATEGORY } from './constants/product.constant';
 import * as QRCode from 'qrcode';
 import { SortOrder } from 'mongoose';
 import { VariantService } from 'src/variant/variant.service';
+import { UserDocument } from 'src/auth/entities/auth.entity';
+import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
+import { LogAction } from 'src/transaction-logs/enums/log-action.enum';
+import { LogEntityType } from 'src/transaction-logs/enums/log-entity-type.enum';
 
 @Injectable()
 export class ProductsService {
@@ -16,6 +20,7 @@ export class ProductsService {
     @InjectModel(Product.name) private productModel: Model<ProductDocument>,
 
     private readonly variantService: VariantService,
+    private readonly logsService: TransactionLogsService,
   ) {}
 
   async getProducts(queryDto: GetProductsQueryDto) {
@@ -91,7 +96,11 @@ export class ProductsService {
     return updatedProduct;
   }
 
-  async create(createProductDto: CreateProductDto, imageUrls: string[]) {
+  async create(
+    createProductDto: CreateProductDto,
+    imageUrls: string[],
+    user: UserDocument,
+  ) {
     const session = await this.productModel.db.startSession();
     session.startTransaction();
 
@@ -120,6 +129,25 @@ export class ProductsService {
         attributes,
         session,
       );
+
+      await this.logsService.createLog({
+        action: LogAction.PRODUCT_CREATED,
+        entityType: LogEntityType.PRODUCT,
+        entityId: product._id.toHexString(),
+        performedBy: user,
+        metadata: {
+          name: product.name,
+          label: product.label,
+          price: product.price,
+          category: product.category,
+          brand: product.brand,
+          description: product.description,
+          productImage: product.productImage,
+          markup: product.markup,
+          isArchived: false,
+          variantCount: Object.keys(attributes).length,
+        },
+      });
 
       await session.commitTransaction();
       await session.endSession();
