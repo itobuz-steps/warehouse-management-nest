@@ -8,11 +8,14 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { SORT_CATEGORY } from './constants/product.constant';
 import * as QRCode from 'qrcode';
 import { SortOrder } from 'mongoose';
+import { VariantService } from 'src/variant/variant.service';
 
 @Injectable()
 export class ProductsService {
   constructor(
     @InjectModel(Product.name) private productModel: Model<ProductDocument>,
+
+    private readonly variantService: VariantService,
   ) {}
 
   async getProducts(queryDto: GetProductsQueryDto) {
@@ -71,7 +74,7 @@ export class ProductsService {
   ) {
     const updates = { ...updateProductDto };
 
-    if (imageUrls && imageUrls.length > 0) {
+    if (imageUrls && imageUrls.length) {
       updates['productImage'] = imageUrls;
     }
 
@@ -89,12 +92,44 @@ export class ProductsService {
   }
 
   async create(createProductDto: CreateProductDto, imageUrls: string[]) {
-    const createdProduct = new this.productModel({
-      ...createProductDto,
-      productImage: imageUrls, // Add the image URLs here
-    });
+    const session = await this.productModel.db.startSession();
+    session.startTransaction();
 
-    return createdProduct.save();
+    try {
+      const normalizedName = createProductDto.name
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, '');
+
+      const label = await this.generateUniqueLabel(normalizedName);
+
+      const product = await new this.productModel({
+        ...createProductDto,
+        label,
+        productImage: imageUrls,
+        variantCount: 0,
+      }).save({ session });
+
+      const attributes =
+        createProductDto.variantAttributes &&
+        Object.keys(createProductDto.variantAttributes).length
+          ? createProductDto.variantAttributes
+          : {};
+
+      await this.variantService.createInternal(
+        product._id.toString(),
+        attributes,
+        session,
+      );
+
+      await session.commitTransaction();
+      await session.endSession();
+
+      return product;
+    } catch (error) {
+      await session.abortTransaction();
+      await session.endSession();
+      throw error;
+    }
   }
 
   async remove(id: string) {
@@ -175,5 +210,34 @@ export class ProductsService {
       currentPage: pageNumber,
       productsPerPage: limitNumber,
     };
+  }
+
+  private async generateUniqueLabel(base: string): Promise<string> {
+    let length = 5;
+    let label = base.slice(0, length);
+
+    while (length <= base.length) {
+      const exists = await this.productModel.findOne({ label });
+
+      if (!exists) {
+        return label;
+      }
+
+      length++;
+      label = base.slice(0, length);
+    }
+
+    // If entire string is exhausted and still collision:
+    let counter = 1;
+    while (true) {
+      const candidate = `${base.slice(0, 5)}${counter}`;
+      const exists = await this.productModel.findOne({ label: candidate });
+
+      if (!exists) {
+        return candidate;
+      }
+
+      counter++;
+    }
   }
 }

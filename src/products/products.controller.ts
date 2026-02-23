@@ -31,6 +31,7 @@ import {
 import { ApiBearerAuth } from '@nestjs/swagger';
 import { Roles } from 'src/common/guard/roles.decorator';
 import { USER_TYPES } from 'src/auth/userType';
+import type { RequestWithUser } from 'src/warehouse/types/userType';
 
 @UseGuards(AuthGuard)
 @ApiBearerAuth()
@@ -65,11 +66,11 @@ export class ProductsController {
   ) {
     let imageUrls: string[] | undefined;
 
-    if (files?.length) {
-      imageUrls = files.map(
-        (file) =>
-          `${req.protocol}://${req.get('host')}/${file.path.replace(/\\/g, '/')}`,
-      );
+    if (files && files.length) {
+      imageUrls = files.map((file) => {
+        const fileName = file.filename;
+        return `${req.protocol}://${req.get('host')}/uploads/products/${fileName}`;
+      });
     }
 
     const data = await this.productsService.update(
@@ -94,15 +95,17 @@ export class ProductsController {
   async createProduct(
     @Body() createProductDto: CreateProductDto,
     @UploadedFiles() files: Express.Multer.File[],
-    @Req() req: Request,
+    @Req() req: RequestWithUser,
   ) {
+    createProductDto.createdBy = req.user._id;
+
     let imageUrls: string[] = [];
 
-    if (files?.length) {
-      imageUrls = files.map(
-        (file) =>
-          `${req.protocol}://${req.get('host')}/${file.path.replace(/\\/g, '/')}`,
-      );
+    if (files && files.length) {
+      imageUrls = files.map((file) => {
+        const fileName = file.filename;
+        return `${req.protocol}://${req.get('host')}/uploads/products/${fileName}`;
+      });
     }
 
     const product = await this.productsService.create(

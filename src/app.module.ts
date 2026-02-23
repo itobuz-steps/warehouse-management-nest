@@ -17,6 +17,7 @@ import { SupplierModule } from './supplier/supplier.module';
 import { CustomerModule } from './customer/customer.module';
 import { VariantModule } from './variant/variant.module';
 import { TransactionLogsModule } from './transaction-logs/transaction-logs.module';
+import { BatchModule } from './batch/batch.module';
 import configService from './config/config.service';
 
 @Module({
@@ -40,6 +41,7 @@ import configService from './config/config.service';
     CustomerModule,
     VariantModule,
     TransactionLogsModule,
+    BatchModule,
   ],
   controllers: [AppController],
   providers: [AppService],

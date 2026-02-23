@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { ClientSession, Model, Types } from 'mongoose';
 import { Variant, VariantDocument } from './schemas/variant.schema';
 import { CreateVariantDto } from './dto/create-variant.dto';
 import { Product, ProductDocument } from 'src/products/entities/product.entity';
@@ -25,8 +25,10 @@ export class VariantService {
       .slice(0, length);
   }
 
-  private generateVariantCode(attributes: Record<string, string>): string {
-    if (!attributes) return 'BASE';
+  private generateVariantCode(attributes?: Record<string, string>): string {
+    if (!attributes || !Object.keys(attributes).length) {
+      return 'BASE';
+    }
 
     const sortedKeys = Object.keys(attributes).sort();
 
@@ -48,7 +50,33 @@ export class VariantService {
   }
 
   async create(dto: CreateVariantDto) {
-    const product = await this.productModel.findById(dto.product);
+    const data = await this.createInternal(dto.product, dto.attributes || {});
+
+    return {
+      success: true,
+      message: 'Variant created successfully',
+      data,
+    };
+  }
+
+  async findByProduct(productId: string) {
+    return {
+      success: true,
+      message: 'Variants retrieved successfully',
+      data: await this.variantModel.find({
+        product: new Types.ObjectId(productId),
+      }),
+    };
+  }
+
+  async createInternal(
+    productId: string,
+    attributes: Record<string, string> = {},
+    session?: ClientSession,
+  ) {
+    const product = await this.productModel
+      .findById(productId)
+      .session(session || null);
 
     if (!product) {
       throw new BadRequestException('Product not found');
@@ -58,24 +86,29 @@ export class VariantService {
       product.category,
       product.brand,
       product.label,
-      dto.attributes || {},
+      attributes || {},
     );
 
-    const existing = await this.variantModel.findOne({ sku });
+    const existing = await this.variantModel
+      .findOne({ sku })
+      .session(session || null);
+
     if (existing) {
       throw new BadRequestException('Variant already exists');
     }
 
     const variant = new this.variantModel({
-      product: new Types.ObjectId(dto.product),
-      attributes: dto.attributes,
+      product: new Types.ObjectId(productId),
+      attributes,
       sku,
-    });
+    }).save({ session });
 
-    return variant.save();
-  }
+    await this.productModel.updateOne(
+      { _id: productId },
+      { $inc: { variantCount: 1 } },
+      { session },
+    );
 
-  async findByProduct(productId: string) {
-    return this.variantModel.find({ product: new Types.ObjectId(productId) });
+    return variant;
   }
 }
