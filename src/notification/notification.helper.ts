@@ -5,7 +5,7 @@ import { Model, Types } from 'mongoose';
 import { Notification } from './entities/notification.entity';
 import { Subscription } from './entities/subscription.entity';
 import { sendBrowserNotification } from './notification.sender';
-import { UserDocument } from 'src/auth/entities/auth.entity';
+import { User, UserDocument } from 'src/auth/entities/auth.entity';
 
 import SendEmail from 'src/utils/SendEmail';
 import { NOTIFICATION_TYPES } from './notificationTypes';
@@ -50,76 +50,13 @@ export class NotificationHelper {
     private subscriptionModel: Model<Subscription>,
 
     private readonly sendEmail: SendEmail,
+
+    @InjectModel(User.name)
+    private userModel: Model<UserDocument>,
   ) {}
 
-  // async notify(payload: NotificationPayload) {
-  //   if (!payload.users?.length) return;
-
-  //   const stringIds: string[] = payload.users.map((u) => {
-  //     const id = u._id;
-  //     return id instanceof Types.ObjectId ? id.toHexString() : String(id);
-  //   });
-
-  //   console.log('userIds to search:', stringIds);
-
-  //   await this.notificationModel.create({
-  //     userIds: stringIds,
-  //     type: payload.type,
-  //     title: payload.title,
-  //     message: payload.message,
-  //     relatedProduct: payload.relatedProduct,
-  //     warehouse: payload.warehouseId,
-  //     transactionId: payload.transactionId,
-  //     transactionPerformedBy: payload.transactionPerformedBy,
-  //   });
-
-  //   const subscriptions = (await this.subscriptionModel
-  //     .find({
-  //       userId: {
-  //         $in: [...stringIds, ...stringIds.map((id) => new Types.ObjectId(id))],
-  //       },
-  //     })
-  //     .lean()) as unknown as LeanSubscription[];
-
-  //   console.log('subscriptions fetched:', subscriptions);
-
-  //   if (subscriptions.length > 0) {
-  //     await sendBrowserNotification(subscriptions, {
-  //       title: payload.title,
-  //       body: payload.message,
-  //       type: payload.type,
-  //     });
-  //   }
-
-  //   if (payload.product && payload.warehouse) {
-  //     await Promise.all(
-  //       payload.users.map(async (user) => {
-  //         try {
-  //           // No need for 'any' here; TS now knows 'user' is a Mongoose Document
-  //           if (payload.type === NOTIFICATION_TYPES.LOW_STOCK) {
-  //             await this.sendEmail.sendLowStockEmail(
-  //               user.email,
-  //               user,
-  //               payload.product!,
-  //               payload.warehouse!,
-  //             );
-  //           } else if (payload.type === NOTIFICATION_TYPES.PENDING_SHIPMENT) {
-  //             await this.sendEmail.sendPendingShipmentEmail(
-  //               user.email,
-  //               user,
-  //               payload.product!,
-  //               payload.warehouse!,
-  //             );
-  //           }
-  //         } catch (err) {
-  //           console.error(`Email failed for ${user.email}:`, err);
-  //         }
-  //       }),
-  //     );
-  //   }
-  // }
-
   async notify(payload: NotificationPayload) {
+    console.log('Notification payload', payload.users);
     if (!payload.users?.length) return;
 
     // Convert all IDs to strings for the DB notification record
@@ -127,6 +64,17 @@ export class NotificationHelper {
       const id = u._id;
       return id instanceof Types.ObjectId ? id.toHexString() : String(id);
     });
+
+    const freshUsers = await this.userModel
+      .find({ _id: { $in: stringIds } })
+      .select('_id email preferences')
+      .lean();
+
+    const pushUsers = freshUsers.filter((user) => !!user.preferences?.push);
+
+    const pushUserIds = pushUsers.map((u) =>
+      u._id instanceof Types.ObjectId ? u._id.toHexString() : String(u._id),
+    );
 
     // Create the database record
     await this.notificationModel.create({
@@ -140,17 +88,19 @@ export class NotificationHelper {
       transactionPerformedBy: payload.transactionPerformedBy,
     });
 
-    const subscriptions = await this.subscriptionModel
-      .find({ userId: { $in: stringIds } })
-      .lean<LeanSubscription[]>()
-      .exec();
+    if (pushUserIds.length) {
+      const subscriptions = await this.subscriptionModel
+        .find({ userId: { $in: pushUserIds } })
+        .lean()
+        .exec();
 
-    if (subscriptions.length > 0) {
-      await sendBrowserNotification(subscriptions, {
-        title: payload.title,
-        body: payload.message,
-        type: payload.type,
-      });
+      if (subscriptions.length) {
+        await sendBrowserNotification(subscriptions, {
+          title: payload.title,
+          body: payload.message,
+          type: payload.type,
+        });
+      }
     }
 
     // Handle Emails
