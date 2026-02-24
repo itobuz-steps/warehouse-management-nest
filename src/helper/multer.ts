@@ -1,3 +1,3 @@
 import { memoryStorage } from 'multer';
 
-export const multerStorage = memoryStorage;
+export const multerStorage = () => memoryStorage();

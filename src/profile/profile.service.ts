@@ -12,6 +12,7 @@ import { StorageService } from 'src/storage/storage.service';
 import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
 import { LogAction } from 'src/transaction-logs/enums/log-action.enum';
 import { LogEntityType } from 'src/transaction-logs/enums/log-entity-type.enum';
+import { UpdatePreferenceDto } from './dto/update-preference.dto';
 
 @Injectable()
 export class ProfileService {
@@ -142,5 +143,18 @@ export class ProfileService {
         ? 'Manager Unblocked Successfully'
         : 'Manager Blocked Successfully',
     };
+  }
+
+  async setUserNotificationPreference(
+    preference: UpdatePreferenceDto,
+    user: UserDocument,
+  ) {
+    user.preferences = {
+      ...user.preferences,
+      ...preference,
+    };
+
+    await user.save();
+    return user.preferences;
   }
 }
