@@ -5,6 +5,8 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { Variant, VariantSchema } from './schemas/variant.schema';
 import { Product, ProductSchema } from 'src/products/entities/product.entity';
 import { User, UserSchema } from 'src/auth/entities/auth.entity';
+import { StorageService } from 'src/storage/storage.service';
+import { StorageModule } from 'src/storage/storage.module';
 
 @Module({
   imports: [
@@ -13,9 +15,10 @@ import { User, UserSchema } from 'src/auth/entities/auth.entity';
       { name: Product.name, schema: ProductSchema },
       { name: User.name, schema: UserSchema },
     ]),
+    StorageModule,
   ],
   controllers: [VariantController],
-  providers: [VariantService],
+  providers: [VariantService, StorageService],
   exports: [VariantService],
 })
 export class VariantModule {}
