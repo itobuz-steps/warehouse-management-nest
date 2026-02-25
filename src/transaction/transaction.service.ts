@@ -279,7 +279,7 @@ export class TransactionService {
       const warehouseId = new Types.ObjectId(dto.sourceWarehouse);
       const performedBy = new Types.ObjectId(userId);
 
-      const transaction = await this.transactionModel.create(
+      const [transaction] = await this.transactionModel.create(
         [
           {
             type: TRANSACTION_TYPES.OUT,
@@ -291,11 +291,11 @@ export class TransactionService {
             sourceWarehouse: warehouseId,
             notes: dto.notes,
             performedBy,
-            products: dto.products.map((product) => ({
-              product: product.productId,
-              variants: product.variants.map((variant) => ({
-                variant: variant.variantId,
-                quantity: variant.quantity,
+            products: dto.products.map((p) => ({
+              product: new Types.ObjectId(p.productId),
+              variants: p.variants.map((v) => ({
+                variant: new Types.ObjectId(v.variantId),
+                quantity: v.quantity,
               })),
             })),
           },
@@ -306,50 +306,71 @@ export class TransactionService {
       for (const product of dto.products) {
         for (const variant of product.variants) {
           const variantId = new Types.ObjectId(variant.variantId);
+          const requiredQty = variant.quantity;
 
-          const stock = await this.variantStockModel.findOne({
-            variantId,
-            warehouseId,
-          });
+          const stockUpdate = await this.variantStockModel.updateOne(
+            {
+              variantId,
+              warehouseId,
+              quantity: { $gte: requiredQty },
+            },
+            {
+              $inc: { quantity: -requiredQty },
+            },
+            { session },
+          );
 
-          if (!stock) {
-            throw new BadRequestException('Variant stock not found');
-          }
-
-          if (stock.quantity < variant.quantity) {
+          if (stockUpdate.modifiedCount === 0) {
             throw new BadRequestException(
               `Insufficient stock for variant ${variant.variantId}`,
             );
           }
 
-          let remainingToDeduct = variant.quantity;
+          let remainingToDeduct = requiredQty;
 
           const batches = await this.batchModel
-            .find({
-              destinationWarehouse: warehouseId,
-              'items.variant': variantId,
-              'items.remainingQuantity': { $gt: 0 },
-            })
+            .find(
+              {
+                destinationWarehouse: warehouseId,
+                'items.variant': variantId,
+                'items.remainingQuantity': { $gt: 0 },
+              },
+              { items: 1 },
+            )
             .sort({ createdAt: 1 })
+            .lean()
             .session(session);
 
           for (const batch of batches) {
+            if (!remainingToDeduct) break;
+
             const item = batch.items.find(
               (i) =>
                 i.variant.toString() === variantId.toString() &&
-                i.remainingQuantity,
+                i.remainingQuantity > 0,
             );
 
             if (!item) continue;
 
             const deduct = Math.min(item.remainingQuantity, remainingToDeduct);
 
-            item.remainingQuantity -= deduct;
+            const batchUpdate = await this.batchModel.updateOne(
+              {
+                _id: batch._id,
+                'items.variant': variantId,
+                'items.remainingQuantity': { $gte: deduct },
+              },
+              {
+                $inc: { 'items.$.remainingQuantity': -deduct },
+              },
+              { session },
+            );
+
+            if (!batchUpdate.modifiedCount) {
+              continue;
+            }
+
             remainingToDeduct -= deduct;
-
-            await batch.save({ session });
-
-            if (!remainingToDeduct) break;
           }
 
           if (remainingToDeduct) {
@@ -357,38 +378,29 @@ export class TransactionService {
               'Stock inconsistency detected (FIFO failure)',
             );
           }
-
-          stock.quantity -= variant.quantity;
-          await stock.save({ session });
         }
       }
 
       await session.commitTransaction();
 
-      const promises: Promise<void>[] = [];
-
-      for (const product of dto.products) {
-        for (const variant of product.variants) {
-          promises.push(
+      Promise.all(
+        dto.products.flatMap((product) =>
+          product.variants.map((variant) =>
             this.notificationTriggerService.notifyPendingShipment(
               new Types.ObjectId(product.productId),
               warehouseId,
-              transaction[0]._id,
+              transaction._id,
               variant.quantity,
               performedBy,
             ),
-          );
-        }
-      }
-
-      Promise.all(promises).catch(() =>
-        console.error('Failed to send notification'),
-      );
+          ),
+        ),
+      ).catch(() => console.error('Notification failure'));
 
       return {
         success: true,
         message: 'Stock-out transaction created successfully',
-        data: transaction[0],
+        data: transaction,
       };
     } catch (error) {
       await session.abortTransaction();

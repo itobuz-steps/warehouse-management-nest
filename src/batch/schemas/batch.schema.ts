@@ -30,7 +30,9 @@ export class Batch {
 
 export const BatchSchema = SchemaFactory.createForClass(Batch);
 
-BatchSchema.index({ createdAt: -1 });
-BatchSchema.index({ 'items.variant': 1 });
+BatchSchema.index({
+  destinationWarehouse: 1,
+  'items.variant': 1,
+  createdAt: 1,
+});
 BatchSchema.index({ destinationWarehouse: 1 });
-BatchSchema.index({ 'items.variant': 1, destinationWarehouse: 1 });
