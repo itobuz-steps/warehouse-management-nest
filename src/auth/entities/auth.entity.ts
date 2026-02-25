@@ -35,6 +35,17 @@ export class User {
 
   @Prop()
   profileImageKey: string;
+
+  @Prop({
+    type: {
+      email: { default: true, type: Boolean },
+      push: { default: true, type: Boolean },
+    },
+  })
+  preferences: {
+    email: boolean;
+    push: boolean;
+  };
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

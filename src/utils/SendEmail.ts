@@ -92,6 +92,9 @@ export default class SendEmail {
     product: Product,
     warehouse: WarehouseDocument,
   ): Promise<void> => {
+    if (!user.preferences.email) {
+      return;
+    }
     await this.mailSender(
       email,
       'Low Stock Alert',
@@ -112,6 +115,9 @@ export default class SendEmail {
     product: Product,
     warehouse: WarehouseDocument,
   ): Promise<void> => {
+    if (!user.preferences.email) {
+      return;
+    }
     await this.mailSender(
       email,
       'Pending Shipment Alert',

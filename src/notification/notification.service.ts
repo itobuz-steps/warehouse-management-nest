@@ -67,10 +67,8 @@ export class NotificationService {
   }
 
   async getNotifications(userId: string, offset = 0) {
-    const userObjectId = new mongoose.Types.ObjectId(userId);
-
     const notifications = await this.notificationModel.aggregate([
-      { $match: { userIds: { $in: [userObjectId] } } },
+      { $match: { userIds: { $in: [userId] } } },
       { $sort: { createdAt: -1 } },
       { $skip: offset },
       { $limit: 10 },
@@ -109,7 +107,7 @@ export class NotificationService {
     ]);
 
     const unseenCount = await this.notificationModel.countDocuments({
-      userIds: { $in: [userObjectId] },
+      userIds: { $in: [userId] },
       seen: false,
     });
 
