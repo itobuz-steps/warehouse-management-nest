@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel, InjectConnection } from '@nestjs/mongoose';
 import { Model, Connection, Types } from 'mongoose';
-import { Transaction, TransactionDocument } from './schemas/transaction.schema';
+import { Transaction } from './schemas/transaction.schema';
 import { StockInDto } from './dto/stock-in.dto';
 import { Notification } from 'src/notification/entities/notification.entity';
 import { Warehouse } from '../warehouse/schemas/warehouse.schema';
@@ -14,9 +14,9 @@ import { USER_TYPES } from 'src/auth/userType';
 import { UserDocument } from 'src/auth/entities/auth.entity';
 import { WarehouseTransactionsQueryDto } from './dto/query/warehouse-transactions.query.dto';
 import { GetTransactionsQueryDto } from './dto/query/get-transactions.query.dto';
-import type { ClientSession, ObjectId, QueryFilter } from 'mongoose';
+import type { QueryFilter } from 'mongoose';
 import { PdfService } from './services/pdf.service';
-import { PopulatedTransaction } from './types/types';
+import { PopulatedTransactionForPdfGeneration } from './types/types';
 import { Quantity } from 'src/quantity/entities/quantity.entity';
 import { TRANSACTION_TYPES } from './constants/transactionConstants';
 import { StockOutDto } from './dto/stock-out.dto';
@@ -27,6 +27,8 @@ import { AdjustmentDto } from './dto/adjustment.dto';
 import { NotificationService } from 'src/notification/notification.service';
 import { NotificationTriggerService } from 'src/notification/notification-trigger.service';
 import { NOTIFICATION_TYPES } from 'src/notification/notificationTypes';
+import { Batch } from 'src/batch/schemas/batch.schema';
+import { VariantStock } from 'src/variant-stock/schemas/variant-stock.schema';
 
 @Injectable()
 export class TransactionService {
@@ -48,6 +50,12 @@ export class TransactionService {
 
     @InjectModel(Notification.name)
     private readonly notification: Model<Notification>,
+
+    @InjectModel(Batch.name)
+    private readonly batchModel: Model<Batch>,
+
+    @InjectModel(VariantStock.name)
+    private readonly variantStockModel: Model<VariantStock>,
 
     private readonly pdfService: PdfService,
 
@@ -172,194 +180,231 @@ export class TransactionService {
     session.startTransaction();
 
     try {
-      const transactions: TransactionDocument[] = [];
+      const warehouseId = new Types.ObjectId(dto.destinationWarehouse);
+      const performedBy = new Types.ObjectId(userId);
 
-      for (const item of dto.products) {
-        const quantityRecord =
-          (await this.quantityModel.findOne({
-            warehouseId: new Types.ObjectId(dto.destinationWarehouse),
-            productId: new Types.ObjectId(item.productId),
-          })) ??
-          new this.quantityModel({
-            warehouseId: new Types.ObjectId(dto.destinationWarehouse),
-            productId: new Types.ObjectId(item.productId),
-            quantity: 0,
-            limit: 10,
-          });
+      const transaction = await this.transactionModel.create(
+        [
+          {
+            type: TRANSACTION_TYPES.IN,
+            supplier: dto.supplier,
+            destinationWarehouse: warehouseId,
+            notes: dto.notes,
+            performedBy,
+            products: dto.products.map((product) => ({
+              product: new Types.ObjectId(product.productId),
+              variants: product.variants.map((variant) => ({
+                variant: new Types.ObjectId(variant.variantId),
+                quantity: variant.quantity,
+              })),
+            })),
+          },
+        ],
+        { session },
+      );
 
-        quantityRecord.quantity += item.quantity;
-        await quantityRecord.save({ session });
-
-        const tx = await this.transactionModel.create(
+      for (const product of dto.products) {
+        await this.batchModel.create(
           [
             {
-              type: TRANSACTION_TYPES.IN,
-              product: new Types.ObjectId(item.productId),
-              quantity: item.quantity,
-              supplier: dto.supplier,
-              destinationWarehouse: new Types.ObjectId(
-                dto.destinationWarehouse,
-              ),
-              notes: dto.notes,
-              performedBy: new Types.ObjectId(userId),
+              destinationWarehouse: warehouseId,
+              items: product.variants.map((variant) => ({
+                variant: new Types.ObjectId(variant.variantId),
+                quantity: variant.quantity,
+                remainingQuantity: variant.quantity,
+              })),
             },
           ],
           { session },
         );
 
-        transactions.push(tx[0]);
+        for (const variant of product.variants) {
+          await this.variantStockModel.findOneAndUpdate(
+            {
+              variantId: new Types.ObjectId(variant.variantId),
+              warehouseId,
+            },
+            {
+              $inc: { quantity: variant.quantity },
+            },
+            {
+              upsert: true,
+              session,
+            },
+          );
+        }
       }
 
       await session.commitTransaction();
 
-      const promises: Promise<void>[] = [];
+      const notificationPromises: Promise<void>[] = [];
 
-      for (const tx of transactions) {
-        const notificationPromise =
-          this.notificationTriggerService.notifyTransaction(
-            tx.product._id,
-            tx.destinationWarehouse as Types.ObjectId,
-            tx._id.toString(),
-            tx.quantity,
-            NOTIFICATION_TYPES.STOCK_IN,
-            userId,
+      for (const product of dto.products) {
+        for (const variant of product.variants) {
+          notificationPromises.push(
+            this.notificationTriggerService.notifyTransaction(
+              new Types.ObjectId(product.productId),
+              warehouseId,
+              transaction[0]._id.toString(),
+              variant.quantity,
+              NOTIFICATION_TYPES.STOCK_IN,
+              userId,
+            ),
           );
-        promises.push(notificationPromise);
+        }
       }
 
-      Promise.all(promises).catch(() =>
-        console.error('Failed to send notification'),
+      Promise.all(notificationPromises).catch(() =>
+        console.error('Notification failed'),
       );
 
       return {
         success: true,
-        message: 'Stock-in transactions created successfully',
-        data: transactions,
+        message: 'Stock-in transaction created successfully',
+        data: transaction[0],
       };
-    } catch (e) {
+    } catch (error) {
       await session.abortTransaction();
-      throw e;
+      throw error;
     } finally {
       await session.endSession();
     }
   }
 
   async createStockOut(dto: StockOutDto, userId: string) {
-    const session: ClientSession = await this.connection.startSession();
+    const session = await this.connection.startSession();
     session.startTransaction();
 
-    const transactions: TransactionDocument[] = [];
-
-    const lowStockNotifications: {
-      productId: string;
-      warehouseId: string;
-    }[] = [];
-
     try {
-      for (const item of dto.products) {
-        const { productId, quantity } = item;
+      const warehouseId = new Types.ObjectId(dto.sourceWarehouse);
+      const performedBy = new Types.ObjectId(userId);
 
-        const product = await this.productModel.findById(productId);
-        if (!product) {
-          throw new BadRequestException('Product not found');
-        }
+      const [transaction] = await this.transactionModel.create(
+        [
+          {
+            type: TRANSACTION_TYPES.OUT,
+            customerName: dto.customerName,
+            customerEmail: dto.customerEmail,
+            customerPhone: dto.customerPhone,
+            customerAddress: dto.customerAddress,
+            shipment: SHIPMENT_TYPES.PENDING,
+            sourceWarehouse: warehouseId,
+            notes: dto.notes,
+            performedBy,
+            products: dto.products.map((p) => ({
+              product: new Types.ObjectId(p.productId),
+              variants: p.variants.map((v) => ({
+                variant: new Types.ObjectId(v.variantId),
+                quantity: v.quantity,
+              })),
+            })),
+          },
+        ],
+        { session },
+      );
 
-        const quantityRecord = await this.quantityModel.findOne({
-          productId: new Types.ObjectId(productId),
-          warehouseId: new Types.ObjectId(dto.sourceWarehouse),
-        });
+      for (const product of dto.products) {
+        for (const variant of product.variants) {
+          const variantId = new Types.ObjectId(variant.variantId);
+          const requiredQty = variant.quantity;
 
-        if (!quantityRecord) {
-          throw new BadRequestException('Quantity record not found');
-        }
-
-        if (quantityRecord.quantity < quantity) {
-          throw new BadRequestException(
-            `Insufficient stock for ${product.name}. Available: ${quantityRecord.quantity}`,
-          );
-        }
-
-        if (quantity > quantityRecord.limit) {
-          throw new BadRequestException(
-            `Stock-out limit exceeded for ${product.name}`,
-          );
-        }
-
-        const previousQty = quantityRecord.quantity;
-
-        quantityRecord.quantity -= quantity;
-        await quantityRecord.save({ session });
-
-        const transaction = await this.transactionModel.create(
-          [
+          const stockUpdate = await this.variantStockModel.updateOne(
             {
-              type: TRANSACTION_TYPES.OUT,
-              product: new Types.ObjectId(productId),
-              quantity,
-              customerName: dto.customerName,
-              customerEmail: dto.customerEmail,
-              customerPhone: dto.customerPhone,
-              customerAddress: dto.customerAddress,
-              shipment: SHIPMENT_TYPES.PENDING,
-              sourceWarehouse: new Types.ObjectId(dto.sourceWarehouse),
-              notes: dto.notes,
-              performedBy: new Types.ObjectId(userId),
+              variantId,
+              warehouseId,
+              quantity: { $gte: requiredQty },
             },
-          ],
-          { session },
-        );
+            {
+              $inc: { quantity: -requiredQty },
+            },
+            { session },
+          );
 
-        transactions.push(transaction[0]);
+          if (stockUpdate.modifiedCount === 0) {
+            throw new BadRequestException(
+              `Insufficient stock for variant ${variant.variantId}`,
+            );
+          }
 
-        if (
-          quantityRecord.quantity <= quantityRecord.limit &&
-          previousQty > quantityRecord.limit
-        ) {
-          lowStockNotifications.push({
-            productId,
-            warehouseId: dto.sourceWarehouse,
-          });
+          let remainingToDeduct = requiredQty;
+
+          const batches = await this.batchModel
+            .find(
+              {
+                destinationWarehouse: warehouseId,
+                'items.variant': variantId,
+                'items.remainingQuantity': { $gt: 0 },
+              },
+              { items: 1 },
+            )
+            .sort({ createdAt: 1 })
+            .lean()
+            .session(session);
+
+          for (const batch of batches) {
+            if (!remainingToDeduct) break;
+
+            const item = batch.items.find(
+              (i) =>
+                i.variant.toString() === variantId.toString() &&
+                i.remainingQuantity > 0,
+            );
+
+            if (!item) continue;
+
+            const deduct = Math.min(item.remainingQuantity, remainingToDeduct);
+
+            const batchUpdate = await this.batchModel.updateOne(
+              {
+                _id: batch._id,
+                'items.variant': variantId,
+                'items.remainingQuantity': { $gte: deduct },
+              },
+              {
+                $inc: { 'items.$.remainingQuantity': -deduct },
+              },
+              { session },
+            );
+
+            if (!batchUpdate.modifiedCount) {
+              continue;
+            }
+
+            remainingToDeduct -= deduct;
+          }
+
+          if (remainingToDeduct) {
+            throw new BadRequestException(
+              'Stock inconsistency detected (FIFO failure)',
+            );
+          }
         }
       }
 
       await session.commitTransaction();
 
-      const promises: Promise<void>[] = [];
-
-      for (const trx of transactions) {
-        const notificationPromise =
-          this.notificationTriggerService.notifyPendingShipment(
-            trx.product._id,
-            trx.sourceWarehouse as Types.ObjectId,
-            trx._id,
-            trx.quantity,
-            new Types.ObjectId(userId),
-          );
-        promises.push(notificationPromise);
-      }
-
-      for (const notif of lowStockNotifications) {
-        const lowStockNotificationPromise =
-          this.notificationTriggerService.notifyLowStock(
-            notif.productId,
-            notif.warehouseId,
-            userId,
-          );
-        promises.push(lowStockNotificationPromise);
-      }
-
-      Promise.all(promises).catch(() =>
-        console.error('Failed to send notification'),
-      );
+      Promise.all(
+        dto.products.flatMap((product) =>
+          product.variants.map((variant) =>
+            this.notificationTriggerService.notifyPendingShipment(
+              new Types.ObjectId(product.productId),
+              warehouseId,
+              transaction._id,
+              variant.quantity,
+              performedBy,
+            ),
+          ),
+        ),
+      ).catch(() => console.error('Notification failure'));
 
       return {
         success: true,
-        message: 'Stock-out transactions created successfully',
-        data: transactions,
+        message: 'Stock-out transaction created successfully',
+        data: transaction,
       };
-    } catch (err) {
+    } catch (error) {
       await session.abortTransaction();
-      throw err;
+      throw error;
     } finally {
       await session.endSession();
     }
@@ -378,94 +423,111 @@ export class TransactionService {
         );
       }
 
-      const transactions: TransactionDocument[] = [];
-      const updatedQuantities: {
-        productId: ObjectId | string;
-        sourceQuantity: Quantity;
-        destQuantity: Quantity;
-      }[] = [];
+      const sourceWarehouseId = new Types.ObjectId(sourceWarehouse);
+      const destinationWarehouseId = new Types.ObjectId(destinationWarehouse);
+      const performedBy = new Types.ObjectId(userId);
 
-      for (const { productId, quantity, limit } of products) {
-        const product = await this.productModel.findById(productId);
-        if (!product) throw new NotFoundException('Product not found');
+      const transaction = await this.transactionModel.create(
+        [
+          {
+            type: TRANSACTION_TYPES.TRANSFER,
+            sourceWarehouse: sourceWarehouseId,
+            destinationWarehouse: destinationWarehouseId,
+            notes,
+            performedBy,
+            products: products.map((product) => ({
+              product: product.productId,
+              variants: product.variants.map((variant) => ({
+                variant: variant.variantId,
+                quantity: variant.quantity,
+              })),
+            })),
+          },
+        ],
+        { session },
+      );
 
-        const sourceQty = await this.quantityModel.findOne({
-          warehouseId: new Types.ObjectId(sourceWarehouse),
-          productId: new Types.ObjectId(productId),
-        });
+      for (const product of products) {
+        for (const variant of product.variants) {
+          const variantId = new Types.ObjectId(variant.variantId);
 
-        if (!sourceQty)
-          throw new NotFoundException('Product not found in source warehouse');
-
-        if (sourceQty.quantity < quantity) {
-          throw new BadRequestException(
-            `Insufficient stock for ${product.name}`,
-          );
-        }
-
-        const prevQty = sourceQty.quantity;
-
-        sourceQty.quantity -= quantity;
-        await sourceQty.save({ session });
-
-        let destQty = await this.quantityModel.findOne({
-          warehouseId: new Types.ObjectId(destinationWarehouse),
-          productId: new Types.ObjectId(productId),
-        });
-
-        if (!quantity) {
-          throw new BadRequestException('Quantity is required');
-        }
-
-        if (!destQty && !limit) {
-          throw new BadRequestException(
-            'Limit is required for new destination warehouse',
-          );
-        }
-
-        if (!destQty) {
-          destQty = new this.quantityModel({
-            warehouseId: new Types.ObjectId(destinationWarehouse),
-            productId: new Types.ObjectId(productId),
-            quantity,
-            limit,
+          const sourceStock = await this.variantStockModel.findOne({
+            variantId,
+            warehouseId: sourceWarehouseId,
           });
-        }
 
-        destQty.quantity += quantity;
-        await destQty.save({ session });
+          if (!sourceStock || sourceStock.quantity < variant.quantity) {
+            throw new BadRequestException(
+              `Insufficient stock for variant ${variant.variantId}`,
+            );
+          }
 
-        updatedQuantities.push({
-          productId,
-          sourceQuantity: sourceQty,
-          destQuantity: destQty,
-        });
+          let remainingToMove = variant.quantity;
 
-        const tx = await this.transactionModel.create(
-          [
+          const batches = await this.batchModel
+            .find({
+              destinationWarehouse: sourceWarehouseId,
+              'items.variant': variantId,
+              'items.remainingQuantity': { $gt: 0 },
+            })
+            .sort({ createdAt: 1 })
+            .session(session);
+
+          for (const batch of batches) {
+            const item = batch.items.find(
+              (i) =>
+                i.variant.toString() === variantId.toString() &&
+                i.remainingQuantity,
+            );
+
+            if (!item) continue;
+
+            const deduct = Math.min(item.remainingQuantity, remainingToMove);
+
+            item.remainingQuantity -= deduct;
+            remainingToMove -= deduct;
+
+            await batch.save({ session });
+
+            if (!remainingToMove) break;
+          }
+
+          if (remainingToMove) {
+            throw new BadRequestException('FIFO inconsistency detected');
+          }
+
+          sourceStock.quantity -= variant.quantity;
+          await sourceStock.save({ session });
+
+          await this.variantStockModel.findOneAndUpdate(
             {
-              type: TRANSACTION_TYPES.TRANSFER,
-              product: new Types.ObjectId(productId),
-              quantity,
-              notes,
-              sourceWarehouse: new Types.ObjectId(sourceWarehouse),
-              destinationWarehouse: new Types.ObjectId(destinationWarehouse),
-              performedBy: new Types.ObjectId(userId),
+              variantId,
+              warehouseId: destinationWarehouseId,
             },
-          ],
-          { session },
-        );
+            {
+              $inc: { quantity: variant.quantity },
+            },
+            {
+              upsert: true,
+              session,
+            },
+          );
 
-        transactions.push(tx[0]);
-
-        if (
-          sourceQty.quantity <= sourceQty.limit &&
-          prevQty > sourceQty.limit
-        ) {
-          await this.notificationTriggerService.notifyLowStock(
-            productId,
-            sourceWarehouse,
-            userId,
+          await this.batchModel.create(
+            [
+              {
+                sourceWarehouse: sourceWarehouseId,
+                destinationWarehouse: destinationWarehouseId,
+                items: [
+                  {
+                    variant: variantId,
+                    quantity: variant.quantity,
+                    remainingQuantity: variant.quantity,
+                  },
+                ],
+              },
+            ],
+            { session },
           );
         }
       }
@@ -474,17 +536,19 @@ export class TransactionService {
 
       const promises: Promise<void>[] = [];
 
-      for (const tx of transactions) {
-        const notificationPromise =
-          this.notificationTriggerService.notifyTransaction(
-            tx.product,
-            tx.sourceWarehouse as Types.ObjectId,
-            tx._id.toString(),
-            tx.quantity,
-            NOTIFICATION_TYPES.STOCK_TRANSFER,
-            userId,
+      for (const product of products) {
+        for (const variant of product.variants) {
+          promises.push(
+            this.notificationTriggerService.notifyTransaction(
+              new Types.ObjectId(product.productId),
+              sourceWarehouseId,
+              transaction[0]._id.toString(),
+              variant.quantity,
+              NOTIFICATION_TYPES.STOCK_TRANSFER,
+              userId,
+            ),
           );
-        promises.push(notificationPromise);
+        }
       }
 
       Promise.all(promises).catch(() =>
@@ -494,11 +558,11 @@ export class TransactionService {
       return {
         success: true,
         message: 'Stock transfer completed successfully',
-        data: { transactions, updatedQuantities },
+        data: transaction[0],
       };
-    } catch (err) {
+    } catch (error) {
       await session.abortTransaction();
-      throw err;
+      throw error;
     } finally {
       await session.endSession();
     }
@@ -510,68 +574,150 @@ export class TransactionService {
 
     try {
       const { products, warehouseId, reason, notes } = dto;
-      const { productId, quantity } = products[0];
 
-      const quantityRecord = await this.quantityModel.findOne({
-        warehouseId: new Types.ObjectId(warehouseId),
-        productId: new Types.ObjectId(productId),
-      });
+      const warehouseObjectId = new Types.ObjectId(warehouseId);
+      const performedBy = new Types.ObjectId(userId);
 
-      if (!quantityRecord)
-        throw new NotFoundException('Quantity record not found');
-
-      const prevQty = quantityRecord.quantity;
-      quantityRecord.quantity -= quantity;
-      await quantityRecord.save({ session });
-
-      const tx = await this.transactionModel.create(
+      const transaction = await this.transactionModel.create(
         [
           {
             type: TRANSACTION_TYPES.ADJUSTMENT,
-            product: new Types.ObjectId(productId),
-            quantity,
+            destinationWarehouse: warehouseObjectId,
             reason,
             notes,
-            destinationWarehouse: new Types.ObjectId(warehouseId),
-            performedBy: new Types.ObjectId(userId),
+            performedBy,
+            products: products.map((product) => ({
+              product: product.productId,
+              variants: product.variants.map((variant) => ({
+                variant: variant.variantId,
+                quantity: variant.quantity,
+              })),
+            })),
           },
         ],
         { session },
       );
 
-      await session.commitTransaction();
+      for (const product of products) {
+        for (const variant of product.variants) {
+          const variantId = new Types.ObjectId(variant.variantId);
+          const adjustmentQty = variant.quantity;
 
-      if (
-        quantityRecord.quantity <= quantityRecord.limit &&
-        prevQty > quantityRecord.limit
-      ) {
-        await this.notificationTriggerService.notifyLowStock(
-          productId,
-          warehouseId,
-          userId,
-        );
+          const stock = await this.variantStockModel.findOne({
+            variantId,
+            warehouseId: warehouseObjectId,
+          });
+
+          if (!stock) {
+            throw new NotFoundException('Variant stock not found');
+          }
+
+          if (adjustmentQty === 0) {
+            throw new BadRequestException('Adjustment quantity cannot be zero');
+          }
+
+          if (adjustmentQty < 0) {
+            const absoluteQty = Math.abs(adjustmentQty);
+
+            if (stock.quantity < absoluteQty) {
+              throw new BadRequestException(
+                `Insufficient stock for variant ${variant.variantId}`,
+              );
+            }
+
+            let remainingToDeduct = absoluteQty;
+
+            const batches = await this.batchModel
+              .find({
+                destinationWarehouse: warehouseObjectId,
+                'items.variant': variantId,
+                'items.remainingQuantity': { $gt: 0 },
+              })
+              .sort({ createdAt: 1 })
+              .session(session);
+
+            for (const batch of batches) {
+              const item = batch.items.find(
+                (i) =>
+                  i.variant.toString() === variantId.toString() &&
+                  i.remainingQuantity > 0,
+              );
+
+              if (!item) continue;
+
+              const deduct = Math.min(
+                item.remainingQuantity,
+                remainingToDeduct,
+              );
+
+              item.remainingQuantity -= deduct;
+              remainingToDeduct -= deduct;
+
+              await batch.save({ session });
+
+              if (remainingToDeduct === 0) break;
+            }
+
+            if (remainingToDeduct > 0) {
+              throw new BadRequestException('FIFO inconsistency detected');
+            }
+
+            stock.quantity -= absoluteQty;
+            await stock.save({ session });
+          }
+
+          if (adjustmentQty > 0) {
+            stock.quantity -= adjustmentQty;
+            await stock.save({ session });
+
+            await this.batchModel.create(
+              [
+                {
+                  destinationWarehouse: warehouseObjectId,
+                  items: [
+                    {
+                      variant: variantId,
+                      quantity: adjustmentQty,
+                      remainingQuantity: adjustmentQty,
+                    },
+                  ],
+                },
+              ],
+              { session },
+            );
+          }
+        }
       }
 
-      await this.notificationTriggerService.notifyTransaction(
-        tx[0].product,
-        tx[0].destinationWarehouse as Types.ObjectId,
-        tx[0]._id.toString(),
-        tx[0].quantity,
-        NOTIFICATION_TYPES.STOCK_ADJUSTMENT,
-        userId,
-      );
+      await session.commitTransaction();
+
+      const promises: Promise<void>[] = [];
+
+      for (const product of products) {
+        for (const variant of product.variants) {
+          promises.push(
+            this.notificationTriggerService.notifyTransaction(
+              new Types.ObjectId(product.productId),
+              warehouseObjectId,
+              transaction[0]._id.toString(),
+              variant.quantity,
+              NOTIFICATION_TYPES.STOCK_ADJUSTMENT,
+              userId,
+            ),
+          );
+        }
+      }
+
+      Promise.all(promises).catch(() => console.error('Notification failed'));
 
       return {
         success: true,
         message: 'Stock adjustment recorded successfully',
-        data: {
-          transaction: tx[0],
-          updatedQuantity: quantityRecord,
-        },
+        data: transaction[0],
       };
-    } catch (err) {
+    } catch (error) {
       await session.abortTransaction();
-      throw err;
+      throw error;
     } finally {
       await session.endSession();
     }
@@ -580,23 +726,28 @@ export class TransactionService {
   async generateInvoice(id: string) {
     const transaction = await this.transactionModel
       .findById(id)
-      .populate<PopulatedTransaction>('product performedBy sourceWarehouse');
+      .populate({
+        path: 'products.variants.variant',
+      })
+      .populate('products.product')
+      .populate('sourceWarehouse')
+      .populate('performedBy')
+      .lean<PopulatedTransactionForPdfGeneration>();
+    console.log(transaction);
 
     if (!transaction) {
       throw new NotFoundException('Transaction not found');
     }
 
-    if (!transaction.product) {
+    if (!transaction.products?.length) {
       throw new BadRequestException('Product not found for transaction');
     }
 
-    const pdf = await this.pdfService.generateTransactionPdf(transaction);
+    const pdfBuffer = await this.pdfService.generateTransactionPdf(transaction);
 
-    const buffer = Buffer.from(pdf);
-
-    return new StreamableFile(buffer, {
+    return new StreamableFile(pdfBuffer, {
       type: 'application/pdf',
-      disposition: `attachment; filename=invoice-${transaction._id}.pdf`,
+      disposition: `attachment; filename=invoice-${transaction._id.toString()}.pdf`,
     });
   }
 }

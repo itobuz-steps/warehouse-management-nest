@@ -2,11 +2,6 @@ import {
   IsString,
   IsNotEmpty,
   IsOptional,
-  IsArray,
-  IsUrl,
-  IsNumber,
-  Min,
-  Max,
   IsBoolean,
   IsMongoId,
 } from 'class-validator';
@@ -28,22 +23,22 @@ export class updateProductDto {
   @IsOptional()
   description?: string;
 
-  @IsArray()
-  @IsString({ each: true })
-  @IsUrl({}, { each: true, message: 'Each product image must be a valid URL' })
-  @IsOptional()
-  productImage?: string[];
+  // @IsArray()
+  // @IsString({ each: true })
+  // @IsUrl({}, { each: true, message: 'Each product image must be a valid URL' })
+  // @IsOptional()
+  // productImage?: string[];
 
-  @IsNumber()
-  @Min(0, { message: 'Price must be greater than or equal to 0' })
-  @IsNotEmpty()
-  price: number;
+  // @IsNumber()
+  // @Min(0, { message: 'Price must be greater than or equal to 0' })
+  // @IsNotEmpty()
+  // price: number;
 
-  @IsNumber()
-  @Min(0)
-  @Max(100)
-  @IsOptional()
-  markup?: number;
+  // @IsNumber()
+  // @Min(0)
+  // @Max(100)
+  // @IsOptional()
+  // markup?: number;
 
   @IsBoolean()
   @IsOptional()

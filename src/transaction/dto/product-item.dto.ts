@@ -1,14 +1,12 @@
-import { IsMongoId, IsNumber, IsOptional, Min } from 'class-validator';
+import { IsMongoId, ValidateNested } from 'class-validator';
+import { VariantItemDto } from './variant-item.dto';
+import { Type } from 'class-transformer';
 
 export class ProductItemDto {
   @IsMongoId()
   productId: string;
 
-  @IsNumber()
-  @Min(1)
-  quantity: number;
-
-  @IsOptional()
-  @IsNumber()
-  limit?: number;
+  @ValidateNested({ each: true })
+  @Type(() => VariantItemDto)
+  variants: VariantItemDto[];
 }

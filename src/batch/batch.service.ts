@@ -1,10 +1,10 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable /*BadRequestException*/ } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Batch, BatchDocument } from './schemas/batch.schema';
 import { CreateBatchDto } from './dto/create-batch.dto';
 import { Variant, VariantDocument } from '../variant/schemas/variant.schema';
-import { TRANSACTION_TYPES } from 'src/transaction/constants/transactionConstants';
+// import { TRANSACTION_TYPES } from 'src/transaction/constants/transactionConstants';
 
 type BatchProductItem = {
   variant: Types.ObjectId;
@@ -21,39 +21,31 @@ export class BatchService {
     private readonly variantModel: Model<VariantDocument>,
   ) {}
 
-  private validateWarehouses(
-    type: TRANSACTION_TYPES,
-    source?: string,
-    destination?: string,
-  ) {
-    if (type === TRANSACTION_TYPES.TRANSFER) {
-      if (!source || !destination) {
-        throw new BadRequestException(
-          'Transfer requires both source and destination warehouses',
-        );
-      }
-      if (source === destination) {
-        throw new BadRequestException(
-          'Source and destination cannot be the same',
-        );
-      }
-    }
+  // private validateWarehouses(source?: string, destination?: string) {
+  //   if (type === TRANSACTION_TYPES.TRANSFER) {
+  //     if (!source || !destination) {
+  //       throw new BadRequestException(
+  //         'Transfer requires both source and destination warehouses',
+  //       );
+  //     }
+  //     if (source === destination) {
+  //       throw new BadRequestException(
+  //         'Source and destination cannot be the same',
+  //       );
+  //     }
+  //   }
 
-    if (type === TRANSACTION_TYPES.IN && !destination) {
-      throw new BadRequestException('Stock In requires destination warehouse');
-    }
+  //   if (type === TRANSACTION_TYPES.IN && !destination) {
+  //     throw new BadRequestException('Stock In requires destination warehouse');
+  //   }
 
-    if (type === TRANSACTION_TYPES.OUT && !source) {
-      throw new BadRequestException('Stock Out requires source warehouse');
-    }
-  }
+  //   if (type === TRANSACTION_TYPES.OUT && !source) {
+  //     throw new BadRequestException('Stock Out requires source warehouse');
+  //   }
+  // }
 
   async create(dto: CreateBatchDto) {
-    this.validateWarehouses(
-      dto.transactionType,
-      dto.sourceWarehouse,
-      dto.destinationWarehouse,
-    );
+    // this.validateWarehouses(dto.sourceWarehouse, dto.destinationWarehouse);
 
     const preparedItems: BatchProductItem[] = [];
 
@@ -65,7 +57,7 @@ export class BatchService {
     }
 
     const batch = new this.batchModel({
-      transactionType: dto.transactionType,
+      // transactionType: dto.transactionType,
       sourceWarehouse: new Types.ObjectId(dto.sourceWarehouse),
       destinationWarehouse: new Types.ObjectId(dto.destinationWarehouse),
       items: preparedItems,

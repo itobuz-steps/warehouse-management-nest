@@ -26,6 +26,12 @@ import {
   Subscription,
   SubscriptionSchema,
 } from 'src/notification/entities/subscription.entity';
+import { Batch, BatchSchema } from 'src/batch/schemas/batch.schema';
+import {
+  VariantStock,
+  VariantStockSchema,
+} from 'src/variant-stock/schemas/variant-stock.schema';
+import { VariantStockModule } from 'src/variant-stock/variant-stock.module';
 
 @Module({
   imports: [
@@ -38,8 +44,11 @@ import {
       { name: User.name, schema: UserSchema },
       { name: Notification.name, schema: NotificationSchema },
       { name: Subscription.name, schema: SubscriptionSchema },
+      { name: Batch.name, schema: BatchSchema },
+      { name: VariantStock.name, schema: VariantStockSchema },
     ]),
     NotificationModule,
+    VariantStockModule,
   ],
   controllers: [TransactionController],
   providers: [TransactionService, PdfService, NotificationService, SendEmail],

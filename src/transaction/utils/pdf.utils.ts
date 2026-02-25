@@ -8,8 +8,43 @@ export function writeText(
   size: number,
   font: PDFFont,
   color = rgb(0, 0, 0),
+  maxWidth?: number,
+  align: 'left' | 'right' = 'left',
 ) {
-  page.drawText(text, { x, y, size, font, color });
+  let finalText = text;
+
+  // Handle max width truncation
+  if (maxWidth) {
+    const textWidth = font.widthOfTextAtSize(text, size);
+
+    if (textWidth > maxWidth) {
+      let truncated = text;
+
+      while (
+        truncated.length > 0 &&
+        font.widthOfTextAtSize(truncated + '…', size) > maxWidth
+      ) {
+        truncated = truncated.slice(0, -1);
+      }
+
+      finalText = truncated + '…';
+    }
+  }
+
+  // Handle right alignment
+  let drawX = x;
+  if (align === 'right') {
+    const textWidth = font.widthOfTextAtSize(finalText, size);
+    drawX = x - textWidth;
+  }
+
+  page.drawText(finalText, {
+    x: drawX,
+    y,
+    size,
+    font,
+    color,
+  });
 }
 
 export function writeLine(

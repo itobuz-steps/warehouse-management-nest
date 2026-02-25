@@ -2,14 +2,14 @@ import {
   IsString,
   IsNotEmpty,
   IsOptional,
+  IsBoolean,
+  IsEnum,
+  IsObject,
   IsArray,
   IsUrl,
   IsNumber,
   Min,
   Max,
-  IsBoolean,
-  IsEnum,
-  IsObject,
 } from 'class-validator';
 import { PRODUCT_CATEGORY_TYPES } from '../constants/product.constant';
 
@@ -56,7 +56,7 @@ export class CreateProductDto {
   @IsString()
   brand: string;
 
-  @IsOptional()
   @IsObject()
-  variantAttributes?: Record<string, string>;
+  @IsNotEmpty({ message: 'Variant attributes is required' })
+  variantAttributes: Record<string, string>;
 }

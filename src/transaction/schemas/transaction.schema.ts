@@ -2,6 +2,10 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
 import { TRANSACTION_TYPES } from '../constants/transactionConstants';
 import { SHIPMENT_TYPES } from '../constants/shipmentConstants';
+import {
+  TransactionProduct,
+  TransactionProductSchema,
+} from './transaction-product.schema';
 
 export type TransactionDocument = HydratedDocument<Transaction>;
 
@@ -10,11 +14,8 @@ export class Transaction {
   @Prop({ enum: Object.values(TRANSACTION_TYPES), required: true })
   type: string;
 
-  @Prop({ type: Types.ObjectId, ref: 'Product', required: true })
-  product: Types.ObjectId;
-
-  @Prop({ required: true })
-  quantity: number;
+  @Prop({ type: [TransactionProductSchema], required: true })
+  products: TransactionProduct[];
 
   @Prop()
   supplier?: string;
@@ -54,3 +55,7 @@ export class Transaction {
 }
 
 export const TransactionSchema = SchemaFactory.createForClass(Transaction);
+
+TransactionSchema.index({ 'items.product': 1 });
+TransactionSchema.index({ 'items.variant': 1 });
+TransactionSchema.index({ createdAt: -1 });
