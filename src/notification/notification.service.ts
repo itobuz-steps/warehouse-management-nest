@@ -13,7 +13,7 @@ import { Warehouse } from 'src/warehouse/schemas/warehouse.schema';
 import { Quantity } from 'src/quantity/entities/quantity.entity';
 import { Transaction } from 'src/transaction/schemas/transaction.schema';
 import { SHIPMENT_TYPES } from 'src/transaction/constants/shipmentConstants';
-import { PopulatedTransaction } from 'src/transaction/types/types';
+import { PopulatedTransactionForPdfGeneration } from 'src/transaction/types/types';
 
 @Injectable()
 export class NotificationService {
@@ -67,10 +67,8 @@ export class NotificationService {
   }
 
   async getNotifications(userId: string, offset = 0) {
-    const userObjectId = new mongoose.Types.ObjectId(userId);
-
     const notifications = await this.notificationModel.aggregate([
-      { $match: { userIds: { $in: [userObjectId] } } },
+      { $match: { userIds: { $in: [userId] } } },
       { $sort: { createdAt: -1 } },
       { $skip: offset },
       { $limit: 10 },
@@ -109,7 +107,7 @@ export class NotificationService {
     ]);
 
     const unseenCount = await this.notificationModel.countDocuments({
-      userIds: { $in: [userObjectId] },
+      userIds: { $in: [userId] },
       seen: false,
     });
 
@@ -133,37 +131,41 @@ export class NotificationService {
 
     try {
       const transaction = await this.transactionModel
-        .findById(new Types.ObjectId(transactionId))
+        .findById(transactionId)
+        .populate('products.product')
+        .populate('products.variants.variant')
+        .populate('sourceWarehouse')
         .session(session)
-        .populate<PopulatedTransaction>('product performedBy sourceWarehouse');
+        .lean<PopulatedTransactionForPdfGeneration>();
 
       if (!transaction) {
-        throw new Error('Transaction not found');
+        throw new NotFoundException('Transaction not found');
       }
 
-      const product = await this.productModel.findById(transaction.product);
-      const warehouse = await this.warehouseModel.findById(
-        transaction.sourceWarehouse,
-      );
+      const warehouse = transaction.sourceWarehouse;
 
-      if (!product || !warehouse) {
-        throw new Error('Product or Warehouse not found');
-      }
+      let totalQuantity = 0;
 
       if (status === 'cancelled') {
-        const quantityRecord = await this.quantityModel
-          .findOne({
-            warehouseId: transaction.sourceWarehouse._id,
-            productId: transaction.product._id,
-          })
-          .session(session);
+        for (const product of transaction.products) {
+          for (const variantEntry of product.variants) {
+            totalQuantity += variantEntry.quantity;
 
-        if (!quantityRecord) {
-          throw new Error('Quantity record not found');
+            const quantityRecord = await this.quantityModel
+              .findOne({
+                warehouseId: warehouse?._id,
+                variantId: variantEntry.variant._id,
+              })
+              .session(session);
+
+            if (!quantityRecord) {
+              throw new NotFoundException('Quantity record not found');
+            }
+
+            quantityRecord.quantity += variantEntry.quantity;
+            await quantityRecord.save({ session });
+          }
         }
-
-        quantityRecord.quantity += transaction.quantity;
-        await quantityRecord.save({ session });
       }
 
       transaction.shipment =
@@ -172,6 +174,12 @@ export class NotificationService {
           : SHIPMENT_TYPES.CANCELLED;
 
       await transaction.save({ session });
+
+      const variantNames = transaction.products
+        .flatMap((product) => product.variants)
+        .map((v) => v.variant.sku)
+        .filter((name): name is string => Boolean(name))
+        .join(', ');
 
       await this.notificationModel.updateMany(
         { transactionId: transaction._id },
@@ -188,8 +196,8 @@ export class NotificationService {
 
           message:
             status === 'shipped'
-              ? `Shipment done for ${product.name} from ${warehouse.name} of Quantity: ${transaction.quantity}.`
-              : `Shipment Cancelled for ${product.name} from ${warehouse.name} of Quantity: ${transaction.quantity}.`,
+              ? `Shipment done for ${variantNames} from ${warehouse?.name} of Quantity: ${totalQuantity}.`
+              : `Shipment Cancelled for ${variantNames} from ${warehouse?.name} of Quantity: ${totalQuantity}.`,
         },
         { session },
       );

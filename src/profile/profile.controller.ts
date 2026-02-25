@@ -1,4 +1,3 @@
-// src/modules/profile/profile.controller.ts
 import {
   Controller,
   Get,
@@ -9,6 +8,7 @@ import {
   Req,
   Param,
   UseGuards,
+  Body,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
@@ -18,8 +18,9 @@ import { ManagerParamsDto } from './dto/manager-params.dto';
 import { AuthGuard } from '../common/guard/auth.guard';
 import { multerStorage } from 'src/helper/multer';
 import { UserDocument } from 'src/auth/entities/auth.entity';
-import { FILE_FIELD, FOLDER_PATH } from 'src/common/constants/file.constant';
+import { FILE_FIELD } from 'src/common/constants/file.constant';
 import { ApiBearerAuth } from '@nestjs/swagger';
+import { UpdatePreferenceDto } from './dto/update-preference.dto';
 
 export interface RequestWithUser extends Request {
   user: UserDocument;
@@ -34,7 +35,7 @@ export class ProfileController {
   @Patch('update-profile')
   @UseInterceptors(
     FileInterceptor(FILE_FIELD.profileImage, {
-      storage: multerStorage(FOLDER_PATH.user),
+      storage: multerStorage(),
     }),
   )
   async updateProfile(
@@ -43,15 +44,17 @@ export class ProfileController {
   ) {
     return {
       success: true,
-      ...(await this.profileService.updateProfile(req.user, file, req)),
+      ...(await this.profileService.updateProfile(req.user, file)),
     };
   }
 
   @Get('me')
-  getCurrentUser(@Req() req: RequestWithUser) {
+  async getCurrentUser(@Req() req: RequestWithUser) {
+    const userData = await this.profileService.getCurrentUser(req.user);
+
     return {
       success: true,
-      ...this.profileService.getCurrentUser(req.user),
+      user: userData,
     };
   }
 
@@ -79,6 +82,23 @@ export class ProfileController {
     return {
       success: true,
       ...(await this.profileService.changeStatus(params.managerId, req.user)),
+    };
+  }
+
+  @Patch('update-preference')
+  async updateNotificationPreferece(
+    @Body() pref: UpdatePreferenceDto,
+    @Req() req: RequestWithUser,
+  ) {
+    const res = await this.profileService.setUserNotificationPreference(
+      pref,
+      req.user,
+    );
+
+    return {
+      success: true,
+      message: 'updated successfully',
+      data: res,
     };
   }
 }

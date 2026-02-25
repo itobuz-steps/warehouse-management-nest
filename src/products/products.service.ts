@@ -109,11 +109,26 @@ export class ProductsService {
       const label = await this.generateUniqueLabel(normalizedName);
 
       const product = await new this.productModel({
-        ...createProductDto,
+        name: createProductDto.name,
+        category: createProductDto.category,
+        description: createProductDto.description,
+        isArchived: createProductDto.isArchived,
+        createdBy: createProductDto.createdBy,
+        brand: createProductDto.brand,
         label,
-        productImage: imageUrls,
         variantCount: 0,
       }).save({ session });
+
+      const attributes = createProductDto.variantAttributes;
+
+      await this.variantService.createInternal(
+        product._id.toString(),
+        attributes,
+        createProductDto.price,
+        createProductDto.markup,
+        imageUrls,
+        session,
+      );
 
       await session.commitTransaction();
       await session.endSession();

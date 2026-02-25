@@ -5,10 +5,10 @@ import type {
   TwoProductHistoryResult,
   TwoProductQuantityResult,
   TopProductExcelItem,
-  InventoryCategoryExcelItem,
   WeeklyTransactionExcelItem,
 } from './types/exceldata.types';
 import { EXCEL_THIN_BORDER, EXCEL_PRIMARY_FILL } from './excel.constants';
+import { InventoryByCategoryAggItem } from 'src/dashboard/types/dashboard.data.type';
 
 @Injectable()
 export class ExcelService {
@@ -89,7 +89,7 @@ export class ExcelService {
   };
 
   generateInventoryByCategoryExcel = async (
-    categories: InventoryCategoryExcelItem[],
+    categories: InventoryByCategoryAggItem[],
   ): Promise<Buffer> => {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Category');

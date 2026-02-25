@@ -25,11 +25,7 @@ export class VariantService {
       .slice(0, length);
   }
 
-  private generateVariantCode(attributes?: Record<string, string>): string {
-    if (!attributes || !Object.keys(attributes).length) {
-      return 'BASE';
-    }
-
+  private generateVariantCode(attributes: Record<string, string>): string {
     const sortedKeys = Object.keys(attributes).sort();
 
     return sortedKeys.map((key) => this.normalize(attributes[key], 6)).join('');
@@ -50,7 +46,13 @@ export class VariantService {
   }
 
   async create(dto: CreateVariantDto) {
-    const data = await this.createInternal(dto.product, dto.attributes || {});
+    const data = await this.createInternal(
+      dto.product,
+      dto.attributes,
+      dto.price,
+      dto.markup,
+      dto.productImage || [],
+    );
 
     return {
       success: true,
@@ -72,6 +74,9 @@ export class VariantService {
   async createInternal(
     productId: string,
     attributes: Record<string, string> = {},
+    price: number,
+    markup?: number,
+    imageUrls: string[] = [],
     session?: ClientSession,
   ) {
     const product = await this.productModel
@@ -86,7 +91,7 @@ export class VariantService {
       product.category,
       product.brand,
       product.label,
-      attributes || {},
+      attributes,
     );
 
     const existing = await this.variantModel
@@ -100,6 +105,9 @@ export class VariantService {
     const variant = new this.variantModel({
       product: new Types.ObjectId(productId),
       attributes,
+      variantImage: imageUrls,
+      price,
+      markup,
       sku,
     }).save({ session });
 

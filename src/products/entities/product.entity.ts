@@ -24,20 +24,6 @@ export class Product {
   @Prop()
   description: string;
 
-  @Prop([String])
-  productImage: string[];
-
-  @Prop({ required: true, min: 0 })
-  price: number;
-
-  @Prop({
-    required: false,
-    min: 0,
-    max: 100,
-    default: 10,
-  })
-  markup: number;
-
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
   createdBy: MongooseSchema.Types.ObjectId;
 

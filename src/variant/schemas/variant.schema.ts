@@ -13,13 +13,21 @@ export class Variant {
     of: String,
     default: {},
   })
-  attributes: Map<string, string>;
-  // Example:
-  // {
-  //   color: "Blue",
-  //   size: "XL",
-  //   weight: "1L"
-  // }
+  attributes: Record<string, string>;
+
+  @Prop([String])
+  variantImage: string[];
+
+  @Prop({ required: true, min: 0 })
+  price: number;
+
+  @Prop({
+    required: false,
+    min: 0,
+    max: 100,
+    default: 10,
+  })
+  markup: number;
 
   @Prop({ required: true, unique: true, immutable: true })
   sku: string;

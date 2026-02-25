@@ -1,5 +1,4 @@
 import {
-  IsEnum,
   IsMongoId,
   IsNumber,
   IsOptional,
@@ -8,7 +7,6 @@ import {
   Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { TRANSACTION_TYPES } from 'src/transaction/constants/transactionConstants';
 
 export class CreateBatchItemDto {
   @IsMongoId()
@@ -17,12 +15,13 @@ export class CreateBatchItemDto {
   @IsNumber()
   @Min(1)
   quantity: number;
+
+  @IsOptional()
+  @IsNumber()
+  limit?: number;
 }
 
 export class CreateBatchDto {
-  @IsEnum(TRANSACTION_TYPES)
-  transactionType: TRANSACTION_TYPES;
-
   @IsOptional()
   @IsMongoId()
   sourceWarehouse?: string;
