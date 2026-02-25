@@ -56,7 +56,6 @@ export class NotificationHelper {
   ) {}
 
   async notify(payload: NotificationPayload) {
-    console.log('Notification payload', payload.users);
     if (!payload.users?.length) return;
 
     // Convert all IDs to strings for the DB notification record

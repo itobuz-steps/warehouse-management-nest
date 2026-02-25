@@ -93,7 +93,6 @@ export default class SendEmail {
     warehouse: WarehouseDocument,
   ): Promise<void> => {
     if (!user.preferences.email) {
-      console.log('permission denied');
       return;
     }
     await this.mailSender(
@@ -117,7 +116,6 @@ export default class SendEmail {
     warehouse: WarehouseDocument,
   ): Promise<void> => {
     if (!user.preferences.email) {
-      console.log('permission denied');
       return;
     }
     await this.mailSender(
