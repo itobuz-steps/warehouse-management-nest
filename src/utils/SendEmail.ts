@@ -5,7 +5,7 @@ import { WarehouseDocument } from 'src/warehouse/schemas/warehouse.schema';
 import { Product } from 'src/products/entities/product.entity';
 import { User } from 'src/auth/entities/auth.entity';
 import { Injectable } from '@nestjs/common';
-import { PopulatedTransaction } from 'src/transaction/types/types';
+import type { PopulatedTransactionForPdfGeneration } from 'src/transaction/types/types';
 import { PdfService } from 'src/transaction/services/pdf.service';
 
 type AppConfig = ReturnType<typeof config>;
@@ -126,7 +126,7 @@ export default class SendEmail {
   };
 
   sendProductShippedEmailToCustomer = async (
-    transaction: PopulatedTransaction,
+    transaction: PopulatedTransactionForPdfGeneration,
   ): Promise<void> => {
     const invoice = (await new PdfService().generateTransactionPdf(
       transaction,
@@ -151,7 +151,7 @@ export default class SendEmail {
   };
 
   sendProductCancelEmailToCustomer = async (
-    transaction: PopulatedTransaction,
+    transaction: PopulatedTransactionForPdfGeneration,
   ): Promise<void> => {
     const invoice = (await new PdfService().generateTransactionPdf(
       transaction,
