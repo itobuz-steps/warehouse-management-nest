@@ -62,7 +62,7 @@ export class ProductsController {
     @Param('id') id: string,
     @Body() updateProductDto: updateProductDto,
     @UploadedFiles() files: Array<Express.Multer.File>,
-    @Req() req: Request,
+    @Req() req: RequestWithUser,
   ) {
     let imageUrls: string[] | undefined;
 
@@ -76,6 +76,7 @@ export class ProductsController {
     const data = await this.productsService.update(
       id,
       updateProductDto,
+      req.user,
       imageUrls,
     );
 
@@ -111,7 +112,6 @@ export class ProductsController {
     const product = await this.productsService.create(
       createProductDto,
       imageUrls,
-      req.user,
     );
 
     return {

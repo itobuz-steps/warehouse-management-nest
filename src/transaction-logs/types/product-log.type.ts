@@ -1,3 +1,8 @@
+export type ProductVariantLog = {
+  sku: string;
+  attributes: Record<string, string>;
+};
+
 export type ProductCreateLog = {
   name: string;
   category: string;
@@ -9,6 +14,7 @@ export type ProductCreateLog = {
   markup: number;
   isArchived: boolean;
   variantCount: number;
+  variants: ProductVariantLog[];
 };
 
 export type ProductUpdateLog = {

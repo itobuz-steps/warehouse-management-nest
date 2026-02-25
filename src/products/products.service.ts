@@ -11,8 +11,6 @@ import { SortOrder } from 'mongoose';
 import { VariantService } from 'src/variant/variant.service';
 import { UserDocument } from 'src/auth/entities/auth.entity';
 import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
-import { LogAction } from 'src/transaction-logs/enums/log-action.enum';
-import { LogEntityType } from 'src/transaction-logs/enums/log-entity-type.enum';
 
 @Injectable()
 export class ProductsService {
@@ -75,8 +73,11 @@ export class ProductsService {
   async update(
     id: string,
     updateProductDto: updateProductDto,
+    user: UserDocument,
     imageUrls?: string[],
   ) {
+    const productId = new Types.ObjectId(id);
+
     const updates = { ...updateProductDto };
 
     if (imageUrls && imageUrls.length) {
@@ -84,7 +85,7 @@ export class ProductsService {
     }
 
     const updatedProduct = await this.productModel.findByIdAndUpdate(
-      new Types.ObjectId(id),
+      productId,
       updates,
       { new: true, runValidators: true },
     );
@@ -96,11 +97,7 @@ export class ProductsService {
     return updatedProduct;
   }
 
-  async create(
-    createProductDto: CreateProductDto,
-    imageUrls: string[],
-    user: UserDocument,
-  ) {
+  async create(createProductDto: CreateProductDto, imageUrls: string[]) {
     const session = await this.productModel.db.startSession();
     session.startTransaction();
 
@@ -117,37 +114,6 @@ export class ProductsService {
         productImage: imageUrls,
         variantCount: 0,
       }).save({ session });
-
-      const attributes =
-        createProductDto.variantAttributes &&
-        Object.keys(createProductDto.variantAttributes).length
-          ? createProductDto.variantAttributes
-          : {};
-
-      await this.variantService.createInternal(
-        product._id.toString(),
-        attributes,
-        session,
-      );
-
-      await this.logsService.createLog({
-        action: LogAction.PRODUCT_CREATED,
-        entityType: LogEntityType.PRODUCT,
-        entityId: product._id.toHexString(),
-        performedBy: user,
-        metadata: {
-          name: product.name,
-          label: product.label,
-          price: product.price,
-          category: product.category,
-          brand: product.brand,
-          description: product.description,
-          productImage: product.productImage,
-          markup: product.markup,
-          isArchived: false,
-          variantCount: Object.keys(attributes).length,
-        },
-      });
 
       await session.commitTransaction();
       await session.endSession();

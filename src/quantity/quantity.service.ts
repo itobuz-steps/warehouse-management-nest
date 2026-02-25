@@ -290,4 +290,41 @@ export class QuantityService {
       throw new InternalServerErrorException('Database operation failed');
     }
   }
+
+  async getWarehouseAndCategorySpecificProducts(
+    warehouseId: string,
+    category: string,
+  ): Promise<WarehouseProductResult[]> {
+    const pipeline: PipelineStage[] = [
+      {
+        $match: {
+          warehouseId: new Types.ObjectId(warehouseId),
+        },
+      },
+      {
+        $lookup: {
+          from: 'products',
+          localField: 'productId',
+          foreignField: '_id',
+          as: 'product',
+        },
+      },
+      { $unwind: '$product' },
+      {
+        $match: {
+          'product.isArchived': false,
+          'product.categoryId': category,
+        },
+      },
+    ];
+
+    const res = await this.quantityModel
+      .aggregate<WarehouseProductResult>(pipeline)
+      .exec();
+
+    if (!res) {
+      throw new NotFoundException('Data Not Found');
+    }
+    return res;
+  }
 }

@@ -7,7 +7,7 @@ import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Supplier } from './entities/supplier.entity';
 import { SupplierDocument } from './entities/supplier.entity';
-import { Model, QueryFilter } from 'mongoose';
+import { Model, QueryFilter, Types } from 'mongoose';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { UserDocument } from 'src/auth/entities/auth.entity';
 import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
@@ -149,5 +149,13 @@ export class SupplierService {
     }
 
     return this.supplierModel.find(filter, { __v: 0 }).sort({ isActive: -1 });
+  }
+
+  async getSpecificSupplier(id: string): Promise<Supplier> {
+    const res = await this.supplierModel.findOne(new Types.ObjectId(id));
+    if (!res) {
+      throw new NotFoundException('Supplier not Found');
+    }
+    return res;
   }
 }
