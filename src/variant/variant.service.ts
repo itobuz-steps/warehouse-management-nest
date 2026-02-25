@@ -4,6 +4,7 @@ import { ClientSession, Model, Types } from 'mongoose';
 import { Variant, VariantDocument } from './schemas/variant.schema';
 import { CreateVariantDto } from './dto/create-variant.dto';
 import { Product, ProductDocument } from 'src/products/entities/product.entity';
+import { StorageService } from 'src/storage/storage.service';
 @Injectable()
 export class VariantService {
   constructor(
@@ -12,6 +13,8 @@ export class VariantService {
 
     @InjectModel(Product.name)
     private readonly productModel: Model<ProductDocument>,
+
+    private readonly storageService: StorageService,
   ) {}
 
   private normalize(value: string, length = 5): string {
@@ -61,13 +64,40 @@ export class VariantService {
     };
   }
 
+  // async findByProduct(productId: string) {
+  //   return {
+  //     success: true,
+  //     message: 'Variants retrieved successfully',
+  //     data: await this.variantModel.find({
+  //       product: new Types.ObjectId(productId),
+  //     }),
+  //   };
+  // }
+
   async findByProduct(productId: string) {
+    const variants = await this.variantModel
+      .find({ product: new Types.ObjectId(productId) })
+      .lean();
+
+    const variantsWithUrls = await Promise.all(
+      variants.map(async (variant) => {
+        const imageUrls = await Promise.all(
+          variant.variantImage.map((key: string) =>
+            this.storageService.getPresignedSignedUrl(key),
+          ),
+        );
+
+        return {
+          ...variant,
+          variantImage: imageUrls,
+        };
+      }),
+    );
+
     return {
       success: true,
       message: 'Variants retrieved successfully',
-      data: await this.variantModel.find({
-        product: new Types.ObjectId(productId),
-      }),
+      data: variantsWithUrls,
     };
   }
 

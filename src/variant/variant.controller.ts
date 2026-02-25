@@ -4,7 +4,6 @@ import {
   Get,
   Param,
   Post,
-  Req,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
@@ -12,44 +11,44 @@ import {
 import { VariantService } from './variant.service';
 import { CreateVariantDto } from './dto/create-variant.dto';
 import { AuthGuard } from 'src/common/guard/auth.guard';
-import type { RequestWithUser } from 'src/warehouse/types/userType';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { multerStorage } from 'src/helper/multer';
-import {
-  FILE_FIELD,
-  FILE_COUNT,
-  FOLDER_PATH,
-} from 'src/common/constants/file.constant';
-
+import { FILE_FIELD, FILE_COUNT } from 'src/common/constants/file.constant';
+import { memoryStorage } from 'multer';
+import { StorageService } from 'src/storage/storage.service';
 @Controller('variant')
 @UseGuards(AuthGuard)
 export class VariantController {
-  constructor(private readonly variantService: VariantService) {}
+  constructor(
+    private readonly variantService: VariantService,
+    private readonly storageService: StorageService,
+  ) {}
 
   @Post()
   @UseInterceptors(
     FilesInterceptor(FILE_FIELD.productImage, FILE_COUNT, {
-      storage: multerStorage(FOLDER_PATH.product),
+      storage: memoryStorage(),
     }),
   )
-  create(
+  async create(
     @Body() dto: CreateVariantDto,
     @UploadedFiles() files: Express.Multer.File[],
-    @Req() req: RequestWithUser,
   ) {
-    let imageUrls: string[] = [];
+    const imageKeys: string[] = [];
 
-    if (files && files.length) {
-      imageUrls = files.map((file) => {
-        const fileName = file.filename;
-        return `${req.protocol}://${req.get('host')}/uploads/products/${fileName}`;
-      });
+    if (files && files.length > 0) {
+      const uploadedImages =
+        await this.storageService.uploadMultipleFiles(files);
+      imageKeys.push(...uploadedImages.map((img) => img.key));
     }
-    return this.variantService.create({ ...dto, productImage: imageUrls });
+
+    return await this.variantService.create({
+      ...dto,
+      productImage: imageKeys,
+    });
   }
 
   @Get('product/:id')
-  findByProduct(@Param('id') id: string) {
-    return this.variantService.findByProduct(id);
+  async findByProduct(@Param('id') id: string) {
+    return await this.variantService.findByProduct(id);
   }
 }
