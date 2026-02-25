@@ -4,6 +4,7 @@ import { ProfileController } from './profile.controller';
 
 import { User, UserSchema } from '../auth/entities/auth.entity';
 import { MongooseModule } from '@nestjs/mongoose';
+import { StorageService } from 'src/storage/storage.service';
 import { TransactionLogsModule } from 'src/transaction-logs/transaction-logs.module';
 
 @Module({
@@ -12,6 +13,6 @@ import { TransactionLogsModule } from 'src/transaction-logs/transaction-logs.mod
     TransactionLogsModule,
   ],
   controllers: [ProfileController],
-  providers: [ProfileService],
+  providers: [ProfileService, StorageService],
 })
 export class ProfileModule {}

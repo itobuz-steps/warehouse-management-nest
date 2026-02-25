@@ -1,4 +1,3 @@
-// src/modules/profile/profile.controller.ts
 import {
   Controller,
   Get,
@@ -18,7 +17,7 @@ import { ManagerParamsDto } from './dto/manager-params.dto';
 import { AuthGuard } from '../common/guard/auth.guard';
 import { multerStorage } from 'src/helper/multer';
 import { UserDocument } from 'src/auth/entities/auth.entity';
-import { FILE_FIELD, FOLDER_PATH } from 'src/common/constants/file.constant';
+import { FILE_FIELD } from 'src/common/constants/file.constant';
 import { ApiBearerAuth } from '@nestjs/swagger';
 
 export interface RequestWithUser extends Request {
@@ -34,7 +33,7 @@ export class ProfileController {
   @Patch('update-profile')
   @UseInterceptors(
     FileInterceptor(FILE_FIELD.profileImage, {
-      storage: multerStorage(FOLDER_PATH.user),
+      storage: multerStorage(),
     }),
   )
   async updateProfile(
@@ -43,15 +42,17 @@ export class ProfileController {
   ) {
     return {
       success: true,
-      ...(await this.profileService.updateProfile(req.user, file, req)),
+      ...(await this.profileService.updateProfile(req.user, file)),
     };
   }
 
   @Get('me')
-  getCurrentUser(@Req() req: RequestWithUser) {
+  async getCurrentUser(@Req() req: RequestWithUser) {
+    const userData = await this.profileService.getCurrentUser(req.user);
+
     return {
       success: true,
-      ...this.profileService.getCurrentUser(req.user),
+      user: userData,
     };
   }
 

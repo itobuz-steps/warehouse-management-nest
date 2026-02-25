@@ -19,6 +19,7 @@ import { VariantModule } from './variant/variant.module';
 import { TransactionLogsModule } from './transaction-logs/transaction-logs.module';
 import { BatchModule } from './batch/batch.module';
 import { VariantStockModule } from './variant-stock/variant-stock.module';
+import { StorageModule } from './storage/storage.module';
 import configService from './config/config.service';
 
 @Module({
@@ -44,6 +45,7 @@ import configService from './config/config.service';
     TransactionLogsModule,
     BatchModule,
     VariantStockModule,
+    StorageModule,
   ],
   controllers: [AppController],
   providers: [AppService],

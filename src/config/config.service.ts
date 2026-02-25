@@ -31,6 +31,11 @@ export const config = {
   PAGE: process.env.PAGE,
 
   DEFAULT_QUANTITY: process.env.DEFAULT_QUANTITY,
+
+  S3_REGION: process.env.S3_REGION,
+  S3_BUCKET_NAME: process.env.S3_BUCKET_NAME,
+  S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY,
+  S3_ACCESS_KEY: process.env.S3_ACCESS_KEY,
 };
 
 export default registerAs('app', () => {
@@ -64,5 +69,10 @@ export default registerAs('app', () => {
     PAGE: process.env.PAGE,
 
     DEFAULT_QUANTITY: process.env.DEFAULT_QUANTITY,
+
+    S3_REGION: process.env.S3_REGION,
+    S3_BUCKET_NAME: process.env.S3_BUCKET_NAME,
+    S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY,
+    S3_ACCESS_KEY: process.env.S3_ACCESS_KEY,
   };
 });
