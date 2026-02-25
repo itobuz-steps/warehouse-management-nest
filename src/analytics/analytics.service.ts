@@ -109,11 +109,15 @@ export class AnalyticsService {
       const dateKey = new Date(transaction.createdAt).toLocaleDateString(
         'en-CA',
       );
-      if (String(transaction.product) === String(productA)) {
-        counts.productA[dateKey]++;
-      }
-      if (String(transaction.product) === String(productB)) {
-        counts.productB[dateKey]++;
+
+      for (const product of transaction.products) {
+        if (String(product.product) === String(productA)) {
+          counts.productA[dateKey]++;
+        }
+
+        if (String(product.product) === String(productB)) {
+          counts.productB[dateKey]++;
+        }
       }
     }
 
@@ -230,11 +234,15 @@ export class AnalyticsService {
       const dateKey = new Date(transaction.createdAt).toLocaleDateString(
         'en-CA',
       );
-      if (String(transaction.product) === String(productA)) {
-        counts.productA[dateKey]++;
-      }
-      if (String(transaction.product) === String(productB)) {
-        counts.productB[dateKey]++;
+
+      for (const product of transaction.products) {
+        if (String(product.product) === String(productA)) {
+          counts.productA[dateKey]++;
+        }
+
+        if (String(product.product) === String(productB)) {
+          counts.productB[dateKey]++;
+        }
       }
     }
 
