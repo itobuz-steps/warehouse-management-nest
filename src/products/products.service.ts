@@ -118,6 +118,7 @@ export class ProductsService {
   }
 
   async create(
+    userId: Types.ObjectId,
     createProductDto: CreateProductDto,
     user: UserDocument,
     imageUrls: string[],
@@ -137,9 +138,9 @@ export class ProductsService {
         category: createProductDto.category,
         description: createProductDto.description,
         isArchived: createProductDto.isArchived,
-        createdBy: createProductDto.createdBy,
+        createdBy: userId,
         brand: createProductDto.brand,
-        label,
+        label: createProductDto.label ? createProductDto.label : label,
         variantCount: 0,
       }).save({ session });
 

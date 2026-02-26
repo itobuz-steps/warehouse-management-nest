@@ -320,7 +320,7 @@ export class TransactionService {
             { session },
           );
 
-          if (stockUpdate.modifiedCount === 0) {
+          if (!stockUpdate.modifiedCount) {
             throw new BadRequestException(
               `Insufficient stock for variant ${variant.variantId}`,
             );
@@ -587,9 +587,9 @@ export class TransactionService {
             notes,
             performedBy,
             products: products.map((product) => ({
-              product: product.productId,
+              product: new Types.ObjectId(product.productId),
               variants: product.variants.map((variant) => ({
-                variant: variant.variantId,
+                variant: new Types.ObjectId(variant.variantId),
                 quantity: variant.quantity,
               })),
             })),
