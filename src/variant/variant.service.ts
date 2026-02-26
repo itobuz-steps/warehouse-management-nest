@@ -54,13 +54,14 @@ export class VariantService {
     return `${cat}-${br}-${prod}-${variant}`;
   }
 
-  async create(dto: CreateVariantDto) {
+  async create(dto: CreateVariantDto, user: UserDocument) {
     const data = await this.createInternal(
       dto.product,
       dto.attributes,
       dto.price,
       dto.markup,
       dto.productImage || [],
+      user,
     );
 
     return {
@@ -113,8 +114,8 @@ export class VariantService {
     price: number,
     markup?: number,
     imageUrls: string[] = [],
-    session?: ClientSession,
     user?: UserDocument,
+    session?: ClientSession,
   ) {
     const product = await this.productModel
       .findById(productId)

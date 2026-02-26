@@ -166,8 +166,8 @@ export class ProductsService {
         createProductDto.price,
         createProductDto.markup,
         imageUrls,
-        session,
         user,
+        session,
       );
 
       await session.commitTransaction();
