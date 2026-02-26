@@ -50,7 +50,6 @@ export class CustomerService {
   ) {
     const existingCustomer = await this.customerModel.findOne({
       _id: id,
-      isActive: true,
     });
 
     if (!existingCustomer) {
