@@ -41,8 +41,8 @@ export class VariantService {
     attributes: Record<string, string>,
   ): string {
     const cat = this.normalize(category, 4);
-    const br = this.normalize(brand, 4);
-    const prod = this.normalize(productLabel, 6);
+    const br = this.normalize(brand, brand.length);
+    const prod = this.normalize(productLabel, productLabel.length);
     const variant = this.generateVariantCode(attributes);
 
     return `${cat}-${br}-${prod}-${variant}`;
@@ -64,40 +64,26 @@ export class VariantService {
     };
   }
 
-  // async findByProduct(productId: string) {
-  //   return {
-  //     success: true,
-  //     message: 'Variants retrieved successfully',
-  //     data: await this.variantModel.find({
-  //       product: new Types.ObjectId(productId),
-  //     }),
-  //   };
-  // }
+  async findById(variantId: string) {
+    const variant = await this.variantModel.findById(variantId).lean();
 
-  async findByProduct(productId: string) {
-    const variants = await this.variantModel
-      .find({ product: new Types.ObjectId(productId) })
-      .lean();
+    if (!variant) {
+      return { success: false, message: 'Variant not found', data: null };
+    }
 
-    const variantsWithUrls = await Promise.all(
-      variants.map(async (variant) => {
-        const imageUrls = await Promise.all(
-          variant.variantImage.map((key: string) =>
-            this.storageService.getPresignedSignedUrl(key),
-          ),
-        );
-
-        return {
-          ...variant,
-          variantImage: imageUrls,
-        };
-      }),
+    const imageUrls: string[] = await Promise.all(
+      variant.variantImage.map((key: string) =>
+        this.storageService.getPresignedSignedUrl(key),
+      ),
     );
 
     return {
       success: true,
-      message: 'Variants retrieved successfully',
-      data: variantsWithUrls,
+      message: 'Variant retrieved successfully',
+      data: {
+        ...variant,
+        variantImage: imageUrls,
+      },
     };
   }
 

@@ -7,6 +7,7 @@ import { Product, ProductSchema } from './entities/product.entity';
 import { User, UserSchema } from '../auth/entities/auth.entity';
 import { Variant, VariantSchema } from 'src/variant/schemas/variant.schema';
 import { VariantModule } from 'src/variant/variant.module';
+import { StorageModule } from 'src/storage/storage.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { VariantModule } from 'src/variant/variant.module';
       { name: Variant.name, schema: VariantSchema },
     ]),
     VariantModule,
+    StorageModule,
   ],
   controllers: [ProductsController],
   providers: [ProductsService],
