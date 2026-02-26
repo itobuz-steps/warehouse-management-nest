@@ -36,7 +36,7 @@ export class CustomerService {
   }
 
   async findAll() {
-    return await this.customerModel.find({ isActive: true }).exec();
+    return await this.customerModel.find().exec();
   }
 
   async findOne(id: string) {
@@ -50,7 +50,6 @@ export class CustomerService {
   ) {
     const existingCustomer = await this.customerModel.findOne({
       _id: id,
-      isActive: true,
     });
 
     if (!existingCustomer) {
