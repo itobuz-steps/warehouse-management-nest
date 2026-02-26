@@ -49,31 +49,15 @@ export class ProductsController {
   }
 
   @Put(':id')
-  @UseInterceptors(
-    FilesInterceptor(FILE_FIELD.productImage, FILE_COUNT, {
-      storage: multerStorage(),
-    }),
-  )
   async updateProduct(
     @Param('id') id: string,
     @Body() updateProductDto: updateProductDto,
-    @UploadedFiles() files: Array<Express.Multer.File>,
     @Req() req: RequestWithUser,
   ) {
-    let imageUrls: string[] | undefined;
-
-    if (files && files.length) {
-      imageUrls = files.map((file) => {
-        const fileName = file.filename;
-        return `${req.protocol}://${req.get('host')}/uploads/products/${fileName}`;
-      });
-    }
-
     const data = await this.productsService.update(
       id,
       updateProductDto,
       req.user,
-      imageUrls,
     );
 
     return {
@@ -107,6 +91,7 @@ export class ProductsController {
 
     const product = await this.productsService.create(
       createProductDto,
+      req.user,
       imageUrls,
     );
 
@@ -119,8 +104,11 @@ export class ProductsController {
 
   @Delete(':id')
   @Roles(USER_TYPES.ADMIN)
-  async deleteProduct(@Param() params: updateProductDto) {
-    await this.productsService.remove(params.id);
+  async deleteProduct(
+    @Param() params: updateProductDto,
+    @Req() req: RequestWithUser,
+  ) {
+    await this.productsService.remove(params.id, req.user);
 
     return {
       success: true,
@@ -129,8 +117,11 @@ export class ProductsController {
   }
 
   @Patch(':id')
-  async restoreProduct(@Param() params: updateProductDto) {
-    await this.productsService.restore(params.id);
+  async restoreProduct(
+    @Param() params: updateProductDto,
+    @Req() req: RequestWithUser,
+  ) {
+    await this.productsService.restore(params.id, req.user);
 
     return {
       success: true,

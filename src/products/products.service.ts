@@ -11,6 +11,8 @@ import { SortOrder } from 'mongoose';
 import { VariantService } from 'src/variant/variant.service';
 import { UserDocument } from 'src/auth/entities/auth.entity';
 import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
+import { LogAction } from 'src/transaction-logs/enums/log-action.enum';
+import { LogEntityType } from 'src/transaction-logs/enums/log-entity-type.enum';
 
 @Injectable()
 export class ProductsService {
@@ -74,19 +76,22 @@ export class ProductsService {
     id: string,
     updateProductDto: updateProductDto,
     user: UserDocument,
-    imageUrls?: string[],
   ) {
     const productId = new Types.ObjectId(id);
 
-    const updates = { ...updateProductDto };
+    const existingProduct = await this.productModel.findById(productId);
 
-    if (imageUrls && imageUrls.length) {
-      updates['productImage'] = imageUrls;
+    if (!existingProduct) {
+      throw new NotFoundException('Product not found');
     }
+
+    const oldValue = {
+      description: existingProduct.description,
+    };
 
     const updatedProduct = await this.productModel.findByIdAndUpdate(
       productId,
-      updates,
+      updateProductDto,
       { new: true, runValidators: true },
     );
 
@@ -94,10 +99,29 @@ export class ProductsService {
       throw new NotFoundException('Product not found');
     }
 
+    const newValue = {
+      description: updatedProduct.description,
+    };
+
+    await this.logsService.createLog({
+      action: LogAction.PRODUCT_UPDATED,
+      entityType: LogEntityType.PRODUCT,
+      entityId: updatedProduct._id.toHexString(),
+      performedBy: user,
+      metadata: {
+        oldValue,
+        newValue,
+      },
+    });
+
     return updatedProduct;
   }
 
-  async create(createProductDto: CreateProductDto, imageUrls: string[]) {
+  async create(
+    createProductDto: CreateProductDto,
+    user: UserDocument,
+    imageUrls: string[],
+  ) {
     const session = await this.productModel.db.startSession();
     session.startTransaction();
 
@@ -119,6 +143,21 @@ export class ProductsService {
         variantCount: 0,
       }).save({ session });
 
+      await this.logsService.createLog({
+        action: LogAction.PRODUCT_CREATED,
+        entityType: LogEntityType.PRODUCT,
+        entityId: product._id.toHexString(),
+        performedBy: user,
+        metadata: {
+          name: product.name,
+          category: product.category,
+          brand: product.brand,
+          label: product.label,
+          description: product.description,
+          isArchived: product.isArchived,
+        },
+      });
+
       const attributes = createProductDto.variantAttributes;
 
       await this.variantService.createInternal(
@@ -128,6 +167,7 @@ export class ProductsService {
         createProductDto.markup,
         imageUrls,
         session,
+        user,
       );
 
       await session.commitTransaction();
@@ -141,7 +181,7 @@ export class ProductsService {
     }
   }
 
-  async remove(id: string) {
+  async remove(id: string, user: UserDocument) {
     const archivedProduct = await this.productModel.findByIdAndUpdate(
       id,
       { isArchived: true },
@@ -152,10 +192,21 @@ export class ProductsService {
       throw new NotFoundException('Product not found');
     }
 
+    await this.logsService.createLog({
+      action: LogAction.PRODUCT_ARCHIVED,
+      entityType: LogEntityType.PRODUCT,
+      entityId: archivedProduct._id.toHexString(),
+      performedBy: user,
+      metadata: {
+        name: archivedProduct.name,
+        isArchived: archivedProduct.isArchived,
+      },
+    });
+
     return archivedProduct;
   }
 
-  async restore(id: string) {
+  async restore(id: string, user: UserDocument) {
     const restoredProduct = await this.productModel.findByIdAndUpdate(
       id,
       { isArchived: false },
@@ -165,6 +216,17 @@ export class ProductsService {
     if (!restoredProduct) {
       throw new NotFoundException('Product not found');
     }
+
+    await this.logsService.createLog({
+      action: LogAction.PRODUCT_RESTORED,
+      entityType: LogEntityType.PRODUCT,
+      entityId: restoredProduct._id.toHexString(),
+      performedBy: user,
+      metadata: {
+        name: restoredProduct.name,
+        isArchived: restoredProduct.isArchived,
+      },
+    });
 
     return restoredProduct;
   }

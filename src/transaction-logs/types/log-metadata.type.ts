@@ -12,11 +12,13 @@ import {
   StockAdjustLog,
 } from './transaction-log.type';
 import { UserStatusChangeLog } from './user-status-log.type';
+import { VariantCreateLog } from './variant-log.type';
 
 export type LogMetadata =
   | ProductCreateLog
   | ProductUpdateLog
   | ProductArchiveLog
+  | VariantCreateLog
   | WarehouseCreateLog
   | WarehouseUpdateLog
   | SupplierCreateLog

@@ -1,5 +1,6 @@
 export enum LogEntityType {
   PRODUCT = 'PRODUCT',
+  VARIANT = 'VARIANT',
   WAREHOUSE = 'WAREHOUSE',
   TRANSACTION = 'TRANSACTION',
   USER = 'USER',

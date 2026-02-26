@@ -15,6 +15,7 @@ import {
   SupplierUpdateLog,
 } from './supplier-log.type';
 import { UserStatusChangeLog } from './user-status-log.type';
+import { VariantCreateLog } from './variant-log.type';
 import {
   WarehouseCreateLog,
   WarehouseDeleteLog,
@@ -35,9 +36,10 @@ export type LogMetadataMap = {
 
   [LogAction.PRODUCT_CREATED]: ProductCreateLog;
   [LogAction.PRODUCT_UPDATED]: ProductUpdateLog;
-  [LogAction.PRODUCT_DELETED]: ProductUpdateLog;
   [LogAction.PRODUCT_ARCHIVED]: ProductArchiveLog;
-  [LogAction.PRODUCT_UNARCHIVED]: ProductArchiveLog;
+  [LogAction.PRODUCT_RESTORED]: ProductArchiveLog;
+
+  [LogAction.VARIANT_CREATED]: VariantCreateLog;
 
   [LogAction.WAREHOUSE_CREATED]: WarehouseCreateLog;
   [LogAction.WAREHOUSE_UPDATED]: WarehouseUpdateLog;
