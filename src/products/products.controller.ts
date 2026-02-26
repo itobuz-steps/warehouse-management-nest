@@ -95,8 +95,6 @@ export class ProductsController {
     @UploadedFiles() files: Express.Multer.File[],
     @Req() req: RequestWithUser,
   ) {
-    // createProductDto.createdBy = req.user._id;
-
     const imageUrls: string[] = [];
 
     if (files && files.length) {

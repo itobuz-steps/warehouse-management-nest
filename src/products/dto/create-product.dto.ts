@@ -50,10 +50,6 @@ export class CreateProductDto {
   @IsOptional()
   isArchived?: boolean;
 
-  // @IsString()
-  // // @IsNotEmpty({ message: 'Created by is required' })
-  // createdBy: string;
-
   @IsString()
   brand: string;
 
