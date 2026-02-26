@@ -7,8 +7,9 @@ import { WarehouseCreateLog, WarehouseUpdateLog } from './warehouse-log.type';
 import { SupplierCreateLog, SupplierUpdateLog } from './supplier-log.type';
 import { CustomerCreateLog, CustomerUpdateLog } from './customer-log.type';
 import {
-  TransactionCreateLog,
-  TransactionCancelLog,
+  StockInLog,
+  StockOutLog,
+  StockTransferLog,
   StockAdjustLog,
 } from './transaction-log.type';
 import { UserStatusChangeLog } from './user-status-log.type';
@@ -25,7 +26,8 @@ export type LogMetadata =
   | SupplierUpdateLog
   | CustomerCreateLog
   | CustomerUpdateLog
-  | TransactionCreateLog
-  | TransactionCancelLog
   | UserStatusChangeLog
+  | StockInLog
+  | StockOutLog
+  | StockTransferLog
   | StockAdjustLog;

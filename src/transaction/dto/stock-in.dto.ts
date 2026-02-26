@@ -1,6 +1,5 @@
 import {
   IsArray,
-  IsEmail,
   IsMongoId,
   IsOptional,
   IsString,
@@ -15,7 +14,7 @@ export class StockInDto {
   @Type(() => ProductItemDto)
   products: ProductItemDto[];
 
-  @IsEmail()
+  @IsMongoId()
   supplier: string;
 
   @IsMongoId()

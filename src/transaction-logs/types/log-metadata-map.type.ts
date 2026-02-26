@@ -14,6 +14,13 @@ import {
   SupplierDeleteLog,
   SupplierUpdateLog,
 } from './supplier-log.type';
+import {
+  ShipmentStatusChangeLog,
+  StockAdjustLog,
+  StockInLog,
+  StockOutLog,
+  StockTransferLog,
+} from './transaction-log.type';
 import { UserStatusChangeLog } from './user-status-log.type';
 import { VariantCreateLog } from './variant-log.type';
 import {
@@ -44,4 +51,11 @@ export type LogMetadataMap = {
   [LogAction.WAREHOUSE_CREATED]: WarehouseCreateLog;
   [LogAction.WAREHOUSE_UPDATED]: WarehouseUpdateLog;
   [LogAction.WAREHOUSE_DELETED]: WarehouseDeleteLog;
+
+  [LogAction.STOCK_IN]: StockInLog;
+  [LogAction.STOCK_OUT]: StockOutLog;
+  [LogAction.STOCK_TRANSFER]: StockTransferLog;
+  [LogAction.STOCK_ADJUSTED]: StockAdjustLog;
+
+  [LogAction.SHIPMENT_STATUS_CHANGED]: ShipmentStatusChangeLog;
 };

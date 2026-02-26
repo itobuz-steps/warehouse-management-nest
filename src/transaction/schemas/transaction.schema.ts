@@ -17,20 +17,11 @@ export class Transaction {
   @Prop({ type: [TransactionProductSchema], required: true })
   products: TransactionProduct[];
 
-  @Prop()
-  supplier?: string;
+  @Prop({ type: Types.ObjectId, ref: 'Supplier' })
+  supplier?: Types.ObjectId;
 
-  @Prop()
-  customerName?: string;
-
-  @Prop()
-  customerEmail?: string;
-
-  @Prop()
-  customerPhone?: number;
-
-  @Prop()
-  customerAddress?: string;
+  @Prop({ type: Types.ObjectId, ref: 'Customer' })
+  customer?: Types.ObjectId;
 
   @Prop({ enum: Object.values(SHIPMENT_TYPES) })
   shipment?: string;

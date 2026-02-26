@@ -187,7 +187,7 @@ export class TransactionService {
         [
           {
             type: TRANSACTION_TYPES.IN,
-            supplier: dto.supplier,
+            supplier: new Types.ObjectId(dto.supplier),
             destinationWarehouse: warehouseId,
             notes: dto.notes,
             performedBy,
@@ -278,15 +278,13 @@ export class TransactionService {
     try {
       const warehouseId = new Types.ObjectId(dto.sourceWarehouse);
       const performedBy = new Types.ObjectId(userId);
+      const customerId = new Types.ObjectId(dto.customer);
 
       const [transaction] = await this.transactionModel.create(
         [
           {
             type: TRANSACTION_TYPES.OUT,
-            customerName: dto.customerName,
-            customerEmail: dto.customerEmail,
-            customerPhone: dto.customerPhone,
-            customerAddress: dto.customerAddress,
+            customer: customerId,
             shipment: SHIPMENT_TYPES.PENDING,
             sourceWarehouse: warehouseId,
             notes: dto.notes,
@@ -573,9 +571,9 @@ export class TransactionService {
     session.startTransaction();
 
     try {
-      const { products, warehouseId, reason, notes } = dto;
+      const { products, sourceWarehouse, reason, notes } = dto;
 
-      const warehouseObjectId = new Types.ObjectId(warehouseId);
+      const warehouseObjectId = new Types.ObjectId(sourceWarehouse);
       const performedBy = new Types.ObjectId(userId);
 
       const transaction = await this.transactionModel.create(

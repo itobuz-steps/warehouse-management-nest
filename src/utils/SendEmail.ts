@@ -134,16 +134,18 @@ export default class SendEmail {
   sendProductShippedEmailToCustomer = async (
     transaction: PopulatedTransactionForPdfGeneration,
   ): Promise<void> => {
+    console.log('Your Transactions', transaction);
+
     const invoice = (await new PdfService().generateTransactionPdf(
       transaction,
     )) as Buffer;
 
     await this.mailSender(
-      transaction.customerEmail as string,
+      transaction.customer.email,
       'Product Shipment Details',
       `
       <h2>Shipment Delivered</h2>
-      <p>Hello ${transaction.customerName || ''},</p>
+      <p>Hello ${transaction.customer.name || ''},</p>
       <p>Your shipment for Order ID <b>${transaction._id.toString()}</b> has been delivered.</p>
       <p>Status: <b>${transaction.shipment}</b></p>
       <p>Please find your invoice attached.</p>
@@ -164,11 +166,11 @@ export default class SendEmail {
     )) as Buffer;
 
     await this.mailSender(
-      transaction.customerEmail as string,
+      transaction.customer.email,
       'Shipment Cancelled',
       `
       <h2>Shipment Cancelled</h2>
-      <p>Hello ${transaction.customerName || ''},</p>
+      <p>Hello ${transaction.customer.name || ''},</p>
       <p>Your shipment for Order ID <b>${transaction._id.toString()}</b> has been cancelled.</p>
       <p>Status: <b>${transaction.shipment}</b></p>
       <p>For more information contact: ${transaction.performedBy.email}</p>

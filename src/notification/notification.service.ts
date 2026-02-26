@@ -14,6 +14,8 @@ import { Quantity } from 'src/quantity/entities/quantity.entity';
 import { Transaction } from 'src/transaction/schemas/transaction.schema';
 import { SHIPMENT_TYPES } from 'src/transaction/constants/shipmentConstants';
 import { PopulatedTransactionForPdfGeneration } from 'src/transaction/types/types';
+import { Supplier } from 'src/supplier/entities/supplier.entity';
+import { Customer } from 'src/customer/entities/customer.entity';
 
 @Injectable()
 export class NotificationService {
@@ -23,6 +25,12 @@ export class NotificationService {
 
     @InjectModel(Product.name)
     private productModel: Model<Product>,
+
+    @InjectModel(Supplier.name)
+    private supplierModel: Model<Supplier>,
+
+    @InjectModel(Customer.name)
+    private customerModel: Model<Customer>,
 
     @InjectModel(Warehouse.name)
     private warehouseModel: Model<Warehouse>,
@@ -131,10 +139,11 @@ export class NotificationService {
 
     try {
       const transaction = await this.transactionModel
-        .findById(transactionId)
+        .findOne({ _id: new Types.ObjectId(transactionId) })
         .populate('products.product')
         .populate('products.variants.variant')
         .populate('sourceWarehouse')
+        .populate('supplier customer')
         .session(session)
         .lean<PopulatedTransactionForPdfGeneration>();
 

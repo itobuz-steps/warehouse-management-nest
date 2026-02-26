@@ -32,6 +32,14 @@ import {
   VariantStockSchema,
 } from 'src/variant-stock/schemas/variant-stock.schema';
 import { VariantStockModule } from 'src/variant-stock/variant-stock.module';
+import {
+  Supplier,
+  SupplierSchema,
+} from 'src/supplier/entities/supplier.entity';
+import {
+  Customer,
+  CustomerSchema,
+} from 'src/customer/entities/customer.entity';
 
 @Module({
   imports: [
@@ -46,6 +54,8 @@ import { VariantStockModule } from 'src/variant-stock/variant-stock.module';
       { name: Subscription.name, schema: SubscriptionSchema },
       { name: Batch.name, schema: BatchSchema },
       { name: VariantStock.name, schema: VariantStockSchema },
+      { name: Supplier.name, schema: SupplierSchema },
+      { name: Customer.name, schema: CustomerSchema },
     ]),
     NotificationModule,
     VariantStockModule,
