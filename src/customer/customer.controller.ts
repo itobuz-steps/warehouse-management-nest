@@ -8,6 +8,7 @@ import {
   Delete,
   UseGuards,
   Req,
+  Query,
 } from '@nestjs/common';
 import { CustomerService } from './customer.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
@@ -35,11 +36,11 @@ export class CustomerController {
   }
 
   @Get()
-  async findAll() {
+  async findAll(@Query('search') search?: string) {
     return {
       message: 'All customers retrieved successfully',
       success: true,
-      data: (await this.customerService.findAll()) || [],
+      data: (await this.customerService.findAll(search)) || [],
     };
   }
 
