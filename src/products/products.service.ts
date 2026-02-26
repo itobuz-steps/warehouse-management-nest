@@ -91,7 +91,11 @@ export class ProductsService {
     return updatedProduct;
   }
 
-  async create(createProductDto: CreateProductDto, imageUrls: string[]) {
+  async create(
+    userId: string,
+    createProductDto: CreateProductDto,
+    imageUrls: string[],
+  ) {
     const session = await this.productModel.db.startSession();
     session.startTransaction();
 
@@ -107,9 +111,9 @@ export class ProductsService {
         category: createProductDto.category,
         description: createProductDto.description,
         isArchived: createProductDto.isArchived,
-        createdBy: createProductDto.createdBy,
+        createdBy: new Types.ObjectId(userId),
         brand: createProductDto.brand,
-        label,
+        label: createProductDto.label ? createProductDto.label : label,
         variantCount: 0,
       }).save({ session });
 

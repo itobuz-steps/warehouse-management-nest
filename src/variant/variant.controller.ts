@@ -35,7 +35,7 @@ export class VariantController {
   ) {
     const imageKeys: string[] = [];
 
-    if (files && files.length > 0) {
+    if (files && files.length) {
       const uploadedImages =
         await this.storageService.uploadMultipleFiles(files);
       imageKeys.push(...uploadedImages.map((img) => img.key));
@@ -48,7 +48,7 @@ export class VariantController {
   }
 
   @Get('product/:id')
-  async findByProduct(@Param('id') id: string) {
-    return await this.variantService.findByProduct(id);
+  async findById(@Param('id') id: string) {
+    return await this.variantService.findById(id);
   }
 }

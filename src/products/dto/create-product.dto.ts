@@ -12,6 +12,7 @@ import {
   Max,
 } from 'class-validator';
 import { PRODUCT_CATEGORY_TYPES } from '../constants/product.constant';
+import { Transform } from 'class-transformer';
 
 export class CreateProductDto {
   @IsString()
@@ -49,13 +50,22 @@ export class CreateProductDto {
   @IsOptional()
   isArchived?: boolean;
 
-  @IsString()
-  @IsNotEmpty({ message: 'Created by is required' })
-  createdBy: string;
+  // @IsString()
+  // // @IsNotEmpty({ message: 'Created by is required' })
+  // createdBy: string;
 
   @IsString()
   brand: string;
 
+  @IsString()
+  label: string;
+
+  @Transform(({ value }: { value: string }) => {
+    if (typeof value === 'string') {
+      return JSON.parse(value) as Record<string, string>;
+    }
+    return value;
+  })
   @IsObject()
   @IsNotEmpty({ message: 'Variant attributes is required' })
   variantAttributes: Record<string, string>;

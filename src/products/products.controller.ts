@@ -28,6 +28,7 @@ import { ApiBearerAuth } from '@nestjs/swagger';
 import { Roles } from 'src/common/guard/roles.decorator';
 import { USER_TYPES } from 'src/auth/userType';
 import type { RequestWithUser } from 'src/warehouse/types/userType';
+import { StorageService } from 'src/storage/storage.service';
 
 @UseGuards(AuthGuard)
 @ApiBearerAuth()
@@ -36,6 +37,7 @@ export class ProductsController {
   constructor(
     private readonly productsService: ProductsService,
     private readonly configService: ConfigService,
+    private readonly storageService: StorageService,
   ) {}
 
   @Get()
@@ -93,18 +95,18 @@ export class ProductsController {
     @UploadedFiles() files: Express.Multer.File[],
     @Req() req: RequestWithUser,
   ) {
-    createProductDto.createdBy = req.user._id;
+    // createProductDto.createdBy = req.user._id;
 
-    let imageUrls: string[] = [];
+    const imageUrls: string[] = [];
 
     if (files && files.length) {
-      imageUrls = files.map((file) => {
-        const fileName = file.filename;
-        return `${req.protocol}://${req.get('host')}/uploads/products/${fileName}`;
-      });
+      const uploadedImages =
+        await this.storageService.uploadMultipleFiles(files);
+      imageUrls.push(...uploadedImages.map((img) => img.key));
     }
 
     const product = await this.productsService.create(
+      req.user._id,
       createProductDto,
       imageUrls,
     );
