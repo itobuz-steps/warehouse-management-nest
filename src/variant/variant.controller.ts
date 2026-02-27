@@ -47,8 +47,13 @@ export class VariantController {
     });
   }
 
-  @Get('product/:id')
+  @Get('/:id')
   async findById(@Param('id') id: string) {
     return await this.variantService.findById(id);
+  }
+
+  @Get('product/:id')
+  async findByProductId(@Param('id') id: string) {
+    return await this.variantService.findByProductId(id);
   }
 }

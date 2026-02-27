@@ -29,6 +29,7 @@ import { Roles } from 'src/common/guard/roles.decorator';
 import { USER_TYPES } from 'src/auth/userType';
 import type { RequestWithUser } from 'src/warehouse/types/userType';
 import { StorageService } from 'src/storage/storage.service';
+import { GetWarehouseProductsQueryDto } from './dto/get-warehouse-products-query';
 
 @UseGuards(AuthGuard)
 @ApiBearerAuth()
@@ -43,6 +44,16 @@ export class ProductsController {
   @Get()
   async getProducts(@Query() queryDto: GetProductsQueryDto) {
     const data = await this.productsService.getProducts(queryDto);
+
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  @Get('/warehouse-products')
+  async getProductsForWarehouse(@Query() query: GetWarehouseProductsQueryDto) {
+    const data = await this.productsService.getProductsForWarehouse(query);
 
     return {
       success: true,

@@ -223,6 +223,7 @@ export class TransactionService {
             {
               variantId: new Types.ObjectId(variant.variantId),
               warehouseId,
+              productId: new Types.ObjectId(product.productId),
             },
             {
               $inc: { quantity: variant.quantity },
@@ -503,6 +504,7 @@ export class TransactionService {
             {
               variantId,
               warehouseId: destinationWarehouseId,
+              productId: new Types.ObjectId(product.productId),
             },
             {
               $inc: { quantity: variant.quantity },

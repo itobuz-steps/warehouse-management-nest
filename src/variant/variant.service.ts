@@ -65,7 +65,9 @@ export class VariantService {
   }
 
   async findById(variantId: string) {
-    const variant = await this.variantModel.findById(variantId).lean();
+    const variant = await this.variantModel
+      .findById(new Types.ObjectId(variantId))
+      .lean();
 
     if (!variant) {
       return { success: false, message: 'Variant not found', data: null };
@@ -84,6 +86,18 @@ export class VariantService {
         ...variant,
         variantImage: imageUrls,
       },
+    };
+  }
+
+  async findByProductId(productId: string) {
+    const variants = await this.variantModel
+      .find({ product: new Types.ObjectId(productId) })
+      .lean();
+
+    return {
+      success: true,
+      message: 'Variants retrieved based on product id successfully',
+      data: variants,
     };
   }
 

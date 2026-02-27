@@ -9,11 +9,19 @@ import { SORT_CATEGORY } from './constants/product.constant';
 import * as QRCode from 'qrcode';
 import { SortOrder } from 'mongoose';
 import { VariantService } from 'src/variant/variant.service';
+import { GetWarehouseProductsQueryDto } from './dto/get-warehouse-products-query';
+import {
+  VariantStock,
+  VariantStockDocument,
+} from 'src/variant-stock/schemas/variant-stock.schema';
 
 @Injectable()
 export class ProductsService {
   constructor(
     @InjectModel(Product.name) private productModel: Model<ProductDocument>,
+
+    @InjectModel(VariantStock.name)
+    private variantStockModel: Model<VariantStockDocument>,
 
     private readonly variantService: VariantService,
   ) {}
@@ -65,6 +73,25 @@ export class ProductsService {
       currentPage: pageNumber,
       productsPerPage: limitNumber,
     };
+  }
+
+  async getProductsForWarehouse(query: GetWarehouseProductsQueryDto) {
+    const filter: QueryFilter<ProductDocument> = { isArchived: false };
+
+    if (query.warehouseId) {
+      const productStocks = await this.variantStockModel
+        .find({
+          warehouseId: new Types.ObjectId(query.warehouseId),
+        })
+        .distinct('productId');
+      filter._id = { $in: productStocks };
+    }
+
+    if (query.category) {
+      filter.category = query.category;
+    }
+
+    return this.productModel.find(filter);
   }
 
   async update(
