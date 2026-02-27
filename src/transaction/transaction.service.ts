@@ -99,7 +99,7 @@ export class TransactionService {
     const [transactions, total] = await Promise.all([
       this.transactionModel
         .find(match)
-        .populate('product performedBy sourceWarehouse destinationWarehouse')
+        .populate('products performedBy sourceWarehouse destinationWarehouse')
         .sort({ updatedAt: -1 })
         .skip(skip)
         .limit(limit),
@@ -153,7 +153,7 @@ export class TransactionService {
     const [transactions, total] = await Promise.all([
       this.transactionModel
         .find(filter)
-        .populate('product performedBy sourceWarehouse destinationWarehouse')
+        .populate('products performedBy sourceWarehouse destinationWarehouse')
         .sort({ updatedAt: -1 })
         .skip(skip)
         .limit(limit),
