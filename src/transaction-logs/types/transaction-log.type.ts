@@ -48,7 +48,7 @@ export type ShipmentStatusChangeLog = {
     name: string;
     email?: string;
   };
-  items: TransactionLogItem[];
+  products: TransactionLogItem[];
 };
 
 export type StockTransferLog = {

@@ -11,6 +11,7 @@ import {
   StockOutLog,
   StockTransferLog,
   StockAdjustLog,
+  ShipmentStatusChangeLog,
 } from './transaction-log.type';
 import { UserStatusChangeLog } from './user-status-log.type';
 import { VariantCreateLog } from './variant-log.type';
@@ -30,4 +31,5 @@ export type LogMetadata =
   | StockInLog
   | StockOutLog
   | StockTransferLog
-  | StockAdjustLog;
+  | StockAdjustLog
+  | ShipmentStatusChangeLog;

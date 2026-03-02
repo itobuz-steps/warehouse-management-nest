@@ -12,6 +12,7 @@ import { NotificationService } from './notification.service';
 import { AuthGuard } from 'src/common/guard/auth.guard';
 import { Request } from 'express';
 import { SubscribeDto } from './dto/subscribe.dto';
+import type { RequestWithUserDocument } from 'src/transaction/types/types';
 
 export interface RequestWithUser extends Request {
   userId: string;
@@ -46,14 +47,14 @@ export class NotificationController {
   }
 
   @Patch('change-shipment-status/:id')
-  async ship(@Req() req: RequestWithUser, @Param() id: string) {
-    await this.service.updateShipmentStatus(id, 'shipped', req.userId);
+  async ship(@Req() req: RequestWithUserDocument, @Param() id: string) {
+    await this.service.updateShipmentStatus(id, 'shipped', req.user);
     return { success: true, message: 'Shipment marked shipped' };
   }
 
   @Patch('cancel-shipment/:id')
-  async cancel(@Req() req: RequestWithUser, @Param() id: string) {
-    await this.service.updateShipmentStatus(id, 'cancelled', req.userId);
+  async cancel(@Req() req: RequestWithUserDocument, @Param() id: string) {
+    await this.service.updateShipmentStatus(id, 'cancelled', req.user);
     return { success: true, message: 'Shipment cancelled' };
   }
 }

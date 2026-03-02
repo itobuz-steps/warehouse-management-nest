@@ -57,5 +57,6 @@ export type LogMetadataMap = {
   [LogAction.STOCK_TRANSFER]: StockTransferLog;
   [LogAction.STOCK_ADJUSTED]: StockAdjustLog;
 
-  [LogAction.SHIPMENT_STATUS_CHANGED]: ShipmentStatusChangeLog;
+  [LogAction.SHIPMENT_SHIPPED]: ShipmentStatusChangeLog;
+  [LogAction.SHIPMENT_CANCELLED]: ShipmentStatusChangeLog;
 };

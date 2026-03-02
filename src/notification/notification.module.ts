@@ -37,6 +37,7 @@ import {
   Customer,
   CustomerSchema,
 } from 'src/customer/entities/customer.entity';
+import { TransactionLogsModule } from 'src/transaction-logs/transaction-logs.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import {
       { name: Supplier.name, schema: SupplierSchema },
       { name: Customer.name, schema: CustomerSchema },
     ]),
+    TransactionLogsModule,
   ],
   controllers: [NotificationController],
   providers: [
