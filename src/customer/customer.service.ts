@@ -1,8 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
-import { Customer } from './entities/customer.entity';
-import { Model } from 'mongoose';
+import { Customer, CustomerDocument } from './entities/customer.entity';
+import { Model, QueryFilter } from 'mongoose';
 import { InjectModel } from '@nestjs/mongoose';
 import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
 import { UserDocument } from 'src/auth/entities/auth.entity';
@@ -35,8 +35,29 @@ export class CustomerService {
     return customer;
   }
 
-  async findAll() {
-    return await this.customerModel.find({ isActive: true }).exec();
+  async findAll(query?: string) {
+    const filter: QueryFilter<CustomerDocument> = {};
+
+    if (query) {
+      const searchConditions: QueryFilter<CustomerDocument>[] = [
+        { email: { $regex: query, $options: 'i' } },
+        { name: { $regex: query, $options: 'i' } },
+        { address: { $regex: query, $options: 'i' } },
+      ];
+
+      const lowerQuery = query.toLowerCase();
+
+      //handles boolean field
+      if (lowerQuery === 'active') {
+        searchConditions.push({ isActive: true });
+      } else if (lowerQuery === 'inactive') {
+        searchConditions.push({ isActive: false });
+      }
+
+      filter.$or = searchConditions;
+    }
+
+    return await this.customerModel.find(filter).sort({ createdAt: -1 }).exec();
   }
 
   async findOne(id: string) {
@@ -50,7 +71,6 @@ export class CustomerService {
   ) {
     const existingCustomer = await this.customerModel.findOne({
       _id: id,
-      isActive: true,
     });
 
     if (!existingCustomer) {
