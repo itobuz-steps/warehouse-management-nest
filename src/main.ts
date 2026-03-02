@@ -4,6 +4,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { setupSwagger } from './utils/setupSwager';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
+import { DelayInterceptor } from './delay.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -20,6 +21,7 @@ async function bootstrap() {
       },
     }),
   );
+  app.useGlobalInterceptors(new DelayInterceptor());
 
   setupSwagger(app);
 

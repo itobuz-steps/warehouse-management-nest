@@ -52,6 +52,6 @@ import { VariantStockModule } from 'src/variant-stock/variant-stock.module';
   ],
   controllers: [TransactionController],
   providers: [TransactionService, PdfService, NotificationService, SendEmail],
-  exports: [SendEmail],
+  exports: [SendEmail, TransactionService],
 })
 export class TransactionModule {}

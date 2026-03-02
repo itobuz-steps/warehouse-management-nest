@@ -16,5 +16,6 @@ import { TransactionLogsModule } from 'src/transaction-logs/transaction-logs.mod
   ],
   controllers: [CustomerController],
   providers: [CustomerService],
+  exports: [CustomerService],
 })
 export class CustomerModule {}

@@ -31,5 +31,6 @@ import { User, UserSchema } from 'src/auth/entities/auth.entity';
   ],
   controllers: [DashboardController],
   providers: [DashboardService, ExcelService],
+  exports: [DashboardService],
 })
 export class DashboardModule {}
