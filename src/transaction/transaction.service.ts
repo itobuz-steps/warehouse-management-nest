@@ -16,7 +16,10 @@ import { WarehouseTransactionsQueryDto } from './dto/query/warehouse-transaction
 import { GetTransactionsQueryDto } from './dto/query/get-transactions.query.dto';
 import type { QueryFilter } from 'mongoose';
 import { PdfService } from './services/pdf.service';
-import { PopulatedTransactionForPdfGeneration } from './types/types';
+import {
+  LogProduct,
+  PopulatedTransactionForPdfGeneration,
+} from './types/types';
 import { Quantity } from 'src/quantity/entities/quantity.entity';
 import { TRANSACTION_TYPES } from './constants/transactionConstants';
 import { StockOutDto } from './dto/stock-out.dto';
@@ -29,6 +32,12 @@ import { NotificationTriggerService } from 'src/notification/notification-trigge
 import { NOTIFICATION_TYPES } from 'src/notification/notificationTypes';
 import { Batch } from 'src/batch/schemas/batch.schema';
 import { VariantStock } from 'src/variant-stock/schemas/variant-stock.schema';
+import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
+import { LogAction } from 'src/transaction-logs/enums/log-action.enum';
+import { LogEntityType } from 'src/transaction-logs/enums/log-entity-type.enum';
+import { Supplier } from 'src/supplier/entities/supplier.entity';
+import { Customer } from 'src/customer/entities/customer.entity';
+import { Variant } from 'src/variant/schemas/variant.schema';
 
 @Injectable()
 export class TransactionService {
@@ -44,6 +53,15 @@ export class TransactionService {
 
     @InjectModel(Product.name)
     private readonly productModel: Model<Product>,
+
+    @InjectModel(Variant.name)
+    private readonly variantModel: Model<Variant>,
+
+    @InjectModel(Customer.name)
+    private readonly customerModel: Model<Customer>,
+
+    @InjectModel(Supplier.name)
+    private readonly supplierModel: Model<Supplier>,
 
     @InjectConnection()
     private readonly connection: Connection,
@@ -62,6 +80,8 @@ export class TransactionService {
     private readonly notificationService: NotificationService,
 
     private readonly notificationTriggerService: NotificationTriggerService,
+
+    private readonly logsService: TransactionLogsService,
   ) {}
 
   async getTransactions(query: GetTransactionsQueryDto, user: UserDocument) {
@@ -175,15 +195,15 @@ export class TransactionService {
     };
   }
 
-  async createStockIn(dto: StockInDto, userId: string) {
+  async createStockIn(dto: StockInDto, user: UserDocument) {
     const session = await this.connection.startSession();
     session.startTransaction();
 
     try {
       const warehouseId = new Types.ObjectId(dto.destinationWarehouse);
-      const performedBy = new Types.ObjectId(userId);
+      const performedBy = new Types.ObjectId(user._id);
 
-      const transaction = await this.transactionModel.create(
+      const [createdTransaction] = await this.transactionModel.create(
         [
           {
             type: TRANSACTION_TYPES.IN,
@@ -224,18 +244,50 @@ export class TransactionService {
               variantId: new Types.ObjectId(variant.variantId),
               warehouseId,
             },
-            {
-              $inc: { quantity: variant.quantity },
-            },
-            {
-              upsert: true,
-              session,
-            },
+            { $inc: { quantity: variant.quantity } },
+            { upsert: true, session },
           );
         }
       }
 
       await session.commitTransaction();
+
+      const supplier = await this.supplierModel
+        .findById(dto.supplier)
+        .select('name email')
+        .lean();
+
+      const warehouse = await this.warehouseModel
+        .findById(warehouseId)
+        .select('name')
+        .lean();
+
+      if (!supplier || !warehouse) {
+        throw new BadRequestException('Supplier or Warehouse not found');
+      }
+
+      const products = await this.buildProductLogItems(dto.products);
+
+      await this.logsService.createLog({
+        action: LogAction.STOCK_IN,
+        entityType: LogEntityType.TRANSACTION,
+        entityId: createdTransaction._id.toString(),
+        performedBy: user,
+        metadata: {
+          supplier: {
+            supplierId: supplier._id.toString(),
+            name: supplier.name,
+            email: supplier.email,
+          },
+
+          destinationWarehouse: {
+            warehouseId: warehouse._id.toString(),
+            name: warehouse.name,
+          },
+
+          products,
+        },
+      });
 
       const notificationPromises: Promise<void>[] = [];
 
@@ -245,10 +297,10 @@ export class TransactionService {
             this.notificationTriggerService.notifyTransaction(
               new Types.ObjectId(product.productId),
               warehouseId,
-              transaction[0]._id.toString(),
+              createdTransaction._id.toString(),
               variant.quantity,
               NOTIFICATION_TYPES.STOCK_IN,
-              userId,
+              user._id.toHexString(),
             ),
           );
         }
@@ -261,7 +313,7 @@ export class TransactionService {
       return {
         success: true,
         message: 'Stock-in transaction created successfully',
-        data: transaction[0],
+        data: createdTransaction,
       };
     } catch (error) {
       await session.abortTransaction();
@@ -271,13 +323,13 @@ export class TransactionService {
     }
   }
 
-  async createStockOut(dto: StockOutDto, userId: string) {
+  async createStockOut(dto: StockOutDto, user: UserDocument) {
     const session = await this.connection.startSession();
     session.startTransaction();
 
     try {
       const warehouseId = new Types.ObjectId(dto.sourceWarehouse);
-      const performedBy = new Types.ObjectId(userId);
+      const performedBy = new Types.ObjectId(user._id);
       const customerId = new Types.ObjectId(dto.customer);
 
       const [transaction] = await this.transactionModel.create(
@@ -381,6 +433,44 @@ export class TransactionService {
 
       await session.commitTransaction();
 
+      const customer = await this.customerModel
+        .findById(dto.customer)
+        .select('name email')
+        .lean();
+
+      const warehouse = await this.warehouseModel
+        .findById(warehouseId)
+        .select('name')
+        .lean();
+
+      if (!customer || !warehouse) {
+        throw new BadRequestException('Supplier or Warehouse not found');
+      }
+
+      const products = await this.buildProductLogItems(dto.products);
+
+      await this.logsService.createLog({
+        action: LogAction.STOCK_OUT,
+        entityType: LogEntityType.TRANSACTION,
+        entityId: transaction._id.toString(),
+        performedBy: user,
+        metadata: {
+          customer: {
+            customerId: customer._id.toString(),
+            name: customer.name as string,
+            email: customer.email,
+          },
+
+          sourceWarehouse: {
+            warehouseId: warehouse._id.toString(),
+            name: warehouse.name,
+          },
+
+          products,
+          shipmentStatus: SHIPMENT_TYPES.PENDING,
+        },
+      });
+
       Promise.all(
         dto.products.flatMap((product) =>
           product.variants.map((variant) =>
@@ -408,7 +498,7 @@ export class TransactionService {
     }
   }
 
-  async createTransfer(dto: TransferDto, userId: string) {
+  async createTransfer(dto: TransferDto, user: UserDocument) {
     const session = await this.connection.startSession();
     session.startTransaction();
 
@@ -423,9 +513,9 @@ export class TransactionService {
 
       const sourceWarehouseId = new Types.ObjectId(sourceWarehouse);
       const destinationWarehouseId = new Types.ObjectId(destinationWarehouse);
-      const performedBy = new Types.ObjectId(userId);
+      const performedBy = new Types.ObjectId(user._id);
 
-      const transaction = await this.transactionModel.create(
+      const [transaction] = await this.transactionModel.create(
         [
           {
             type: TRANSACTION_TYPES.TRANSFER,
@@ -532,6 +622,39 @@ export class TransactionService {
 
       await session.commitTransaction();
 
+      const sourceWarehouseDoc = await this.warehouseModel
+        .findById(sourceWarehouseId)
+        .lean();
+
+      const destinationWarehouseDoc = await this.warehouseModel
+        .findById(destinationWarehouseId)
+        .select('name')
+        .lean();
+
+      if (!sourceWarehouseDoc || !destinationWarehouseDoc) {
+        throw new BadRequestException("Warehouses doesn't exists");
+      }
+
+      const newProducts = await this.buildProductLogItems(products);
+
+      await this.logsService.createLog({
+        action: LogAction.STOCK_TRANSFER,
+        entityType: LogEntityType.TRANSACTION,
+        entityId: transaction._id.toString(),
+        performedBy: user,
+        metadata: {
+          sourceWarehouse: {
+            warehouseId: sourceWarehouseDoc._id.toHexString(),
+            name: sourceWarehouseDoc.name,
+          },
+          destinationWarehouse: {
+            warehouseId: destinationWarehouseDoc._id.toHexString(),
+            name: destinationWarehouseDoc.name,
+          },
+          products: newProducts,
+        },
+      });
+
       const promises: Promise<void>[] = [];
 
       for (const product of products) {
@@ -540,10 +663,10 @@ export class TransactionService {
             this.notificationTriggerService.notifyTransaction(
               new Types.ObjectId(product.productId),
               sourceWarehouseId,
-              transaction[0]._id.toString(),
+              transaction._id.toString(),
               variant.quantity,
               NOTIFICATION_TYPES.STOCK_TRANSFER,
-              userId,
+              user._id.toHexString(),
             ),
           );
         }
@@ -556,7 +679,7 @@ export class TransactionService {
       return {
         success: true,
         message: 'Stock transfer completed successfully',
-        data: transaction[0],
+        data: transaction,
       };
     } catch (error) {
       await session.abortTransaction();
@@ -566,21 +689,21 @@ export class TransactionService {
     }
   }
 
-  async createAdjustment(dto: AdjustmentDto, userId: string) {
+  async createAdjustment(dto: AdjustmentDto, user: UserDocument) {
     const session = await this.connection.startSession();
     session.startTransaction();
 
     try {
       const { products, sourceWarehouse, reason, notes } = dto;
 
-      const warehouseObjectId = new Types.ObjectId(sourceWarehouse);
-      const performedBy = new Types.ObjectId(userId);
+      const warehouseId = new Types.ObjectId(sourceWarehouse);
+      const performedBy = new Types.ObjectId(user._id);
 
-      const transaction = await this.transactionModel.create(
+      const [transaction] = await this.transactionModel.create(
         [
           {
             type: TRANSACTION_TYPES.ADJUSTMENT,
-            destinationWarehouse: warehouseObjectId,
+            destinationWarehouse: warehouseId,
             reason,
             notes,
             performedBy,
@@ -603,7 +726,7 @@ export class TransactionService {
 
           const stock = await this.variantStockModel.findOne({
             variantId,
-            warehouseId: warehouseObjectId,
+            warehouseId: warehouseId,
           });
 
           if (!stock) {
@@ -627,7 +750,7 @@ export class TransactionService {
 
             const batches = await this.batchModel
               .find({
-                destinationWarehouse: warehouseObjectId,
+                destinationWarehouse: warehouseId,
                 'items.variant': variantId,
                 'items.remainingQuantity': { $gt: 0 },
               })
@@ -671,7 +794,7 @@ export class TransactionService {
             await this.batchModel.create(
               [
                 {
-                  destinationWarehouse: warehouseObjectId,
+                  destinationWarehouse: warehouseId,
                   items: [
                     {
                       variant: variantId,
@@ -689,6 +812,32 @@ export class TransactionService {
 
       await session.commitTransaction();
 
+      const destinationWarehouseDoc = await this.warehouseModel
+        .findById(warehouseId)
+        .select('name')
+        .lean();
+
+      if (!destinationWarehouseDoc) {
+        throw new BadRequestException("Warehouses doesn't exists");
+      }
+
+      const newProducts = await this.buildProductLogItems(products);
+
+      await this.logsService.createLog({
+        action: LogAction.STOCK_ADJUSTED,
+        entityType: LogEntityType.TRANSACTION,
+        entityId: transaction._id.toString(),
+        performedBy: user,
+        metadata: {
+          destinationWarehouse: {
+            warehouseId: destinationWarehouseDoc._id.toHexString(),
+            name: destinationWarehouseDoc.name,
+          },
+          reason,
+          products: newProducts,
+        },
+      });
+
       const promises: Promise<void>[] = [];
 
       for (const product of products) {
@@ -696,11 +845,11 @@ export class TransactionService {
           promises.push(
             this.notificationTriggerService.notifyTransaction(
               new Types.ObjectId(product.productId),
-              warehouseObjectId,
-              transaction[0]._id.toString(),
+              warehouseId,
+              transaction._id.toString(),
               variant.quantity,
               NOTIFICATION_TYPES.STOCK_ADJUSTMENT,
-              userId,
+              user._id.toHexString(),
             ),
           );
         }
@@ -711,7 +860,7 @@ export class TransactionService {
       return {
         success: true,
         message: 'Stock adjustment recorded successfully',
-        data: transaction[0],
+        data: transaction,
       };
     } catch (error) {
       await session.abortTransaction();
@@ -719,6 +868,43 @@ export class TransactionService {
     } finally {
       await session.endSession();
     }
+  }
+
+  private async buildProductLogItems(products: LogProduct) {
+    const variantIds = products.flatMap((p) =>
+      p.variants.map((v) => new Types.ObjectId(v.variantId)),
+    );
+
+    const variants = await this.variantModel
+      .find({ _id: { $in: variantIds } })
+      .populate({
+        path: 'product',
+        select: 'name',
+      })
+      .select('_id sku product')
+      .lean<
+        Array<{
+          _id: Types.ObjectId;
+          sku: string;
+          product: { name: string };
+        }>
+      >();
+
+    const variantMap = new Map(variants.map((v) => [v._id.toString(), v]));
+
+    return products.flatMap((product) =>
+      product.variants.map((variant) => {
+        const variantDoc = variantMap.get(variant.variantId);
+
+        return {
+          productId: product.productId,
+          productName: variantDoc?.product?.name ?? '',
+          variantId: variant.variantId,
+          sku: variantDoc?.sku ?? '',
+          quantity: variant.quantity,
+        };
+      }),
+    );
   }
 
   async generateInvoice(id: string) {

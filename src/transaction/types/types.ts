@@ -45,3 +45,11 @@ export type FlattenedItem = {
   price: number;
   total: number;
 };
+
+export type LogProduct = Array<{
+  productId: string;
+  variants: Array<{
+    variantId: string;
+    quantity: number;
+  }>;
+}>;
