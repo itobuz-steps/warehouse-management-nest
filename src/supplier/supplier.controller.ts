@@ -78,4 +78,13 @@ export class SupplierController {
       data: res,
     };
   }
+
+  @Get(':id')
+  async getSpecificSupplier(@Param('id') id: string) {
+    return {
+      message: 'Specific Supplier',
+      success: true,
+      data: await this.supplierService.getSpecificSupplier(id),
+    };
+  }
 }

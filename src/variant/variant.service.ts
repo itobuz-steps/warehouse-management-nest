@@ -5,6 +5,10 @@ import { Variant, VariantDocument } from './schemas/variant.schema';
 import { CreateVariantDto } from './dto/create-variant.dto';
 import { Product, ProductDocument } from 'src/products/entities/product.entity';
 import { StorageService } from 'src/storage/storage.service';
+import { LOG_ACTION } from 'src/transaction-logs/enums/log-action.enum';
+import { LOG_ENTITY_TYPE } from 'src/transaction-logs/enums/log-entity-type.enum';
+import { UserDocument } from 'src/auth/entities/auth.entity';
+import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
 @Injectable()
 export class VariantService {
   constructor(
@@ -15,6 +19,8 @@ export class VariantService {
     private readonly productModel: Model<ProductDocument>,
 
     private readonly storageService: StorageService,
+
+    private readonly logsService: TransactionLogsService,
   ) {}
 
   private normalize(value: string, length = 5): string {
@@ -48,14 +54,14 @@ export class VariantService {
     return `${cat}-${br}-${prod}-${variant}`;
   }
 
-  async create(dto: CreateVariantDto) {
-    console.log('dto', dto);
+  async create(dto: CreateVariantDto, user: UserDocument) {
     const data = await this.createInternal(
       dto.product,
       dto.attributes,
       dto.price,
       dto.markup,
-      dto.productImage,
+      dto.productImage || [],
+      user,
     );
 
     return {
@@ -94,6 +100,7 @@ export class VariantService {
     price: number,
     markup?: number,
     imageUrls: string[] = [],
+    user?: UserDocument,
     session?: ClientSession,
   ) {
     const product = await this.productModel
@@ -127,6 +134,22 @@ export class VariantService {
       markup,
       sku,
     }).save({ session });
+
+    await this.logsService.createLog({
+      action: LOG_ACTION.VARIANT_CREATED,
+      entityType: LOG_ENTITY_TYPE.VARIANT,
+      entityId: (await variant)._id.toHexString(),
+      performedBy: user as UserDocument,
+      metadata: {
+        productId: product._id,
+        productName: product.name,
+        sku: sku,
+        price: price,
+        markup: markup as number,
+        attributes: attributes,
+        variantImage: imageUrls,
+      },
+    });
 
     await this.productModel.updateOne(
       { _id: productId },

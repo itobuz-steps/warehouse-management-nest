@@ -14,7 +14,4 @@ export type SupplierUpdateLog = {
 export type SupplierDeleteLog = {
   name?: string;
   email?: string;
-  address?: string;
-  phoneNumber?: string;
-  suppliedProduct?: string[];
 };

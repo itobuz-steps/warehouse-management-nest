@@ -1,11 +1,11 @@
-import { LogAction } from '../enums/log-action.enum';
-import { LogEntityType } from '../enums/log-entity-type.enum';
+import { LOG_ACTION } from '../enums/log-action.enum';
+import { LOG_ENTITY_TYPE } from '../enums/log-entity-type.enum';
 import { LogStatus } from '../enums/log-status.enum';
 import type { LogMetadata } from '../types/log-metadata.type';
 
 export type CreateTransactionLogInput = {
-  action: LogAction;
-  entityType: LogEntityType;
+  action: LOG_ACTION;
+  entityType: LOG_ENTITY_TYPE;
   entityId: string;
 
   performedBy: {

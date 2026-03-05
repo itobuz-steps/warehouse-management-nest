@@ -1,7 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
-import { LogAction } from '../enums/log-action.enum';
-import { LogEntityType } from '../enums/log-entity-type.enum';
+import { LOG_ACTION } from '../enums/log-action.enum';
+import { LOG_ENTITY_TYPE } from '../enums/log-entity-type.enum';
 import { LogStatus } from '../enums/log-status.enum';
 import type { PerformedBy } from '../types/performed-by.type';
 import type { LogMetadata } from '../types/log-metadata.type';
@@ -12,11 +12,11 @@ export type TransactionLogDocument = HydratedDocument<TransactionLog>;
   timestamps: { createdAt: true, updatedAt: false },
 })
 export class TransactionLog {
-  @Prop({ required: true, enum: Object.values(LogAction) })
-  action: LogAction;
+  @Prop({ required: true, enum: Object.values(LOG_ACTION) })
+  action: LOG_ACTION;
 
-  @Prop({ required: true, enum: Object.values(LogEntityType) })
-  entityType: LogEntityType;
+  @Prop({ required: true, enum: Object.values(LOG_ENTITY_TYPE) })
+  entityType: LOG_ENTITY_TYPE;
 
   @Prop({ required: true })
   entityId: string;

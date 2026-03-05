@@ -1,5 +1,6 @@
-export enum LogEntityType {
+export enum LOG_ENTITY_TYPE {
   PRODUCT = 'PRODUCT',
+  VARIANT = 'VARIANT',
   WAREHOUSE = 'WAREHOUSE',
   TRANSACTION = 'TRANSACTION',
   USER = 'USER',

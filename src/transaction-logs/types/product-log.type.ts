@@ -3,14 +3,16 @@ export type ProductCreateLog = {
   category: string;
   brand: string;
   label: string;
-  price: number;
+  description: string;
+  isArchived: boolean;
 };
 
 export type ProductUpdateLog = {
-  oldValue: Partial<ProductCreateLog>;
-  newValue: Partial<ProductCreateLog>;
+  oldValue: { description?: string };
+  newValue: { description?: string };
 };
 
 export type ProductArchiveLog = {
+  name: string;
   isArchived: boolean;
 };

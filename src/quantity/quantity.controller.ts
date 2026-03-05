@@ -95,4 +95,22 @@ export class QuantityController {
       data: result,
     };
   }
+
+  @Get('warehouse-specific-products/:warehouseId/:category')
+  async getWarehouseAndCategorySpecificProducts(
+    @Param('warehouseId') warehouseId: string,
+    @Param('category') category: string,
+  ) {
+    const result =
+      await this.quantityService.getWarehouseAndCategorySpecificProducts(
+        warehouseId,
+        category,
+      );
+
+    return {
+      message: 'Specific Warehouse and Category all products',
+      success: true,
+      data: result,
+    };
+  }
 }
