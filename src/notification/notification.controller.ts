@@ -14,9 +14,10 @@ import { Request } from 'express';
 import { SubscribeDto } from './dto/subscribe.dto';
 import type { RequestWithUserDocument } from 'src/transaction/types/types';
 
-export interface RequestWithUser extends Request {
+export type RequestWithUser = Request & {
   userId: string;
-}
+};
+
 @UseGuards(AuthGuard)
 @Controller('notifications')
 export class NotificationController {

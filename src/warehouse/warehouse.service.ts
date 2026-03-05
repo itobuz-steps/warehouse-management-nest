@@ -13,7 +13,7 @@ import { UpdateWarehouseDto } from './dto/update-warehouse.dto';
 import { Quantity } from 'src/quantity/entities/quantity.entity';
 import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
 import { LogAction } from 'src/transaction-logs/enums/log-action.enum';
-import { LogEntityType } from 'src/transaction-logs/enums/log-entity-type.enum';
+import { LOG_ENTITY_TYPE } from 'src/transaction-logs/enums/log-entity-type.enum';
 import { User, UserDocument } from 'src/auth/entities/auth.entity';
 
 @Injectable()
@@ -175,7 +175,7 @@ export class WarehouseService {
 
     await this.logService.createLog({
       action: LogAction.WAREHOUSE_CREATED,
-      entityType: LogEntityType.WAREHOUSE,
+      entityType: LOG_ENTITY_TYPE.WAREHOUSE,
       entityId: warehouse._id.toHexString(),
       performedBy: user,
       metadata: {
@@ -212,21 +212,19 @@ export class WarehouseService {
       throw new NotFoundException('Warehouse not found');
     }
 
-    const oldManagers =
-      oldWarehouse.managerIds?.length > 0
-        ? await this.userModel
-            .find({ _id: { $in: oldWarehouse.managerIds } })
-            .select('_id name email')
-            .lean()
-        : [];
+    const oldManagers = oldWarehouse.managerIds?.length
+      ? await this.userModel
+          .find({ _id: { $in: oldWarehouse.managerIds } })
+          .select('_id name email')
+          .lean()
+      : [];
 
-    const newManagers =
-      managerIds.length > 0
-        ? await this.userModel
-            .find({ _id: { $in: managerIds } })
-            .select('_id name email')
-            .lean()
-        : [];
+    const newManagers = managerIds.length
+      ? await this.userModel
+          .find({ _id: { $in: managerIds } })
+          .select('_id name email')
+          .lean()
+      : [];
 
     const updatedWarehouse = await this.warehouseModel.findByIdAndUpdate(
       id,
@@ -243,7 +241,7 @@ export class WarehouseService {
 
     await this.logService.createLog({
       action: LogAction.WAREHOUSE_UPDATED,
-      entityType: LogEntityType.WAREHOUSE,
+      entityType: LOG_ENTITY_TYPE.WAREHOUSE,
       entityId: id,
       performedBy: user,
       metadata: {
@@ -255,7 +253,7 @@ export class WarehouseService {
           maxTransactionPriceLimit: oldWarehouse.maxTransactionPriceLimit,
           managers: oldManagers.map((m) => ({
             userId: m._id,
-            name: m.name ?? 'Unknown',
+            name: m.name as string,
             email: m.email,
           })),
         },
@@ -267,7 +265,7 @@ export class WarehouseService {
           maxTransactionPriceLimit: updatedWarehouse.maxTransactionPriceLimit,
           managers: newManagers.map((m) => ({
             userId: m._id,
-            name: m.name ?? 'Unknown',
+            name: m.name as string,
             email: m.email,
           })),
         },
@@ -300,7 +298,7 @@ export class WarehouseService {
 
     await this.logService.createLog({
       action: LogAction.WAREHOUSE_DELETED,
-      entityType: LogEntityType.WAREHOUSE,
+      entityType: LOG_ENTITY_TYPE.WAREHOUSE,
       entityId: id,
       performedBy: user,
       metadata: {

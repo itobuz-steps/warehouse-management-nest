@@ -6,7 +6,7 @@ import { CreateVariantDto } from './dto/create-variant.dto';
 import { Product, ProductDocument } from 'src/products/entities/product.entity';
 import { StorageService } from 'src/storage/storage.service';
 import { LogAction } from 'src/transaction-logs/enums/log-action.enum';
-import { LogEntityType } from 'src/transaction-logs/enums/log-entity-type.enum';
+import { LOG_ENTITY_TYPE } from 'src/transaction-logs/enums/log-entity-type.enum';
 import { UserDocument } from 'src/auth/entities/auth.entity';
 import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
 @Injectable()
@@ -137,7 +137,7 @@ export class VariantService {
 
     await this.logsService.createLog({
       action: LogAction.VARIANT_CREATED,
-      entityType: LogEntityType.VARIANT,
+      entityType: LOG_ENTITY_TYPE.VARIANT,
       entityId: (await variant)._id.toHexString(),
       performedBy: user as UserDocument,
       metadata: {

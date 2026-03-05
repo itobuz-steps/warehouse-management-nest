@@ -11,7 +11,7 @@ import { StorageService } from 'src/storage/storage.service';
 // import { Request } from 'express';
 import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
 import { LogAction } from 'src/transaction-logs/enums/log-action.enum';
-import { LogEntityType } from 'src/transaction-logs/enums/log-entity-type.enum';
+import { LOG_ENTITY_TYPE } from 'src/transaction-logs/enums/log-entity-type.enum';
 import { UpdatePreferenceDto } from './dto/update-preference.dto';
 
 @Injectable()
@@ -129,7 +129,7 @@ export class ProfileService {
 
     await this.logsService.createLog({
       action,
-      entityType: LogEntityType.USER,
+      entityType: LOG_ENTITY_TYPE.USER,
       entityId: updatedManager._id.toHexString(),
       performedBy: user,
       metadata: {

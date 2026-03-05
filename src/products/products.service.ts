@@ -12,7 +12,7 @@ import { VariantService } from 'src/variant/variant.service';
 import { UserDocument } from 'src/auth/entities/auth.entity';
 import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
 import { LogAction } from 'src/transaction-logs/enums/log-action.enum';
-import { LogEntityType } from 'src/transaction-logs/enums/log-entity-type.enum';
+import { LOG_ENTITY_TYPE } from 'src/transaction-logs/enums/log-entity-type.enum';
 
 @Injectable()
 export class ProductsService {
@@ -105,7 +105,7 @@ export class ProductsService {
 
     await this.logsService.createLog({
       action: LogAction.PRODUCT_UPDATED,
-      entityType: LogEntityType.PRODUCT,
+      entityType: LOG_ENTITY_TYPE.PRODUCT,
       entityId: updatedProduct._id.toHexString(),
       performedBy: user,
       metadata: {
@@ -146,7 +146,7 @@ export class ProductsService {
 
       await this.logsService.createLog({
         action: LogAction.PRODUCT_CREATED,
-        entityType: LogEntityType.PRODUCT,
+        entityType: LOG_ENTITY_TYPE.PRODUCT,
         entityId: product._id.toHexString(),
         performedBy: user,
         metadata: {
@@ -195,7 +195,7 @@ export class ProductsService {
 
     await this.logsService.createLog({
       action: LogAction.PRODUCT_ARCHIVED,
-      entityType: LogEntityType.PRODUCT,
+      entityType: LOG_ENTITY_TYPE.PRODUCT,
       entityId: archivedProduct._id.toHexString(),
       performedBy: user,
       metadata: {
@@ -220,7 +220,7 @@ export class ProductsService {
 
     await this.logsService.createLog({
       action: LogAction.PRODUCT_RESTORED,
-      entityType: LogEntityType.PRODUCT,
+      entityType: LOG_ENTITY_TYPE.PRODUCT,
       entityId: restoredProduct._id.toHexString(),
       performedBy: user,
       metadata: {

@@ -7,7 +7,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
 import { UserDocument } from 'src/auth/entities/auth.entity';
 import { LogAction } from 'src/transaction-logs/enums/log-action.enum';
-import { LogEntityType } from 'src/transaction-logs/enums/log-entity-type.enum';
+import { LOG_ENTITY_TYPE } from 'src/transaction-logs/enums/log-entity-type.enum';
 
 @Injectable()
 export class CustomerService {
@@ -21,7 +21,7 @@ export class CustomerService {
 
     await this.logsService.createLog({
       action: LogAction.CUSTOMER_CREATED,
-      entityType: LogEntityType.CUSTOMER,
+      entityType: LOG_ENTITY_TYPE.CUSTOMER,
       entityId: customer._id.toHexString(),
       performedBy: user,
       metadata: {
@@ -101,7 +101,7 @@ export class CustomerService {
 
     await this.logsService.createLog({
       action: LogAction.CUSTOMER_UPDATED,
-      entityType: LogEntityType.CUSTOMER,
+      entityType: LOG_ENTITY_TYPE.CUSTOMER,
       entityId: updatedCustomer._id.toHexString(),
       performedBy: user,
       metadata: {
@@ -125,7 +125,7 @@ export class CustomerService {
 
     await this.logsService.createLog({
       action: LogAction.CUSTOMER_DELETED,
-      entityType: LogEntityType.CUSTOMER,
+      entityType: LOG_ENTITY_TYPE.CUSTOMER,
       entityId: deletedCustomer._id.toHexString(),
       performedBy: user,
       metadata: {

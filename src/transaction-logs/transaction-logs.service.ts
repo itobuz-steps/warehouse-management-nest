@@ -5,7 +5,7 @@ import {
   TransactionLogDocument,
 } from './entities/transaction-log.entity';
 import { Model } from 'mongoose';
-import { LogEntityType } from './enums/log-entity-type.enum';
+import { LOG_ENTITY_TYPE } from './enums/log-entity-type.enum';
 import type { LogMetadataMap } from './types/log-metadata-map.type';
 import type { UserDocument } from 'src/auth/entities/auth.entity';
 import { PerformedBy } from './types/performed-by.type';
@@ -14,7 +14,7 @@ type LogActionWithMetadata = keyof LogMetadataMap;
 
 type CreateLogInput<Action extends LogActionWithMetadata> = {
   action: Action;
-  entityType: LogEntityType;
+  entityType: LOG_ENTITY_TYPE;
   entityId: string;
 
   performedBy: UserDocument;

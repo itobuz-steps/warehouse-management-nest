@@ -12,7 +12,7 @@ import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { UserDocument } from 'src/auth/entities/auth.entity';
 import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
 import { LogAction } from 'src/transaction-logs/enums/log-action.enum';
-import { LogEntityType } from 'src/transaction-logs/enums/log-entity-type.enum';
+import { LOG_ENTITY_TYPE } from 'src/transaction-logs/enums/log-entity-type.enum';
 
 @Injectable()
 export class SupplierService {
@@ -37,7 +37,7 @@ export class SupplierService {
 
     await this.logsService.createLog({
       action: LogAction.SUPPLIER_CREATED,
-      entityType: LogEntityType.SUPPLIER,
+      entityType: LOG_ENTITY_TYPE.SUPPLIER,
       entityId: newSupplier._id.toHexString(),
       performedBy: user,
       metadata: {
@@ -79,7 +79,7 @@ export class SupplierService {
 
     await this.logsService.createLog({
       action: LogAction.SUPPLIER_UPDATED,
-      entityType: LogEntityType.SUPPLIER,
+      entityType: LOG_ENTITY_TYPE.SUPPLIER,
       entityId: updatedSupplier._id.toHexString(),
       performedBy: user,
       metadata: {
@@ -116,7 +116,7 @@ export class SupplierService {
 
     await this.logsService.createLog({
       action: LogAction.SUPPLIER_DELETED,
-      entityType: LogEntityType.SUPPLIER,
+      entityType: LOG_ENTITY_TYPE.SUPPLIER,
       entityId: deletedSupplier._id.toHexString(),
       performedBy: user,
       metadata: {

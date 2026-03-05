@@ -34,7 +34,7 @@ import { Batch } from 'src/batch/schemas/batch.schema';
 import { VariantStock } from 'src/variant-stock/schemas/variant-stock.schema';
 import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
 import { LogAction } from 'src/transaction-logs/enums/log-action.enum';
-import { LogEntityType } from 'src/transaction-logs/enums/log-entity-type.enum';
+import { LOG_ENTITY_TYPE } from 'src/transaction-logs/enums/log-entity-type.enum';
 import { Supplier } from 'src/supplier/entities/supplier.entity';
 import { Customer } from 'src/customer/entities/customer.entity';
 import { Variant } from 'src/variant/schemas/variant.schema';
@@ -270,7 +270,7 @@ export class TransactionService {
 
       await this.logsService.createLog({
         action: LogAction.STOCK_IN,
-        entityType: LogEntityType.TRANSACTION,
+        entityType: LOG_ENTITY_TYPE.TRANSACTION,
         entityId: createdTransaction._id.toString(),
         performedBy: user,
         metadata: {
@@ -451,7 +451,7 @@ export class TransactionService {
 
       await this.logsService.createLog({
         action: LogAction.STOCK_OUT,
-        entityType: LogEntityType.TRANSACTION,
+        entityType: LOG_ENTITY_TYPE.TRANSACTION,
         entityId: transaction._id.toString(),
         performedBy: user,
         metadata: {
@@ -639,7 +639,7 @@ export class TransactionService {
 
       await this.logsService.createLog({
         action: LogAction.STOCK_TRANSFER,
-        entityType: LogEntityType.TRANSACTION,
+        entityType: LOG_ENTITY_TYPE.TRANSACTION,
         entityId: transaction._id.toString(),
         performedBy: user,
         metadata: {
@@ -825,7 +825,7 @@ export class TransactionService {
 
       await this.logsService.createLog({
         action: LogAction.STOCK_ADJUSTED,
-        entityType: LogEntityType.TRANSACTION,
+        entityType: LOG_ENTITY_TYPE.TRANSACTION,
         entityId: transaction._id.toString(),
         performedBy: user,
         metadata: {
