@@ -32,6 +32,16 @@ import {
   VariantStockSchema,
 } from 'src/variant-stock/schemas/variant-stock.schema';
 import { VariantStockModule } from 'src/variant-stock/variant-stock.module';
+import {
+  Supplier,
+  SupplierSchema,
+} from 'src/supplier/entities/supplier.entity';
+import {
+  Customer,
+  CustomerSchema,
+} from 'src/customer/entities/customer.entity';
+import { TransactionLogsModule } from 'src/transaction-logs/transaction-logs.module';
+import { Variant, VariantSchema } from 'src/variant/schemas/variant.schema';
 
 @Module({
   imports: [
@@ -46,9 +56,13 @@ import { VariantStockModule } from 'src/variant-stock/variant-stock.module';
       { name: Subscription.name, schema: SubscriptionSchema },
       { name: Batch.name, schema: BatchSchema },
       { name: VariantStock.name, schema: VariantStockSchema },
+      { name: Supplier.name, schema: SupplierSchema },
+      { name: Customer.name, schema: CustomerSchema },
+      { name: Variant.name, schema: VariantSchema },
     ]),
     NotificationModule,
     VariantStockModule,
+    TransactionLogsModule,
   ],
   controllers: [TransactionController],
   providers: [TransactionService, PdfService, NotificationService, SendEmail],

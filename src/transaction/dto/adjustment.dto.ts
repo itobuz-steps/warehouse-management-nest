@@ -8,7 +8,7 @@ export class AdjustmentDto {
   products: ProductItemDto[];
 
   @IsMongoId()
-  warehouseId: string;
+  sourceWarehouse: string;
 
   @IsString()
   reason: string;

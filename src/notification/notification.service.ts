@@ -14,6 +14,12 @@ import { Quantity } from 'src/quantity/entities/quantity.entity';
 import { Transaction } from 'src/transaction/schemas/transaction.schema';
 import { SHIPMENT_TYPES } from 'src/transaction/constants/shipmentConstants';
 import { PopulatedTransactionForPdfGeneration } from 'src/transaction/types/types';
+import { Supplier } from 'src/supplier/entities/supplier.entity';
+import { Customer } from 'src/customer/entities/customer.entity';
+import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
+import { LOG_ACTION } from 'src/transaction-logs/enums/log-action.enum';
+import { LOG_ENTITY_TYPE } from 'src/transaction-logs/enums/log-entity-type.enum';
+import { UserDocument } from 'src/auth/entities/auth.entity';
 
 @Injectable()
 export class NotificationService {
@@ -23,6 +29,12 @@ export class NotificationService {
 
     @InjectModel(Product.name)
     private productModel: Model<Product>,
+
+    @InjectModel(Supplier.name)
+    private supplierModel: Model<Supplier>,
+
+    @InjectModel(Customer.name)
+    private customerModel: Model<Customer>,
 
     @InjectModel(Warehouse.name)
     private warehouseModel: Model<Warehouse>,
@@ -39,6 +51,8 @@ export class NotificationService {
     @InjectConnection() private readonly connection: Connection,
 
     private readonly sendEmail: SendEmail,
+
+    private readonly logsService: TransactionLogsService,
   ) {}
 
   async subscribe(
@@ -124,17 +138,18 @@ export class NotificationService {
   async updateShipmentStatus(
     transactionId: string,
     status: 'shipped' | 'cancelled',
-    reporterId: string,
+    reporter: UserDocument,
   ) {
     const session = await this.connection.startSession();
     session.startTransaction();
 
     try {
       const transaction = await this.transactionModel
-        .findById(transactionId)
+        .findOne({ _id: new Types.ObjectId(transactionId) })
         .populate('products.product')
         .populate('products.variants.variant')
         .populate('sourceWarehouse')
+        .populate('supplier customer')
         .session(session)
         .lean<PopulatedTransactionForPdfGeneration>();
 
@@ -192,7 +207,7 @@ export class NotificationService {
           ...(status === 'shipped' && { isShipped: true }),
           ...(status === 'cancelled' && { isCancelled: true }),
 
-          reportedBy: new Types.ObjectId(reporterId),
+          reportedBy: new Types.ObjectId(reporter._id),
 
           message:
             status === 'shipped'
@@ -209,6 +224,48 @@ export class NotificationService {
       }
 
       await session.commitTransaction();
+
+      const previousStatus = transaction.shipment;
+      const newStatus =
+        status === 'shipped'
+          ? SHIPMENT_TYPES.SHIPPED
+          : SHIPMENT_TYPES.CANCELLED;
+
+      await this.logsService.createLog({
+        action:
+          status === 'shipped'
+            ? LOG_ACTION.SHIPMENT_SHIPPED
+            : LOG_ACTION.SHIPMENT_CANCELLED,
+
+        entityType: LOG_ENTITY_TYPE.TRANSACTION,
+        entityId: transaction._id.toString(),
+        performedBy: reporter,
+
+        metadata: {
+          shipment: {
+            previousStatus,
+            newStatus,
+          },
+          warehouse: warehouse && {
+            warehouseId: warehouse._id.toString(),
+            name: warehouse.name,
+          },
+          customer: {
+            customerId: transaction?.customer._id.toString(),
+            name: transaction.customer.name as string,
+            email: transaction.customer.email,
+          },
+          products: transaction.products.flatMap((product) =>
+            product.variants.map((variantEntry) => ({
+              productId: product.product._id.toString(),
+              productName: product.product.name,
+              variantId: variantEntry.variant._id.toString(),
+              sku: variantEntry.variant.sku,
+              quantity: variantEntry.quantity,
+            })),
+          ),
+        },
+      });
 
       return {
         success: true,

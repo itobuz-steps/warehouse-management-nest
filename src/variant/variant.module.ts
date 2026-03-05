@@ -7,6 +7,7 @@ import { Product, ProductSchema } from 'src/products/entities/product.entity';
 import { User, UserSchema } from 'src/auth/entities/auth.entity';
 import { StorageService } from 'src/storage/storage.service';
 import { StorageModule } from 'src/storage/storage.module';
+import { TransactionLogsModule } from 'src/transaction-logs/transaction-logs.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { StorageModule } from 'src/storage/storage.module';
       { name: User.name, schema: UserSchema },
     ]),
     StorageModule,
+    TransactionLogsModule,
   ],
   controllers: [VariantController],
   providers: [VariantService, StorageService],

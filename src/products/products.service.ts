@@ -14,6 +14,10 @@ import {
   VariantStock,
   VariantStockDocument,
 } from 'src/variant-stock/schemas/variant-stock.schema';
+import { UserDocument } from 'src/auth/entities/auth.entity';
+import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
+import { LOG_ACTION } from 'src/transaction-logs/enums/log-action.enum';
+import { LOG_ENTITY_TYPE } from 'src/transaction-logs/enums/log-entity-type.enum';
 
 @Injectable()
 export class ProductsService {
@@ -24,6 +28,7 @@ export class ProductsService {
     private variantStockModel: Model<VariantStockDocument>,
 
     private readonly variantService: VariantService,
+    private readonly logsService: TransactionLogsService,
   ) {}
 
   async getProducts(queryDto: GetProductsQueryDto) {
@@ -97,17 +102,23 @@ export class ProductsService {
   async update(
     id: string,
     updateProductDto: updateProductDto,
-    imageUrls?: string[],
+    user: UserDocument,
   ) {
-    const updates = { ...updateProductDto };
+    const productId = new Types.ObjectId(id);
 
-    if (imageUrls && imageUrls.length) {
-      updates['productImage'] = imageUrls;
+    const existingProduct = await this.productModel.findById(productId);
+
+    if (!existingProduct) {
+      throw new NotFoundException('Product not found');
     }
 
+    const oldValue = {
+      description: existingProduct.description,
+    };
+
     const updatedProduct = await this.productModel.findByIdAndUpdate(
-      new Types.ObjectId(id),
-      updates,
+      productId,
+      updateProductDto,
       { new: true, runValidators: true },
     );
 
@@ -115,12 +126,28 @@ export class ProductsService {
       throw new NotFoundException('Product not found');
     }
 
+    const newValue = {
+      description: updatedProduct.description,
+    };
+
+    await this.logsService.createLog({
+      action: LOG_ACTION.PRODUCT_UPDATED,
+      entityType: LOG_ENTITY_TYPE.PRODUCT,
+      entityId: updatedProduct._id.toHexString(),
+      performedBy: user,
+      metadata: {
+        oldValue,
+        newValue,
+      },
+    });
+
     return updatedProduct;
   }
 
   async create(
-    userId: string,
+    userId: Types.ObjectId,
     createProductDto: CreateProductDto,
+    user: UserDocument,
     imageUrls: string[],
   ) {
     const session = await this.productModel.db.startSession();
@@ -138,11 +165,26 @@ export class ProductsService {
         category: createProductDto.category,
         description: createProductDto.description,
         isArchived: createProductDto.isArchived,
-        createdBy: new Types.ObjectId(userId),
+        createdBy: userId,
         brand: createProductDto.brand,
         label: createProductDto.label ? createProductDto.label : label,
         variantCount: 0,
       }).save({ session });
+
+      await this.logsService.createLog({
+        action: LOG_ACTION.PRODUCT_CREATED,
+        entityType: LOG_ENTITY_TYPE.PRODUCT,
+        entityId: product._id.toHexString(),
+        performedBy: user,
+        metadata: {
+          name: product.name,
+          category: product.category,
+          brand: product.brand,
+          label: product.label,
+          description: product.description,
+          isArchived: product.isArchived,
+        },
+      });
 
       const attributes = createProductDto.variantAttributes;
 
@@ -152,6 +194,7 @@ export class ProductsService {
         createProductDto.price,
         createProductDto.markup,
         imageUrls,
+        user,
         session,
       );
 
@@ -166,7 +209,7 @@ export class ProductsService {
     }
   }
 
-  async remove(id: string) {
+  async remove(id: string, user: UserDocument) {
     const archivedProduct = await this.productModel.findByIdAndUpdate(
       id,
       { isArchived: true },
@@ -177,10 +220,21 @@ export class ProductsService {
       throw new NotFoundException('Product not found');
     }
 
+    await this.logsService.createLog({
+      action: LOG_ACTION.PRODUCT_ARCHIVED,
+      entityType: LOG_ENTITY_TYPE.PRODUCT,
+      entityId: archivedProduct._id.toHexString(),
+      performedBy: user,
+      metadata: {
+        name: archivedProduct.name,
+        isArchived: archivedProduct.isArchived,
+      },
+    });
+
     return archivedProduct;
   }
 
-  async restore(id: string) {
+  async restore(id: string, user: UserDocument) {
     const restoredProduct = await this.productModel.findByIdAndUpdate(
       id,
       { isArchived: false },
@@ -190,6 +244,17 @@ export class ProductsService {
     if (!restoredProduct) {
       throw new NotFoundException('Product not found');
     }
+
+    await this.logsService.createLog({
+      action: LOG_ACTION.PRODUCT_RESTORED,
+      entityType: LOG_ENTITY_TYPE.PRODUCT,
+      entityId: restoredProduct._id.toHexString(),
+      performedBy: user,
+      metadata: {
+        name: restoredProduct.name,
+        isArchived: restoredProduct.isArchived,
+      },
+    });
 
     return restoredProduct;
   }

@@ -5,21 +5,21 @@ import {
   TransactionLogDocument,
 } from './entities/transaction-log.entity';
 import { Model } from 'mongoose';
-import { LogEntityType } from './enums/log-entity-type.enum';
+import { LOG_ENTITY_TYPE } from './enums/log-entity-type.enum';
 import type { LogMetadataMap } from './types/log-metadata-map.type';
 import type { UserDocument } from 'src/auth/entities/auth.entity';
 import { PerformedBy } from './types/performed-by.type';
 
-type LogActionWithMetadata = keyof LogMetadataMap;
+type LOG_ACTIONWithMetadata = keyof LogMetadataMap;
 
-type CreateLogInput<A extends LogActionWithMetadata> = {
-  action: A;
-  entityType: LogEntityType;
+type CreateLogInput<Action extends LOG_ACTIONWithMetadata> = {
+  action: Action;
+  entityType: LOG_ENTITY_TYPE;
   entityId: string;
 
   performedBy: UserDocument;
 
-  metadata: LogMetadataMap[A];
+  metadata: LogMetadataMap[Action];
 };
 
 @Injectable()
@@ -29,8 +29,8 @@ export class TransactionLogsService {
     private readonly logModel: Model<TransactionLogDocument>,
   ) {}
 
-  async createLog<A extends LogActionWithMetadata>(
-    input: CreateLogInput<A>,
+  async createLog<Action extends LOG_ACTIONWithMetadata>(
+    input: CreateLogInput<Action>,
   ): Promise<void> {
     const performedBy: PerformedBy = {
       userId: input.performedBy._id,
@@ -46,6 +46,13 @@ export class TransactionLogsService {
   }
 
   async findAll(): Promise<TransactionLogDocument[]> {
-    return this.logModel.find().exec();
+    return this.logModel
+      .find()
+      .populate({
+        path: 'performedBy.userId',
+        model: 'User',
+        select: 'name',
+      })
+      .exec();
   }
 }
