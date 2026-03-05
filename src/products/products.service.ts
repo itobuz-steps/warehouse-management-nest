@@ -11,7 +11,7 @@ import { SortOrder } from 'mongoose';
 import { VariantService } from 'src/variant/variant.service';
 import { UserDocument } from 'src/auth/entities/auth.entity';
 import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
-import { LogAction } from 'src/transaction-logs/enums/log-action.enum';
+import { LOG_ACTION } from 'src/transaction-logs/enums/log-action.enum';
 import { LOG_ENTITY_TYPE } from 'src/transaction-logs/enums/log-entity-type.enum';
 
 @Injectable()
@@ -104,7 +104,7 @@ export class ProductsService {
     };
 
     await this.logsService.createLog({
-      action: LogAction.PRODUCT_UPDATED,
+      action: LOG_ACTION.PRODUCT_UPDATED,
       entityType: LOG_ENTITY_TYPE.PRODUCT,
       entityId: updatedProduct._id.toHexString(),
       performedBy: user,
@@ -145,7 +145,7 @@ export class ProductsService {
       }).save({ session });
 
       await this.logsService.createLog({
-        action: LogAction.PRODUCT_CREATED,
+        action: LOG_ACTION.PRODUCT_CREATED,
         entityType: LOG_ENTITY_TYPE.PRODUCT,
         entityId: product._id.toHexString(),
         performedBy: user,
@@ -194,7 +194,7 @@ export class ProductsService {
     }
 
     await this.logsService.createLog({
-      action: LogAction.PRODUCT_ARCHIVED,
+      action: LOG_ACTION.PRODUCT_ARCHIVED,
       entityType: LOG_ENTITY_TYPE.PRODUCT,
       entityId: archivedProduct._id.toHexString(),
       performedBy: user,
@@ -219,7 +219,7 @@ export class ProductsService {
     }
 
     await this.logsService.createLog({
-      action: LogAction.PRODUCT_RESTORED,
+      action: LOG_ACTION.PRODUCT_RESTORED,
       entityType: LOG_ENTITY_TYPE.PRODUCT,
       entityId: restoredProduct._id.toHexString(),
       performedBy: user,

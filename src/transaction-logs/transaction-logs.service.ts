@@ -10,9 +10,9 @@ import type { LogMetadataMap } from './types/log-metadata-map.type';
 import type { UserDocument } from 'src/auth/entities/auth.entity';
 import { PerformedBy } from './types/performed-by.type';
 
-type LogActionWithMetadata = keyof LogMetadataMap;
+type LOG_ACTIONWithMetadata = keyof LogMetadataMap;
 
-type CreateLogInput<Action extends LogActionWithMetadata> = {
+type CreateLogInput<Action extends LOG_ACTIONWithMetadata> = {
   action: Action;
   entityType: LOG_ENTITY_TYPE;
   entityId: string;
@@ -29,7 +29,7 @@ export class TransactionLogsService {
     private readonly logModel: Model<TransactionLogDocument>,
   ) {}
 
-  async createLog<Action extends LogActionWithMetadata>(
+  async createLog<Action extends LOG_ACTIONWithMetadata>(
     input: CreateLogInput<Action>,
   ): Promise<void> {
     const performedBy: PerformedBy = {

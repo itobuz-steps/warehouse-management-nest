@@ -17,7 +17,7 @@ import { PopulatedTransactionForPdfGeneration } from 'src/transaction/types/type
 import { Supplier } from 'src/supplier/entities/supplier.entity';
 import { Customer } from 'src/customer/entities/customer.entity';
 import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
-import { LogAction } from 'src/transaction-logs/enums/log-action.enum';
+import { LOG_ACTION } from 'src/transaction-logs/enums/log-action.enum';
 import { LOG_ENTITY_TYPE } from 'src/transaction-logs/enums/log-entity-type.enum';
 import { UserDocument } from 'src/auth/entities/auth.entity';
 
@@ -234,8 +234,8 @@ export class NotificationService {
       await this.logsService.createLog({
         action:
           status === 'shipped'
-            ? LogAction.SHIPMENT_SHIPPED
-            : LogAction.SHIPMENT_CANCELLED,
+            ? LOG_ACTION.SHIPMENT_SHIPPED
+            : LOG_ACTION.SHIPMENT_CANCELLED,
 
         entityType: LOG_ENTITY_TYPE.TRANSACTION,
         entityId: transaction._id.toString(),

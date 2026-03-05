@@ -6,7 +6,7 @@ import { Model, QueryFilter } from 'mongoose';
 import { InjectModel } from '@nestjs/mongoose';
 import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
 import { UserDocument } from 'src/auth/entities/auth.entity';
-import { LogAction } from 'src/transaction-logs/enums/log-action.enum';
+import { LOG_ACTION } from 'src/transaction-logs/enums/log-action.enum';
 import { LOG_ENTITY_TYPE } from 'src/transaction-logs/enums/log-entity-type.enum';
 
 @Injectable()
@@ -20,7 +20,7 @@ export class CustomerService {
     const customer = await this.customerModel.create(createCustomerDto);
 
     await this.logsService.createLog({
-      action: LogAction.CUSTOMER_CREATED,
+      action: LOG_ACTION.CUSTOMER_CREATED,
       entityType: LOG_ENTITY_TYPE.CUSTOMER,
       entityId: customer._id.toHexString(),
       performedBy: user,
@@ -100,7 +100,7 @@ export class CustomerService {
     };
 
     await this.logsService.createLog({
-      action: LogAction.CUSTOMER_UPDATED,
+      action: LOG_ACTION.CUSTOMER_UPDATED,
       entityType: LOG_ENTITY_TYPE.CUSTOMER,
       entityId: updatedCustomer._id.toHexString(),
       performedBy: user,
@@ -124,7 +124,7 @@ export class CustomerService {
     }
 
     await this.logsService.createLog({
-      action: LogAction.CUSTOMER_DELETED,
+      action: LOG_ACTION.CUSTOMER_DELETED,
       entityType: LOG_ENTITY_TYPE.CUSTOMER,
       entityId: deletedCustomer._id.toHexString(),
       performedBy: user,

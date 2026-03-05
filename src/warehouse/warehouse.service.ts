@@ -12,7 +12,7 @@ import { CreateWarehouseDto } from './dto/create-warehouse.dto';
 import { UpdateWarehouseDto } from './dto/update-warehouse.dto';
 import { Quantity } from 'src/quantity/entities/quantity.entity';
 import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
-import { LogAction } from 'src/transaction-logs/enums/log-action.enum';
+import { LOG_ACTION } from 'src/transaction-logs/enums/log-action.enum';
 import { LOG_ENTITY_TYPE } from 'src/transaction-logs/enums/log-entity-type.enum';
 import { User, UserDocument } from 'src/auth/entities/auth.entity';
 
@@ -174,7 +174,7 @@ export class WarehouseService {
     });
 
     await this.logService.createLog({
-      action: LogAction.WAREHOUSE_CREATED,
+      action: LOG_ACTION.WAREHOUSE_CREATED,
       entityType: LOG_ENTITY_TYPE.WAREHOUSE,
       entityId: warehouse._id.toHexString(),
       performedBy: user,
@@ -240,7 +240,7 @@ export class WarehouseService {
     }
 
     await this.logService.createLog({
-      action: LogAction.WAREHOUSE_UPDATED,
+      action: LOG_ACTION.WAREHOUSE_UPDATED,
       entityType: LOG_ENTITY_TYPE.WAREHOUSE,
       entityId: id,
       performedBy: user,
@@ -297,7 +297,7 @@ export class WarehouseService {
     );
 
     await this.logService.createLog({
-      action: LogAction.WAREHOUSE_DELETED,
+      action: LOG_ACTION.WAREHOUSE_DELETED,
       entityType: LOG_ENTITY_TYPE.WAREHOUSE,
       entityId: id,
       performedBy: user,

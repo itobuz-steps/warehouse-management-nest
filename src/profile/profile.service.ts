@@ -10,7 +10,7 @@ import { USER_TYPES } from '../auth/userType';
 import { StorageService } from 'src/storage/storage.service';
 // import { Request } from 'express';
 import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
-import { LogAction } from 'src/transaction-logs/enums/log-action.enum';
+import { LOG_ACTION } from 'src/transaction-logs/enums/log-action.enum';
 import { LOG_ENTITY_TYPE } from 'src/transaction-logs/enums/log-entity-type.enum';
 import { UpdatePreferenceDto } from './dto/update-preference.dto';
 
@@ -124,8 +124,8 @@ export class ProfileService {
     };
 
     const action = updatedManager.isActive
-      ? LogAction.USER_UNBLOCKED
-      : LogAction.USER_BLOCKED;
+      ? LOG_ACTION.USER_UNBLOCKED
+      : LOG_ACTION.USER_BLOCKED;
 
     await this.logsService.createLog({
       action,

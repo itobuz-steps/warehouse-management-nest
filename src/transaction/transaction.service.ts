@@ -33,7 +33,7 @@ import { NOTIFICATION_TYPES } from 'src/notification/notificationTypes';
 import { Batch } from 'src/batch/schemas/batch.schema';
 import { VariantStock } from 'src/variant-stock/schemas/variant-stock.schema';
 import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
-import { LogAction } from 'src/transaction-logs/enums/log-action.enum';
+import { LOG_ACTION } from 'src/transaction-logs/enums/log-action.enum';
 import { LOG_ENTITY_TYPE } from 'src/transaction-logs/enums/log-entity-type.enum';
 import { Supplier } from 'src/supplier/entities/supplier.entity';
 import { Customer } from 'src/customer/entities/customer.entity';
@@ -269,7 +269,7 @@ export class TransactionService {
       const products = await this.buildProductLogItems(dto.products);
 
       await this.logsService.createLog({
-        action: LogAction.STOCK_IN,
+        action: LOG_ACTION.STOCK_IN,
         entityType: LOG_ENTITY_TYPE.TRANSACTION,
         entityId: createdTransaction._id.toString(),
         performedBy: user,
@@ -450,7 +450,7 @@ export class TransactionService {
       const products = await this.buildProductLogItems(dto.products);
 
       await this.logsService.createLog({
-        action: LogAction.STOCK_OUT,
+        action: LOG_ACTION.STOCK_OUT,
         entityType: LOG_ENTITY_TYPE.TRANSACTION,
         entityId: transaction._id.toString(),
         performedBy: user,
@@ -638,7 +638,7 @@ export class TransactionService {
       const newProducts = await this.buildProductLogItems(products);
 
       await this.logsService.createLog({
-        action: LogAction.STOCK_TRANSFER,
+        action: LOG_ACTION.STOCK_TRANSFER,
         entityType: LOG_ENTITY_TYPE.TRANSACTION,
         entityId: transaction._id.toString(),
         performedBy: user,
@@ -824,7 +824,7 @@ export class TransactionService {
       const newProducts = await this.buildProductLogItems(products);
 
       await this.logsService.createLog({
-        action: LogAction.STOCK_ADJUSTED,
+        action: LOG_ACTION.STOCK_ADJUSTED,
         entityType: LOG_ENTITY_TYPE.TRANSACTION,
         entityId: transaction._id.toString(),
         performedBy: user,

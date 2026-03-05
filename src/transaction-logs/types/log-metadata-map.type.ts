@@ -1,4 +1,4 @@
-import { LogAction } from '../enums/log-action.enum';
+import { LOG_ACTION } from '../enums/log-action.enum';
 import {
   CustomerCreateLog,
   CustomerDeleteLog,
@@ -30,33 +30,33 @@ import {
 } from './warehouse-log.type';
 
 export type LogMetadataMap = {
-  [LogAction.CUSTOMER_CREATED]: CustomerCreateLog;
-  [LogAction.CUSTOMER_UPDATED]: CustomerUpdateLog;
-  [LogAction.CUSTOMER_DELETED]: CustomerDeleteLog;
+  [LOG_ACTION.CUSTOMER_CREATED]: CustomerCreateLog;
+  [LOG_ACTION.CUSTOMER_UPDATED]: CustomerUpdateLog;
+  [LOG_ACTION.CUSTOMER_DELETED]: CustomerDeleteLog;
 
-  [LogAction.SUPPLIER_CREATED]: SupplierCreateLog;
-  [LogAction.SUPPLIER_UPDATED]: SupplierUpdateLog;
-  [LogAction.SUPPLIER_DELETED]: SupplierDeleteLog;
+  [LOG_ACTION.SUPPLIER_CREATED]: SupplierCreateLog;
+  [LOG_ACTION.SUPPLIER_UPDATED]: SupplierUpdateLog;
+  [LOG_ACTION.SUPPLIER_DELETED]: SupplierDeleteLog;
 
-  [LogAction.USER_BLOCKED]: UserStatusChangeLog;
-  [LogAction.USER_UNBLOCKED]: UserStatusChangeLog;
+  [LOG_ACTION.USER_BLOCKED]: UserStatusChangeLog;
+  [LOG_ACTION.USER_UNBLOCKED]: UserStatusChangeLog;
 
-  [LogAction.PRODUCT_CREATED]: ProductCreateLog;
-  [LogAction.PRODUCT_UPDATED]: ProductUpdateLog;
-  [LogAction.PRODUCT_ARCHIVED]: ProductArchiveLog;
-  [LogAction.PRODUCT_RESTORED]: ProductArchiveLog;
+  [LOG_ACTION.PRODUCT_CREATED]: ProductCreateLog;
+  [LOG_ACTION.PRODUCT_UPDATED]: ProductUpdateLog;
+  [LOG_ACTION.PRODUCT_ARCHIVED]: ProductArchiveLog;
+  [LOG_ACTION.PRODUCT_RESTORED]: ProductArchiveLog;
 
-  [LogAction.VARIANT_CREATED]: VariantCreateLog;
+  [LOG_ACTION.VARIANT_CREATED]: VariantCreateLog;
 
-  [LogAction.WAREHOUSE_CREATED]: WarehouseCreateLog;
-  [LogAction.WAREHOUSE_UPDATED]: WarehouseUpdateLog;
-  [LogAction.WAREHOUSE_DELETED]: WarehouseDeleteLog;
+  [LOG_ACTION.WAREHOUSE_CREATED]: WarehouseCreateLog;
+  [LOG_ACTION.WAREHOUSE_UPDATED]: WarehouseUpdateLog;
+  [LOG_ACTION.WAREHOUSE_DELETED]: WarehouseDeleteLog;
 
-  [LogAction.STOCK_IN]: StockInLog;
-  [LogAction.STOCK_OUT]: StockOutLog;
-  [LogAction.STOCK_TRANSFER]: StockTransferLog;
-  [LogAction.STOCK_ADJUSTED]: StockAdjustLog;
+  [LOG_ACTION.STOCK_IN]: StockInLog;
+  [LOG_ACTION.STOCK_OUT]: StockOutLog;
+  [LOG_ACTION.STOCK_TRANSFER]: StockTransferLog;
+  [LOG_ACTION.STOCK_ADJUSTED]: StockAdjustLog;
 
-  [LogAction.SHIPMENT_SHIPPED]: ShipmentStatusChangeLog;
-  [LogAction.SHIPMENT_CANCELLED]: ShipmentStatusChangeLog;
+  [LOG_ACTION.SHIPMENT_SHIPPED]: ShipmentStatusChangeLog;
+  [LOG_ACTION.SHIPMENT_CANCELLED]: ShipmentStatusChangeLog;
 };
