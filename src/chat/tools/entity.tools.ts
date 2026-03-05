@@ -7,6 +7,7 @@ import { BatchService } from 'src/batch/batch.service';
 import { AdminService } from 'src/admin/admin.service';
 import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
 import type User from 'src/warehouse/types/userType';
+import { unwrapToolResponse } from './unwrap-tool-response';
 
 export function createEntityTools(
   warehouseService: WarehouseService,
@@ -24,7 +25,7 @@ export function createEntityTools(
       inputSchema: z.object({}),
       execute: async () => {
         const user = getUserContext() as User;
-        return warehouseService.getWarehouses(user);
+        return unwrapToolResponse(await warehouseService.getWarehouses(user));
       },
     }),
 
@@ -36,7 +37,9 @@ export function createEntityTools(
       }),
       execute: async ({ warehouseId }) => {
         const user = getUserContext() as User;
-        return warehouseService.getWarehouseById(warehouseId, user);
+        return unwrapToolResponse(
+          await warehouseService.getWarehouseById(warehouseId, user),
+        );
       },
     }),
 
@@ -48,7 +51,9 @@ export function createEntityTools(
       }),
       execute: async ({ warehouseId }) => {
         const user = getUserContext() as User;
-        return warehouseService.getWarehouseCapacity(warehouseId, user);
+        return unwrapToolResponse(
+          await warehouseService.getWarehouseCapacity(warehouseId, user),
+        );
       },
     }),
 
@@ -64,7 +69,7 @@ export function createEntityTools(
           ),
       }),
       execute: async ({ search }) => {
-        return supplierService.getAll(search);
+        return unwrapToolResponse(await supplierService.getAll(search));
       },
     }),
 
@@ -73,7 +78,7 @@ export function createEntityTools(
         'List all active customers. Returns name, email, address, and phone number for each customer.',
       inputSchema: z.object({}),
       execute: async () => {
-        return customerService.findAll();
+        return unwrapToolResponse(await customerService.findAll());
       },
     }),
 
@@ -83,7 +88,7 @@ export function createEntityTools(
         customerId: z.string().describe('MongoDB ObjectId of the customer'),
       }),
       execute: async ({ customerId }) => {
-        return customerService.findOne(customerId);
+        return unwrapToolResponse(await customerService.findOne(customerId));
       },
     }),
 
@@ -92,7 +97,7 @@ export function createEntityTools(
         'List all warehouse managers. Returns verified, active manager accounts with their names and emails.',
       inputSchema: z.object({}),
       execute: async () => {
-        return adminService.getManagers();
+        return unwrapToolResponse(await adminService.getManagers());
       },
     }),
 
@@ -101,7 +106,7 @@ export function createEntityTools(
         'List all inventory batches with source/destination warehouse details and variant items. Batches track stock movement between warehouses.',
       inputSchema: z.object({}),
       execute: async () => {
-        return batchService.findAll();
+        return unwrapToolResponse(await batchService.findAll());
       },
     }),
 
@@ -112,7 +117,7 @@ export function createEntityTools(
         batchId: z.string().describe('MongoDB ObjectId of the batch'),
       }),
       execute: async ({ batchId }) => {
-        return batchService.findOne(batchId);
+        return unwrapToolResponse(await batchService.findOne(batchId));
       },
     }),
 
@@ -121,7 +126,7 @@ export function createEntityTools(
         'Get all transaction/audit logs. Logs record actions like supplier creation, customer updates, etc., with who performed them and when.',
       inputSchema: z.object({}),
       execute: async () => {
-        return transactionLogsService.findAll();
+        return unwrapToolResponse(await transactionLogsService.findAll());
       },
     }),
   };

@@ -38,9 +38,8 @@ export const config = {
   S3_ACCESS_KEY: process.env.S3_ACCESS_KEY,
 
   OLLAMA_BASE_URL:
-    process.env.OLLAMA_BASE_URL ||
-    'https://llm-server-1.wordpress-studio.io/api/v1',
-  OLLAMA_MODEL: process.env.OLLAMA_MODEL || 'qwen2.5-coder:14b',
+    process.env.OLLAMA_BASE_URL || 'https://llm-server-1.wordpress-studio.io/',
+  OLLAMA_MODEL: process.env.OLLAMA_MODEL || 'llama3.1:8b',
   OLLAMA_TEMPERATURE: Number(process.env.OLLAMA_TEMPERATURE ?? 0.1),
 };
 
@@ -83,8 +82,8 @@ export default registerAs('app', () => {
 
     OLLAMA_BASE_URL:
       process.env.OLLAMA_BASE_URL ||
-      'https://llm-server-1.wordpress-studio.io/api/v1',
-    OLLAMA_MODEL: process.env.OLLAMA_MODEL || 'qwen2.5-coder:14b',
+      'https://llm-server-1.wordpress-studio.io/',
+    OLLAMA_MODEL: process.env.OLLAMA_MODEL || 'llama3.1:8b',
     OLLAMA_TEMPERATURE: Number(process.env.OLLAMA_TEMPERATURE ?? 0.1),
   };
 });

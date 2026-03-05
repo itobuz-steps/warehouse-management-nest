@@ -68,6 +68,7 @@ jest.mock('src/transaction-logs/transaction-logs.service', () => ({
 jest.mock('@ai-sdk/openai', () => ({
   createOpenAI: jest.fn(() => {
     const modelFn = jest.fn(() => 'mock-model');
+    modelFn.chat = jest.fn(() => 'mock-model');
     return modelFn;
   }),
 }));

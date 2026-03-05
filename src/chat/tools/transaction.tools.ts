@@ -4,6 +4,7 @@ import { TransactionService } from 'src/transaction/transaction.service';
 import { UserDocument } from 'src/auth/entities/auth.entity';
 import { GetTransactionsQueryDto } from 'src/transaction/dto/query/get-transactions.query.dto';
 import { WarehouseTransactionsQueryDto } from 'src/transaction/dto/query/warehouse-transactions.query.dto';
+import { unwrapToolResponse } from './unwrap-tool-response';
 
 export function createTransactionTools(
   transactionService: TransactionService,
@@ -38,7 +39,7 @@ export function createTransactionTools(
             TransactionService['getTransactions']
           >[1],
         );
-        return result;
+        return unwrapToolResponse(result);
       },
     }),
 
@@ -68,7 +69,7 @@ export function createTransactionTools(
           warehouseId,
           query as unknown as WarehouseTransactionsQueryDto,
         );
-        return result;
+        return unwrapToolResponse(result);
       },
     }),
   };

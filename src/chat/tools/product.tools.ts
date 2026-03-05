@@ -2,6 +2,7 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import { ProductsService } from 'src/products/products.service';
 import { GetProductsQueryDto } from 'src/products/dto/get-product-query.dto';
+import { unwrapToolResponse } from './unwrap-tool-response';
 
 export function createProductTools(productsService: ProductsService) {
   return {
@@ -35,7 +36,7 @@ export function createProductTools(productsService: ProductsService) {
         const result = await productsService.getProducts(
           args as unknown as GetProductsQueryDto,
         );
-        return result;
+        return unwrapToolResponse(result);
       },
     }),
 
@@ -47,7 +48,7 @@ export function createProductTools(productsService: ProductsService) {
       }),
       execute: async ({ productId }) => {
         const result = await productsService.findOne(productId);
-        return result;
+        return unwrapToolResponse(result);
       },
     }),
 
@@ -64,7 +65,7 @@ export function createProductTools(productsService: ProductsService) {
         const result = await productsService.findArchived(
           args as unknown as GetProductsQueryDto,
         );
-        return result;
+        return unwrapToolResponse(result);
       },
     }),
   };

@@ -1,6 +1,7 @@
 import { tool } from 'ai';
 import { z } from 'zod';
 import { DashboardService } from 'src/dashboard/dashboard.service';
+import { unwrapToolResponse } from './unwrap-tool-response';
 
 export function createDashboardTools(dashboardService: DashboardService) {
   return {
@@ -11,7 +12,9 @@ export function createDashboardTools(dashboardService: DashboardService) {
         warehouseId: z.string().describe('MongoDB ObjectId of the warehouse'),
       }),
       execute: async ({ warehouseId }) => {
-        return dashboardService.getTopFiveProducts(warehouseId);
+        return unwrapToolResponse(
+          await dashboardService.getTopFiveProducts(warehouseId),
+        );
       },
     }),
 
@@ -22,7 +25,9 @@ export function createDashboardTools(dashboardService: DashboardService) {
         warehouseId: z.string().describe('MongoDB ObjectId of the warehouse'),
       }),
       execute: async ({ warehouseId }) => {
-        return dashboardService.getInventoryByCategory(warehouseId);
+        return unwrapToolResponse(
+          await dashboardService.getInventoryByCategory(warehouseId),
+        );
       },
     }),
 
@@ -33,7 +38,9 @@ export function createDashboardTools(dashboardService: DashboardService) {
         warehouseId: z.string().describe('MongoDB ObjectId of the warehouse'),
       }),
       execute: async ({ warehouseId }) => {
-        return dashboardService.getProductTransaction(warehouseId);
+        return unwrapToolResponse(
+          await dashboardService.getProductTransaction(warehouseId),
+        );
       },
     }),
 
@@ -44,7 +51,9 @@ export function createDashboardTools(dashboardService: DashboardService) {
         warehouseId: z.string().describe('MongoDB ObjectId of the warehouse'),
       }),
       execute: async ({ warehouseId }) => {
-        return dashboardService.getTransactionStats(warehouseId);
+        return unwrapToolResponse(
+          await dashboardService.getTransactionStats(warehouseId),
+        );
       },
     }),
 
@@ -55,7 +64,9 @@ export function createDashboardTools(dashboardService: DashboardService) {
         warehouseId: z.string().describe('MongoDB ObjectId of the warehouse'),
       }),
       execute: async ({ warehouseId }) => {
-        return dashboardService.getLowStockProducts(warehouseId);
+        return unwrapToolResponse(
+          await dashboardService.getLowStockProducts(warehouseId),
+        );
       },
     }),
 
@@ -70,7 +81,9 @@ export function createDashboardTools(dashboardService: DashboardService) {
           .describe('Number of top products to return'),
       }),
       execute: async ({ warehouseId, limit }) => {
-        return dashboardService.getTopSellingProducts(warehouseId, limit);
+        return unwrapToolResponse(
+          await dashboardService.getTopSellingProducts(warehouseId, limit),
+        );
       },
     }),
 
@@ -87,7 +100,9 @@ export function createDashboardTools(dashboardService: DashboardService) {
         limit: z.number().optional().describe('Number of results'),
       }),
       execute: async ({ warehouseId, ...options }) => {
-        return dashboardService.getMostCancelledProducts(warehouseId, options);
+        return unwrapToolResponse(
+          await dashboardService.getMostCancelledProducts(warehouseId, options),
+        );
       },
     }),
 
@@ -99,7 +114,11 @@ export function createDashboardTools(dashboardService: DashboardService) {
         limit: z.number().optional().describe('Number of results'),
       }),
       execute: async ({ warehouseId, limit }) => {
-        return dashboardService.getMostAdjustedProducts(warehouseId, { limit });
+        return unwrapToolResponse(
+          await dashboardService.getMostAdjustedProducts(warehouseId, {
+            limit,
+          }),
+        );
       },
     }),
 
@@ -122,12 +141,14 @@ export function createDashboardTools(dashboardService: DashboardService) {
           .describe('Custom range end date (ISO string)'),
       }),
       execute: async ({ warehouseId, period, from, to }) => {
-        return dashboardService.getProfitLoss({
-          id: warehouseId,
-          period,
-          from,
-          to,
-        });
+        return unwrapToolResponse(
+          await dashboardService.getProfitLoss({
+            id: warehouseId,
+            period,
+            from,
+            to,
+          }),
+        );
       },
     }),
   };

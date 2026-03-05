@@ -2,6 +2,7 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import { AnalyticsService } from 'src/analytics/analytics.service';
 import { TwoProductQuery } from 'src/analytics/dto/tow-product-query.dto';
+import { unwrapToolResponse } from './unwrap-tool-response';
 
 export function createAnalyticsTools(analyticsService: AnalyticsService) {
   return {
@@ -14,8 +15,10 @@ export function createAnalyticsTools(analyticsService: AnalyticsService) {
         productB: z.string().describe('MongoDB ObjectId of the second product'),
       }),
       execute: async (args) => {
-        return analyticsService.getTwoProductQuantities(
-          args as unknown as TwoProductQuery,
+        return unwrapToolResponse(
+          await analyticsService.getTwoProductQuantities(
+            args as unknown as TwoProductQuery,
+          ),
         );
       },
     }),
@@ -29,8 +32,10 @@ export function createAnalyticsTools(analyticsService: AnalyticsService) {
         productB: z.string().describe('MongoDB ObjectId of the second product'),
       }),
       execute: async (args) => {
-        return analyticsService.getTwoProductComparisonHistory(
-          args as unknown as TwoProductQuery,
+        return unwrapToolResponse(
+          await analyticsService.getTwoProductComparisonHistory(
+            args as unknown as TwoProductQuery,
+          ),
         );
       },
     }),

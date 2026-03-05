@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { QuantityService } from 'src/quantity/quantity.service';
 import { GetSpecificQuantityDto } from 'src/quantity/dto/product-specific-quantity.dto';
 import { ProductsHavingQuantityDto } from 'src/quantity/dto/product-having-quantity.dto';
+import { unwrapToolResponse } from './unwrap-tool-response';
 
 export function createInventoryTools(quantityService: QuantityService) {
   return {
@@ -13,7 +14,9 @@ export function createInventoryTools(quantityService: QuantityService) {
         productId: z.string().describe('MongoDB ObjectId of the product'),
       }),
       execute: async ({ productId }) => {
-        return quantityService.getTotalQuantity(productId);
+        return unwrapToolResponse(
+          await quantityService.getTotalQuantity(productId),
+        );
       },
     }),
 
@@ -25,8 +28,10 @@ export function createInventoryTools(quantityService: QuantityService) {
         warehouseId: z.string().describe('MongoDB ObjectId of the warehouse'),
       }),
       execute: async (args) => {
-        return quantityService.getSpecificWarehouseQuantity(
-          args as unknown as GetSpecificQuantityDto,
+        return unwrapToolResponse(
+          await quantityService.getSpecificWarehouseQuantity(
+            args as unknown as GetSpecificQuantityDto,
+          ),
         );
       },
     }),
@@ -49,8 +54,10 @@ export function createInventoryTools(quantityService: QuantityService) {
         limit: z.number().optional().describe('Results per page'),
       }),
       execute: async (args) => {
-        return quantityService.getProductsHavingQuantity(
-          args as unknown as ProductsHavingQuantityDto,
+        return unwrapToolResponse(
+          await quantityService.getProductsHavingQuantity(
+            args as unknown as ProductsHavingQuantityDto,
+          ),
         );
       },
     }),
@@ -62,7 +69,9 @@ export function createInventoryTools(quantityService: QuantityService) {
         warehouseId: z.string().describe('MongoDB ObjectId of the warehouse'),
       }),
       execute: async ({ warehouseId }) => {
-        return quantityService.getWarehouseProducts(warehouseId);
+        return unwrapToolResponse(
+          await quantityService.getWarehouseProducts(warehouseId),
+        );
       },
     }),
 
@@ -73,7 +82,9 @@ export function createInventoryTools(quantityService: QuantityService) {
         productId: z.string().describe('MongoDB ObjectId of the product'),
       }),
       execute: async ({ productId }) => {
-        return quantityService.findByProduct(productId);
+        return unwrapToolResponse(
+          await quantityService.findByProduct(productId),
+        );
       },
     }),
   };

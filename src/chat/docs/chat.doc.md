@@ -419,6 +419,14 @@ type ChatState = {
 
 The assistant is prompted to return structured blocks for rich UI.
 
+### Assistant output contract (important)
+
+- Assistant replies must be user-facing only.
+- Assistant must NOT expose internal function-calling steps (for example: "I will call...", "Please wait...", or raw function-call JSON).
+- Assistant must NOT fabricate placeholder rows such as "Product A/B/C".
+- If data is empty, assistant should say no records were found (instead of creating fake examples).
+- Preferred format: short narrative summary first, then optional table/chart/metric blocks.
+
 ### Table block
 
 ````text
@@ -450,6 +458,7 @@ The assistant is prompted to return structured blocks for rich UI.
 3. Parse JSON safely with try/catch
 4. If parse succeeds, render custom UI widgets
 5. If parse fails, fallback to plain text view
+6. If model output accidentally contains internal tool-call text/JSON, hide those fragments in UI as a defensive fallback
 
 ---
 
