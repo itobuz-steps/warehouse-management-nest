@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import mongoose, { Connection, Model, Types } from 'mongoose';
+import { Connection, Model, Types } from 'mongoose';
 import { Notification } from './entities/notification.entity';
 import {
   Subscription,
@@ -68,26 +68,49 @@ export class NotificationService {
 
   async getNotifications(userId: string, offset = 0) {
     const notifications = await this.notificationModel.aggregate([
+      // 1. Match the strings (since your DB stores them as strings)
       { $match: { userIds: { $in: [userId] } } },
       { $sort: { createdAt: -1 } },
       { $skip: offset },
       { $limit: 10 },
 
+      // 2. Lookup with Type Conversion for 'transactionPerformedBy'
       {
         $lookup: {
           from: 'users',
-          localField: 'transactionPerformedBy',
-          foreignField: '_id',
+          let: { performerId: '$transactionPerformedBy' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $eq: ['$_id', { $toObjectId: '$$performerId' }],
+                },
+              },
+            },
+          ],
           as: 'user',
         },
       },
-      { $unwind: '$user' },
+      // Use preserveNullAndEmptyArrays so notifications don't vanish if a user is deleted
+      { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
 
+      // 3. Lookup with Type Conversion for 'reportedBy'
       {
         $lookup: {
           from: 'users',
-          localField: 'reportedBy',
-          foreignField: '_id',
+          let: { reporterId: '$reportedBy' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $ne: ['$$reporterId', null] }, // Prevent errors if field is missing
+                    { $eq: ['$_id', { $toObjectId: '$$reporterId' }] },
+                  ],
+                },
+              },
+            },
+          ],
           as: 'reportedByUser',
         },
       },
@@ -97,7 +120,7 @@ export class NotificationService {
 
       {
         $addFields: {
-          performedByName: '$user.name',
+          performedByName: { $ifNull: ['$user.name', 'System'] },
           performedByImage: '$user.profileImage',
           reportedByName: '$reportedByUser.name',
         },
@@ -115,10 +138,20 @@ export class NotificationService {
   }
 
   async markAllAsSeen(userId: string) {
-    return this.notificationModel.updateMany(
-      { userIds: { $in: [new mongoose.Types.ObjectId(userId)] } },
+    if (!userId) {
+      throw new Error('User ID missing from request');
+    }
+
+    const result = await this.notificationModel.updateMany(
+      {
+        userIds: { $in: [userId] },
+        seen: false,
+      },
       { $set: { seen: true } },
     );
+
+    console.log('Update Result:', result);
+    return result;
   }
 
   async updateShipmentStatus(
