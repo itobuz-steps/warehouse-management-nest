@@ -49,12 +49,13 @@ export class VariantService {
   }
 
   async create(dto: CreateVariantDto) {
+    console.log('dto', dto);
     const data = await this.createInternal(
       dto.product,
       dto.attributes,
       dto.price,
       dto.markup,
-      dto.productImage || [],
+      dto.productImage,
     );
 
     return {
