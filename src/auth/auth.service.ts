@@ -69,17 +69,8 @@ export class AuthService {
     };
   }
 
-  verify(token: string) {
-    const tokenData = jwt.verify(token, config().TOKEN_SECRET) as TokenPayload;
-
-    return { message: 'Valid Token', success: true, data: tokenData };
-  }
-
   async setPassword(token: string, dto: SetPasswordDto) {
-    const payload = jwt.verify(
-      token,
-      process.env.TOKEN_SECRET as string,
-    ) as TokenPayload;
+    const payload = jwt.verify(token, config().TOKEN_SECRET) as TokenPayload;
 
     if (!payload.email) {
       throw new UnauthorizedException('Invalid token');
@@ -108,7 +99,7 @@ export class AuthService {
     const { email, password } = dto;
 
     const user = await this.userModel.findOneAndUpdate(
-      { email, isDeleted: false, isActive: true },
+      { email, isDeleted: false, isActive: true, isVerified: true },
       { lastLogin: new Date() },
       { new: true },
     );
