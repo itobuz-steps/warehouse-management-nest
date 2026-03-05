@@ -150,7 +150,6 @@ export class NotificationService {
       { $set: { seen: true } },
     );
 
-    console.log('Update Result:', result);
     return result;
   }
 
