@@ -3,7 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { createOpenAI } from '@ai-sdk/openai';
 import { streamText, generateText, stepCountIs, type ModelMessage } from 'ai';
-import { config } from 'src/config/config.service';
+import configService from 'src/config/config.service';
 import {
   ChatSession,
   ChatMessage,
@@ -69,41 +69,57 @@ TODAY'S DATE
 ${new Date().toISOString().split('T')[0]}
 `;
 
+/**
+ * Returns the OpenAI-compatible base URL (must end in /v1) for the AI SDK.
+ * e.g. "https://server/api" → "https://server/v1"
+ */
 function normalizeOllamaBaseUrl(baseUrl?: string): string {
   const fallback = 'https://llm-server-1.wordpress-studio.io/v1';
   if (!baseUrl) return fallback;
 
   const trimmed = baseUrl.trim().replace(/\/$/, '');
 
-  if (trimmed.endsWith('/v1')) {
-    return trimmed;
-  }
+  if (trimmed.endsWith('/v1')) return trimmed;
+  if (trimmed.endsWith('/api/v1')) return trimmed.replace(/\/api\/v1$/, '/v1');
+  if (trimmed.endsWith('/api')) return trimmed.replace(/\/api$/, '/v1');
+  if (trimmed.match(/\/v\d+$/)) return trimmed.replace(/\/v\d+$/, '/v1');
 
-  if (trimmed.endsWith('/api/v1')) {
-    return trimmed.replace(/\/api\/v1$/, '/v1');
-  }
+  return `${trimmed}/v1`;
+}
 
-  if (trimmed.endsWith('/api')) {
-    return trimmed.replace(/\/api$/, '/v1');
-  }
+/**
+ * Returns the native Ollama API base URL used for /api/tags.
+ * e.g. "https://server/api" → "https://server/api"
+ * e.g. "https://server/v1"  → "https://server/api"
+ * e.g. "https://server"     → "https://server/api"
+ */
+function getOllamaApiBase(baseUrl?: string): string {
+  const fallback = 'https://llm-server-1.wordpress-studio.io/api';
+  if (!baseUrl) return fallback;
 
-  if (trimmed.match(/\/v\d+$/)) {
-    return trimmed.replace(/\/v\d+$/, '/v1');
-  }
+  const trimmed = baseUrl.trim().replace(/\/$/, '');
 
-  if (!trimmed.endsWith('/v1')) {
-    return `${trimmed}/v1`;
-  }
+  if (trimmed.endsWith('/api')) return trimmed;
+  if (trimmed.endsWith('/v1')) return trimmed.replace(/\/v1$/, '/api');
+  if (trimmed.endsWith('/api/v1')) return trimmed.replace(/\/api\/v1$/, '/api');
+  if (trimmed.match(/\/v\d+$/)) return trimmed.replace(/\/v\d+$/, '/api');
 
-  return trimmed;
+  return `${trimmed}/api`;
 }
 
 @Injectable()
 export class ChatService {
   private readonly logger = new Logger(ChatService.name);
   private readonly openai: ReturnType<typeof createOpenAI>;
-  private readonly model: ReturnType<ReturnType<typeof createOpenAI>['chat']>;
+  private readonly normalizedBaseUrl: string;
+  private readonly ollamaTagsUrl: string;
+  private readonly defaultModel: string;
   private readonly queryModelMap: QueryModelMap;
+
+  private readonly temperature: number;
+  /** Cached list of available model IDs, refreshed every 5 min */
+  private cachedModelIds: string[] = [];
+  private modelsCachedAt = 0;
 
   constructor(
     @InjectModel(ChatSession.name)
@@ -146,28 +162,99 @@ export class ChatService {
       users: this.userModel,
     };
 
-    const rawBaseUrl = (config as unknown as Record<string, unknown>)[
-      'OLLAMA_BASE_URL'
-    ];
-    const normalizedBaseUrl = normalizeOllamaBaseUrl(
-      typeof rawBaseUrl === 'string' ? rawBaseUrl : undefined,
-    );
+    const appConfig = configService();
+    const rawBaseUrl =
+      typeof appConfig.OLLAMA_BASE_URL === 'string'
+        ? appConfig.OLLAMA_BASE_URL
+        : undefined;
+
+    const normalizedBaseUrl = normalizeOllamaBaseUrl(rawBaseUrl);
+    this.normalizedBaseUrl = normalizedBaseUrl;
+    this.ollamaTagsUrl = `${getOllamaApiBase(rawBaseUrl)}/tags`;
+    this.defaultModel = appConfig.OLLAMA_MODEL || 'llama3.1:8b';
 
     this.openai = createOpenAI({
       baseURL: normalizedBaseUrl,
       apiKey: 'ollama',
     });
-    this.model = this.openai.chat(
-      (config.OLLAMA_MODEL || 'llama3.1:8b') as Parameters<
-        ReturnType<typeof createOpenAI>['chat']
-      >[0],
-    );
+
+    this.temperature = Number(appConfig.OLLAMA_TEMPERATURE) || 0.1;
 
     this.logStage('bootstrap', {
-      model: config.OLLAMA_MODEL || 'llama3.1:8b',
+      model: this.defaultModel,
       baseUrl: normalizedBaseUrl,
-      temperature: Number(config.OLLAMA_TEMPERATURE) || 0.1,
+      tagsUrl: this.ollamaTagsUrl,
+      temperature: this.temperature,
     });
+  }
+
+  /**
+   * Fetch available model IDs from the Ollama /v1/models endpoint.
+   * Results are cached for 5 minutes to avoid latency on every request.
+   */
+  async getModels(): Promise<Array<{ id: string; name: string }>> {
+    const now = Date.now();
+    const CACHE_TTL = 5 * 60 * 1000;
+
+    if (now - this.modelsCachedAt < CACHE_TTL && this.cachedModelIds.length) {
+      return this.cachedModelIds.map((id) => ({ id, name: id }));
+    }
+
+    try {
+      const res = await fetch(this.ollamaTagsUrl);
+      const data = (await res.json()) as {
+        models?: Array<{ name: string }>;
+      };
+      this.cachedModelIds = (data.models ?? []).map((m) => m.name);
+      this.modelsCachedAt = now;
+    } catch (err) {
+      this.logger.warn(
+        `[chat.models.fetch_failed] ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+
+    return this.cachedModelIds.map((id) => ({ id, name: id }));
+  }
+
+  /**
+   * Return the AI model instance to use for a request.
+   * Calls getModels() to warm the cache, then validates the requested model.
+   * Falls back to the configured default if the model is unknown.
+   */
+  private async resolveModel(
+    name?: string,
+  ): Promise<ReturnType<ReturnType<typeof createOpenAI>['chat']>> {
+    // Warm the cache so validation is accurate
+    await this.getModels();
+
+    const requested = name?.trim();
+
+    // If no override requested, use default
+    if (!requested) {
+      return this.openai.chat(
+        this.defaultModel as Parameters<
+          ReturnType<typeof createOpenAI>['chat']
+        >[0],
+      );
+    }
+
+    // Validate against cached list; fall back if unknown
+    const isKnown =
+      !this.cachedModelIds.length || this.cachedModelIds.includes(requested);
+
+    const resolved = isKnown ? requested : this.defaultModel;
+
+    if (!isKnown) {
+      this.logger.warn(
+        `[chat.model.fallback] Requested model "${requested}" not found — using default "${this.defaultModel}"`,
+      );
+    }
+
+    return this.openai.chat(
+      resolved as Parameters<ReturnType<typeof createOpenAI>['chat']>[0],
+    );
   }
 
   /**
@@ -536,6 +623,7 @@ export class ChatService {
     user: UserDocument,
     sessionId?: string,
     warehouseId?: string,
+    modelName?: string,
   ): Promise<{
     result: ChatStreamResult;
     sessionId: string;
@@ -563,23 +651,25 @@ export class ChatService {
     const history = this.sessionToMessages(session);
     const tools = this.buildTools(user);
     const systemPrompt = this.buildFullSystemPrompt(warehouseId, user);
+    const model = await this.resolveModel(modelName);
+    const resolvedModelName = modelName?.trim() || this.defaultModel;
 
     this.logStage('stream.model.call_start', {
       sessionId: sid,
       historyMessages: history.length,
       toolCount: Object.keys(tools).length,
-      model: config.OLLAMA_MODEL || 'llama3.1:8b',
-      temperature: Number(config.OLLAMA_TEMPERATURE) || 0.1,
+      model: resolvedModelName,
+      temperature: this.temperature,
     });
 
     const result = streamText({
-      model: this.model,
+      model,
       system: systemPrompt,
       messages: [...history],
       tools,
       toolChoice: 'auto',
       stopWhen: stepCountIs(5),
-      temperature: Number(config.OLLAMA_TEMPERATURE) || 0.1,
+      temperature: this.temperature,
       experimental_onToolCallStart: ({ stepNumber, toolCall }) => {
         this.logStage('stream.tool_call.start', {
           sessionId: sid,
@@ -650,6 +740,7 @@ export class ChatService {
     user: UserDocument,
     sessionId?: string,
     warehouseId?: string,
+    modelName?: string,
   ) {
     this.logStage('generate.request.received', {
       userId,
@@ -674,25 +765,27 @@ export class ChatService {
     const history = this.sessionToMessages(session);
     const tools = this.buildTools(user);
     const systemPrompt = this.buildFullSystemPrompt(warehouseId, user);
+    const model = await this.resolveModel(modelName);
+    const resolvedModelName = modelName?.trim() || this.defaultModel;
 
     this.logStage('generate.model.call_start', {
       sessionId: sid,
       historyMessages: history.length,
       toolCount: Object.keys(tools).length,
-      model: config.OLLAMA_MODEL || 'llama3.1:8b',
-      temperature: Number(config.OLLAMA_TEMPERATURE) || 0.1,
+      model: resolvedModelName,
+      temperature: this.temperature,
     });
 
     let text: string;
     try {
       const result = await generateText({
-        model: this.model,
+        model,
         system: systemPrompt,
         messages: [...history],
         tools,
         toolChoice: 'auto',
         stopWhen: stepCountIs(5),
-        temperature: Number(config.OLLAMA_TEMPERATURE) || 0.1,
+        temperature: this.temperature,
         experimental_onToolCallStart: ({ stepNumber, toolCall }) => {
           this.logStage('generate.tool_call.start', {
             sessionId: sid,

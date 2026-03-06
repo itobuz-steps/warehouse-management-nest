@@ -55,6 +55,7 @@ export class ChatController {
         req.user!,
         dto.sessionId,
         dto.warehouseId,
+        dto.model,
       );
 
       // Set SSE headers
@@ -117,7 +118,24 @@ export class ChatController {
       req.user!,
       dto.sessionId,
       dto.warehouseId,
+      dto.model,
     );
+  }
+
+  /**
+   * List all chat sessions for the authenticated user.
+   */
+  @Get('models')
+  @ApiOperation({
+    summary:
+      'List available Ollama models. Use the returned model IDs in the stream/message payload.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Array of available models with their IDs',
+  })
+  async getModels() {
+    return this.chatService.getModels();
   }
 
   /**

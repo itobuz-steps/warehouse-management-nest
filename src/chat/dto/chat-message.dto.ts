@@ -18,4 +18,12 @@ export class ChatMessageDto {
   @IsOptional()
   @IsMongoId()
   warehouseId?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Ollama model to use (e.g. qwen2.5-coder:14b). Falls back to the server default if omitted or invalid.',
+  })
+  @IsOptional()
+  @IsString()
+  model?: string;
 }
