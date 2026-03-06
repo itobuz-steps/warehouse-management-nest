@@ -45,8 +45,20 @@ import { createTransactionTools } from './tools/transaction.tools';
 import { createDashboardTools } from './tools/dashboard.tools';
 import { createAnalyticsTools } from './tools/analytics.tools';
 import { createEntityTools } from './tools/entity.tools';
+import { createQueryTools, type QueryModelMap } from './tools/query.tools';
 import { parseChatResponse } from './chat-response.parser';
 import { SYSTEM_PROMPT } from './chat.prompt';
+import { Product } from 'src/products/entities/product.entity';
+import { Quantity } from 'src/quantity/entities/quantity.entity';
+import { Warehouse } from 'src/warehouse/schemas/warehouse.schema';
+import { Transaction } from 'src/transaction/schemas/transaction.schema';
+import { Variant } from 'src/variant/schemas/variant.schema';
+import { VariantStock } from 'src/variant-stock/schemas/variant-stock.schema';
+import { Supplier } from 'src/supplier/entities/supplier.entity';
+import { Customer } from 'src/customer/entities/customer.entity';
+import { Batch } from 'src/batch/schemas/batch.schema';
+import { TransactionLog } from 'src/transaction-logs/entities/transaction-log.entity';
+import { User } from 'src/auth/entities/auth.entity';
 
 const SYSTEM_PROMPT_DATE_SUFFIX = `
 
@@ -91,10 +103,23 @@ export class ChatService {
   private readonly logger = new Logger(ChatService.name);
   private readonly openai: ReturnType<typeof createOpenAI>;
   private readonly model: ReturnType<ReturnType<typeof createOpenAI>['chat']>;
+  private readonly queryModelMap: QueryModelMap;
 
   constructor(
     @InjectModel(ChatSession.name)
     private chatSessionModel: Model<ChatSessionDocument>,
+    @InjectModel(Product.name) private productModel: Model<unknown>,
+    @InjectModel(Quantity.name) private quantityModel: Model<unknown>,
+    @InjectModel(Warehouse.name) private warehouseModel: Model<unknown>,
+    @InjectModel(Transaction.name) private transactionModel: Model<unknown>,
+    @InjectModel(Variant.name) private variantModel: Model<unknown>,
+    @InjectModel(VariantStock.name) private variantStockModel: Model<unknown>,
+    @InjectModel(Supplier.name) private supplierModel: Model<unknown>,
+    @InjectModel(Customer.name) private customerModel: Model<unknown>,
+    @InjectModel(Batch.name) private batchModel: Model<unknown>,
+    @InjectModel(TransactionLog.name)
+    private transactionLogModel: Model<unknown>,
+    @InjectModel(User.name) private userModel: Model<unknown>,
     private readonly productsService: ProductsService,
     private readonly quantityService: QuantityService,
     private readonly transactionService: TransactionService,
@@ -107,6 +132,20 @@ export class ChatService {
     private readonly adminService: AdminService,
     private readonly transactionLogsService: TransactionLogsService,
   ) {
+    this.queryModelMap = {
+      products: this.productModel,
+      quantities: this.quantityModel,
+      warehouses: this.warehouseModel,
+      transactions: this.transactionModel,
+      variants: this.variantModel,
+      variantstocks: this.variantStockModel,
+      suppliers: this.supplierModel,
+      customers: this.customerModel,
+      batches: this.batchModel,
+      transactionlogs: this.transactionLogModel,
+      users: this.userModel,
+    };
+
     const rawBaseUrl = (config as unknown as Record<string, unknown>)[
       'OLLAMA_BASE_URL'
     ];
@@ -444,6 +483,7 @@ export class ChatService {
         this.transactionLogsService,
         getUserContext,
       ),
+      ...createQueryTools(this.queryModelMap),
     };
   }
 

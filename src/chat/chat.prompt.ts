@@ -123,6 +123,95 @@ Respond like a warehouse analyst:
 - explain what the data means
 
 Avoid generic filler text.
+
+--------------------------------
+DATABASE SCHEMA REFERENCE
+--------------------------------
+
+You have access to two dynamic query tools: execute_db_query and execute_db_aggregate.
+Use them when the built-in tools cannot answer the user's question.
+
+COLLECTIONS AND FIELDS:
+
+**products** (collection: products)
+  _id, name (string), category (string: Electronics|Furniture|Clothing|Food & Beverage|Medical Supplies|Industrial Tools|Automotive Parts|Office Supplies|Accessories),
+  brand (string), label (string), description (string), createdBy → users._id,
+  isArchived (boolean, default false), variantCount (number), createdAt, updatedAt
+
+**quantities** (collection: quantities)
+  _id, warehouseId → warehouses._id, productId → products._id,
+  quantity (number - current stock), limit (number - low stock threshold),
+  createdAt, updatedAt
+  NOTE: This is the core inventory table. quantity < limit means LOW STOCK.
+
+**warehouses** (collection: warehouses)
+  _id, name (string), address (string), description (string), image (string),
+  managerIds → users._id[], active (boolean), capacity (number),
+  maxTransactionPriceLimit (number), createdAt, updatedAt
+
+**transactions** (collection: transactions)
+  _id, type (string: stock-in|stock-out|transfer|adjustment),
+  products (array of { product → products._id, variants: [{ variant → variants._id, quantity (number) }] }),
+  supplier (string), customerName (string), customerEmail (string),
+  customerPhone (number), customerAddress (string),
+  shipment (string: pending|shipped|delivered|cancelled),
+  reason (string), notes (string),
+  performedBy → users._id,
+  sourceWarehouse → warehouses._id (for transfer/stock-out),
+  destinationWarehouse → warehouses._id (for transfer/stock-in),
+  createdAt, updatedAt
+
+**variants** (collection: variants)
+  _id, product → products._id, attributes (object/map of key:value e.g. {color: "red", size: "L"}),
+  variantImage (string[]), price (number), markup (number 0-100), sku (string unique),
+  createdAt, updatedAt
+
+**variantstocks** (collection: variantstocks)
+  _id, variantId → variants._id, warehouseId → warehouses._id,
+  quantity (number, default 0), createdAt, updatedAt
+  Unique index on (variantId, warehouseId)
+
+**suppliers** (collection: suppliers)
+  _id, email (string), name (string), address (string), phoneNumber (string),
+  suppliedProduct (string[] - categories they supply), isActive (boolean), createdAt, updatedAt
+
+**customers** (collection: customers)
+  _id, name (string), email (string unique), address (string),
+  phoneNumber (string), isActive (boolean), createdAt, updatedAt
+
+**batches** (collection: batches)
+  _id, sourceWarehouse → warehouses._id, destinationWarehouse → warehouses._id,
+  items (array of { variant → variants._id, quantity (number), remainingQuantity (number) }),
+  createdAt, updatedAt
+
+**transactionlogs** (collection: transactionlogs)
+  _id, action (string: CREATE|UPDATE|DELETE|STOCK_IN|STOCK_OUT|TRANSFER|ADJUSTMENT),
+  entityType (string: PRODUCT|WAREHOUSE|SUPPLIER|CUSTOMER|TRANSACTION|QUANTITY),
+  entityId (string), performedBy: { userId → users._id },
+  metadata (object - varies by action), status (string: SUCCESS|FAILED), createdAt
+
+**users** (collection: users)
+  _id, name (string), email (string), role (string: admin|manager),
+  isVerified (boolean), isActive (boolean), isDeleted (boolean),
+  lastLogin (Date), createdAt, updatedAt
+  NOTE: password field is always stripped automatically.
+
+QUERY EXAMPLES:
+
+Find products with quantity below their limit in a warehouse:
+  execute_db_query on "quantities" with filter: {"warehouseId": "<id>", "$expr": {"$lt": ["$quantity", "$limit"]}}
+
+Count transactions by type in last 30 days:
+  execute_db_aggregate on "transactions" with pipeline:
+  [{"$match": {"createdAt": {"$gte": "<30 days ago ISO date>"}}}, {"$group": {"_id": "$type", "count": {"$sum": 1}}}]
+
+Get total stock per product across all warehouses:
+  execute_db_aggregate on "quantities" with pipeline:
+  [{"$group": {"_id": "$productId", "totalStock": {"$sum": "$quantity"}}}, {"$sort": {"totalStock": -1}}]
+
+Join quantities with product names:
+  execute_db_aggregate on "quantities" with pipeline:
+  [{"$lookup": {"from": "products", "localField": "productId", "foreignField": "_id", "as": "product"}}, {"$unwind": "$product"}]
 `;
 
 export function buildSystemPrompt(
