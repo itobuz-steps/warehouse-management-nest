@@ -22,11 +22,15 @@ import { AdminService } from 'src/admin/admin.service';
 import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
 import type { UserDocument } from 'src/auth/entities/auth.entity';
 
+interface StreamPart {
+  type: string;
+  textDelta?: string;
+}
+
 interface ChatStreamResult {
-  pipeTextStreamToResponse(
-    response: { write: (data: string) => boolean; end: () => void },
-    init?: ResponseInit,
-  ): void;
+  textStream: AsyncIterable<string>;
+  fullStream: AsyncIterable<StreamPart>;
+  toTextStreamResponse: () => Response;
 }
 
 type ExecutableTool = {

@@ -48,34 +48,54 @@ export class ChatController {
     @Req() req: AuthRequest,
     @Res() res: Response,
   ) {
-    const { result, sessionId } = await this.chatService.streamChat(
-      req.userId!,
-      dto.message,
-      req.user!,
-      dto.sessionId,
-      dto.warehouseId,
-    );
+    try {
+      const { result, sessionId } = await this.chatService.streamChat(
+        req.userId!,
+        dto.message,
+        req.user!,
+        dto.sessionId,
+        dto.warehouseId,
+      );
 
-    // Set SSE headers
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Session-Id', sessionId);
+      // Set SSE headers
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Session-Id', sessionId);
+      res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
+      res.flushHeaders();
 
-    const chunks: string[] = [];
+      // Get the text stream response and pipe it
+      const streamResponse = result.toTextStreamResponse();
+      const reader = streamResponse.body?.getReader();
 
-    result.pipeTextStreamToResponse({
-      write: (data: string) => {
-        chunks.push(data);
-        return true;
-      },
-      end: () => {
-        const raw = chunks.join('');
-        const normalized = this.chatService.normalizeAssistantOutput(raw);
-        res.write(normalized);
+      if (!reader) {
+        res
+          .status(500)
+          .json({ success: false, message: 'No stream available' });
+        return;
+      }
+
+      const decoder = new TextDecoder();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        // Write raw chunk (for curl/fetch clients that read raw stream)
+        res.write(chunk);
+      }
+      res.end();
+    } catch (error) {
+      console.error('Stream error:', error);
+      if (!res.headersSent) {
+        res.status(500).json({
+          success: false,
+          message: error instanceof Error ? error.message : 'Stream failed',
+        });
+      } else {
         res.end();
-      },
-    });
+      }
+    }
   }
 
   /**
