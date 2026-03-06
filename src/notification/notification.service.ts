@@ -67,50 +67,29 @@ export class NotificationService {
   }
 
   async getNotifications(userId: string, offset = 0) {
+    const objectUseId = new Types.ObjectId(userId);
+
     const notifications = await this.notificationModel.aggregate([
-      // 1. Match the strings (since your DB stores them as strings)
-      { $match: { userIds: { $in: [userId] } } },
+      { $match: { userIds: objectUseId } },
       { $sort: { createdAt: -1 } },
       { $skip: offset },
       { $limit: 10 },
 
-      // 2. Lookup with Type Conversion for 'transactionPerformedBy'
       {
         $lookup: {
           from: 'users',
-          let: { performerId: '$transactionPerformedBy' },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $eq: ['$_id', { $toObjectId: '$$performerId' }],
-                },
-              },
-            },
-          ],
+          localField: 'transactionPerformedBy',
+          foreignField: '_id',
           as: 'user',
         },
       },
-      // Use preserveNullAndEmptyArrays so notifications don't vanish if a user is deleted
-      { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+      { $unwind: '$user' },
 
-      // 3. Lookup with Type Conversion for 'reportedBy'
       {
         $lookup: {
           from: 'users',
-          let: { reporterId: '$reportedBy' },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    { $ne: ['$$reporterId', null] }, // Prevent errors if field is missing
-                    { $eq: ['$_id', { $toObjectId: '$$reporterId' }] },
-                  ],
-                },
-              },
-            },
-          ],
+          localField: 'reportedBy',
+          foreignField: '_id',
           as: 'reportedByUser',
         },
       },
@@ -120,7 +99,7 @@ export class NotificationService {
 
       {
         $addFields: {
-          performedByName: { $ifNull: ['$user.name', 'System'] },
+          performedByName: '$user.name',
           performedByImage: '$user.profileImage',
           reportedByName: '$reportedByUser.name',
         },
@@ -130,7 +109,7 @@ export class NotificationService {
     ]);
 
     const unseenCount = await this.notificationModel.countDocuments({
-      userIds: { $in: [userId] },
+      userIds: { $in: [objectUseId] },
       seen: false,
     });
 
@@ -142,9 +121,11 @@ export class NotificationService {
       throw new Error('User ID missing from request');
     }
 
+    const objectUseId = new Types.ObjectId(userId);
+
     const result = await this.notificationModel.updateMany(
       {
-        userIds: { $in: [userId] },
+        userIds: { $in: [objectUseId] },
         seen: false,
       },
       { $set: { seen: true } },
