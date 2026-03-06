@@ -96,10 +96,67 @@ export class VariantService {
     };
   }
 
-  async findByProductId(productId: string) {
-    const variants = await this.variantModel
-      .find({ product: new Types.ObjectId(productId) })
-      .lean();
+  async findByProductId(
+    productId: string,
+    warehouseId: string,
+    hasStock: boolean,
+  ) {
+    if (!hasStock) {
+      const variants = await this.variantModel.find({
+        product: new Types.ObjectId(productId),
+      });
+
+      return {
+        success: true,
+        message: 'Variants retrieved successfully',
+        data: variants,
+      };
+    }
+
+    const variants = await this.variantModel.aggregate([
+      {
+        $match: {
+          product: new Types.ObjectId(productId),
+        },
+      },
+      {
+        $lookup: {
+          from: 'variantstocks',
+          let: { variantId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$variantId', '$$variantId'] },
+                    { $eq: ['$warehouseId', new Types.ObjectId(warehouseId)] },
+                  ],
+                },
+              },
+            },
+          ],
+          as: 'stock',
+        },
+      },
+      {
+        $unwind: '$stock',
+      },
+      {
+        $match: {
+          'stock.quantity': { $gt: 0 },
+        },
+      },
+      {
+        $addFields: {
+          quantity: '$stock.quantity',
+        },
+      },
+      {
+        $project: {
+          stock: 0,
+        },
+      },
+    ]);
 
     return {
       success: true,
