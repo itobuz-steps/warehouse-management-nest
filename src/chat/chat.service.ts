@@ -42,127 +42,9 @@ import { createDashboardTools } from './tools/dashboard.tools';
 import { createAnalyticsTools } from './tools/analytics.tools';
 import { createEntityTools } from './tools/entity.tools';
 import { parseChatResponse } from './chat-response.parser';
+import { SYSTEM_PROMPT } from './chat.prompt';
 
-const SYSTEM_PROMPT = `
-You are an intelligent warehouse analytics assistant connected to a real-time warehouse management system.
-
-You have access to tools that return live data about:
-- products
-- inventory
-- transactions
-- suppliers
-- customers
-- warehouses
-- analytics
-- dashboard metrics
-
-Your job is to analyze warehouse data and present insights clearly.
-
---------------------------------
-DATA ACCURACY RULES
---------------------------------
-
-1. ALWAYS use tools to fetch real data when the user asks for warehouse information.
-2. NEVER invent numbers, products, transactions, or statistics.
-3. If no data exists, explicitly say that no records were found.
-4. NEVER expose tool call JSON or internal execution details.
-
---------------------------------
-RESPONSE FORMAT (STRICT)
---------------------------------
-
-Your response MUST follow this markdown structure:
-
-# Summary
-Short plain-language explanation of the answer.
-
-# Insights
-Explain key patterns, changes, or anomalies in bullet points.
-
-# Data
-Optional section. Include tables, charts, or metrics only when helpful.
-
-Use the following fenced blocks for structured data.
-
---------------------------------
-METRIC BLOCK
---------------------------------
-
-\`\`\`metric
-{
-  "label": "Total Revenue",
-  "value": "$45,230",
-  "change": "+12%",
-  "icon": "trending-up"
-}
-\`\`\`
-
---------------------------------
-TABLE BLOCK
---------------------------------
-
-\`\`\`table
-{
-  "title": "Top Selling Products",
-  "columns": [
-    {"key": "name", "label": "Product"},
-    {"key": "units", "label": "Units Sold"},
-    {"key": "revenue", "label": "Revenue"}
-  ],
-  "rows": [
-    {"name": "Glass Vase", "units": 320, "revenue": "$12,400"}
-  ]
-}
-\`\`\`
-
---------------------------------
-CHART BLOCK
---------------------------------
-
-\`\`\`chart
-{
-  "chartType": "bar",
-  "title": "Sales Last 7 Days",
-  "labels": ["Mon","Tue","Wed"],
-  "datasets": [
-    {"label": "Sales","data": [120,150,90]}
-  ]
-}
-\`\`\`
-
---------------------------------
-FORMATTING RULES
---------------------------------
-
-1. Always start with the **Summary** section.
-2. Always include **Insights** if any patterns exist.
-3. Include **Data** only if tables/charts/metrics improve clarity.
-4. Narrative text MUST be outside JSON blocks.
-5. JSON blocks MUST be valid JSON.
-6. Do NOT wrap the entire response in a code block.
-7. Do NOT return raw JSON without narrative text.
-8. Do NOT mention tool usage or system behavior.
-
---------------------------------
-WAREHOUSE CONTEXT RULE
---------------------------------
-
-If a warehouse ID is required and the user did not specify one:
-- call \`get_warehouses\`
-- either select from conversation context
-- or ask the user which warehouse they mean.
-
---------------------------------
-ANALYTICAL STYLE
---------------------------------
-
-Respond like a warehouse analyst:
-- highlight trends
-- mention time ranges
-- point out anomalies
-- explain what the data means
-
-Avoid generic filler text.
+const SYSTEM_PROMPT_DATE_SUFFIX = `
 
 --------------------------------
 TODAY'S DATE
@@ -243,6 +125,69 @@ export class ChatService {
       baseUrl: normalizedBaseUrl,
       temperature: Number(config.OLLAMA_TEMPERATURE) || 0.1,
     });
+  }
+
+  /**
+   * Builds the full system prompt with user context
+   */
+  private buildFullSystemPrompt(
+    warehouseId?: string,
+    user?: UserDocument,
+  ): string {
+    const contextInfo = warehouseId
+      ? `\nThe user is currently viewing warehouse ID: ${warehouseId}.`
+      : '';
+    const roleInfo = `\nThe user's role is: ${user?.role || 'admin'}. Their name is: ${user?.name || 'User'}.`;
+    return SYSTEM_PROMPT + SYSTEM_PROMPT_DATE_SUFFIX + contextInfo + roleInfo;
+  }
+
+  /**
+   * Prepares session and saves user message - shared between stream and generate
+   */
+  private async prepareSession(
+    userId: string,
+    message: string,
+    sessionId?: string,
+    warehouseId?: string,
+  ): Promise<ChatSessionDocument> {
+    const session = await this.getOrCreateSession(
+      userId,
+      sessionId,
+      warehouseId,
+    );
+
+    if (session.messages.length === 0) {
+      session.title = message.slice(0, 60);
+    }
+
+    session.messages.push({
+      role: 'user',
+      content: message,
+      timestamp: new Date(),
+    } as ChatMessage);
+    await session.save();
+
+    return session;
+  }
+
+  /**
+   * Persists assistant response to session
+   */
+  private async saveAssistantResponse(
+    session: ChatSessionDocument,
+    text: string,
+  ): Promise<string> {
+    const normalizedReply = this.normalizeEscapedAssistantReply(text);
+    const finalReply = this.sanitizeAssistantReply(normalizedReply);
+
+    session.messages.push({
+      role: 'assistant',
+      content: finalReply,
+      timestamp: new Date(),
+    } as ChatMessage);
+    await session.save();
+
+    return finalReply;
   }
 
   private toLog(payload: unknown): string {
@@ -558,45 +503,25 @@ export class ChatService {
       messagePreview: this.preview(message, 180),
     });
 
-    const session = await this.getOrCreateSession(
+    const session = await this.prepareSession(
       userId,
+      message,
       sessionId,
       warehouseId,
     );
+    const sid = session._id.toString();
 
     this.logStage('stream.session.ready', {
-      sessionId: session._id.toString(),
-      existingMessages: session.messages.length,
-    });
-
-    // Update title from first message
-    if (session.messages.length === 0) {
-      session.title = message.slice(0, 60);
-    }
-
-    // Save user message
-    session.messages.push({
-      role: 'user',
-      content: message,
-      timestamp: new Date(),
-    } as ChatMessage);
-    await session.save();
-
-    this.logStage('stream.session.user_message_saved', {
-      sessionId: session._id.toString(),
+      sessionId: sid,
       totalMessages: session.messages.length,
     });
 
     const history = this.sessionToMessages(session);
     const tools = this.buildTools(user);
-
-    const contextInfo = warehouseId
-      ? `\nThe user is currently viewing warehouse ID: ${warehouseId}.`
-      : '';
-    const roleInfo = `\nThe user's role is: ${user.role || 'admin'}. Their name is: ${user.name || 'User'}.`;
+    const systemPrompt = this.buildFullSystemPrompt(warehouseId, user);
 
     this.logStage('stream.model.call_start', {
-      sessionId: session._id.toString(),
+      sessionId: sid,
       historyMessages: history.length,
       toolCount: Object.keys(tools).length,
       model: config.OLLAMA_MODEL || 'llama3.1:8b',
@@ -605,7 +530,7 @@ export class ChatService {
 
     const result = streamText({
       model: this.model,
-      system: SYSTEM_PROMPT + contextInfo + roleInfo,
+      system: systemPrompt,
       messages: [...history],
       tools,
       toolChoice: 'auto',
@@ -613,7 +538,7 @@ export class ChatService {
       temperature: Number(config.OLLAMA_TEMPERATURE) || 0.1,
       experimental_onToolCallStart: ({ stepNumber, toolCall }) => {
         this.logStage('stream.tool_call.start', {
-          sessionId: session._id.toString(),
+          sessionId: sid,
           stepNumber,
           toolCallId: toolCall.toolCallId,
           toolName: toolCall.toolName,
@@ -622,36 +547,15 @@ export class ChatService {
       },
       onFinish: async ({ text }) => {
         this.logStage('stream.model.finish', {
-          sessionId: session._id.toString(),
+          sessionId: sid,
           responsePreview: this.preview(text),
           responseLength: text.length,
         });
 
-        const pseudoToolCall = this.extractPseudoToolCall(text);
-        if (pseudoToolCall) {
-          this.logStage(
-            'stream.model.pseudo_tool_call_detected',
-            {
-              sessionId: session._id.toString(),
-              pseudoToolCall,
-            },
-            'warn',
-          );
-        }
-
-        const normalizedReply = this.normalizeEscapedAssistantReply(text);
-        const finalReply = this.sanitizeAssistantReply(normalizedReply);
-
-        // Persist assistant response
-        session.messages.push({
-          role: 'assistant',
-          content: finalReply,
-          timestamp: new Date(),
-        } as ChatMessage);
-        await session.save();
+        await this.saveAssistantResponse(session, text);
 
         this.logStage('stream.session.assistant_message_saved', {
-          sessionId: session._id.toString(),
+          sessionId: sid,
           totalMessages: session.messages.length,
         });
       },
@@ -659,7 +563,7 @@ export class ChatService {
         this.logStage(
           'stream.model.error',
           {
-            sessionId: session._id.toString(),
+            sessionId: sid,
             error:
               error instanceof Error
                 ? {
@@ -680,7 +584,7 @@ export class ChatService {
         toolResults,
       }) => {
         this.logStage('stream.model.step_finish', {
-          sessionId: session._id.toString(),
+          sessionId: sid,
           stepNumber,
           finishReason,
           textPreview: this.preview(text, 260),
@@ -690,7 +594,7 @@ export class ChatService {
       },
     });
 
-    return { result, sessionId: session._id.toString() };
+    return { result, sessionId: sid };
   }
 
   /**
@@ -710,43 +614,25 @@ export class ChatService {
       messagePreview: this.preview(message, 180),
     });
 
-    const session = await this.getOrCreateSession(
+    const session = await this.prepareSession(
       userId,
+      message,
       sessionId,
       warehouseId,
     );
+    const sid = session._id.toString();
 
     this.logStage('generate.session.ready', {
-      sessionId: session._id.toString(),
-      existingMessages: session.messages.length,
-    });
-
-    if (session.messages.length === 0) {
-      session.title = message.slice(0, 60);
-    }
-
-    session.messages.push({
-      role: 'user',
-      content: message,
-      timestamp: new Date(),
-    } as ChatMessage);
-    await session.save();
-
-    this.logStage('generate.session.user_message_saved', {
-      sessionId: session._id.toString(),
+      sessionId: sid,
       totalMessages: session.messages.length,
     });
 
     const history = this.sessionToMessages(session);
     const tools = this.buildTools(user);
-
-    const contextInfo = warehouseId
-      ? `\nThe user is currently viewing warehouse ID: ${warehouseId}.`
-      : '';
-    const roleInfo = `\nThe user's role is: ${user.role || 'admin'}. Their name is: ${user.name || 'User'}.`;
+    const systemPrompt = this.buildFullSystemPrompt(warehouseId, user);
 
     this.logStage('generate.model.call_start', {
-      sessionId: session._id.toString(),
+      sessionId: sid,
       historyMessages: history.length,
       toolCount: Object.keys(tools).length,
       model: config.OLLAMA_MODEL || 'llama3.1:8b',
@@ -757,7 +643,7 @@ export class ChatService {
     try {
       const result = await generateText({
         model: this.model,
-        system: SYSTEM_PROMPT + contextInfo + roleInfo,
+        system: systemPrompt,
         messages: [...history],
         tools,
         toolChoice: 'auto',
@@ -765,7 +651,7 @@ export class ChatService {
         temperature: Number(config.OLLAMA_TEMPERATURE) || 0.1,
         experimental_onToolCallStart: ({ stepNumber, toolCall }) => {
           this.logStage('generate.tool_call.start', {
-            sessionId: session._id.toString(),
+            sessionId: sid,
             stepNumber,
             toolCallId: toolCall.toolCallId,
             toolName: toolCall.toolName,
@@ -780,7 +666,7 @@ export class ChatService {
           toolResults,
         }) => {
           this.logStage('generate.model.step_finish', {
-            sessionId: session._id.toString(),
+            sessionId: sid,
             stepNumber,
             finishReason,
             textPreview: this.preview(stepText, 260),
@@ -790,7 +676,7 @@ export class ChatService {
         },
         onFinish: ({ text: finalText, finishReason, usage }) => {
           this.logStage('generate.model.finish', {
-            sessionId: session._id.toString(),
+            sessionId: sid,
             finishReason,
             usage,
             responseLength: finalText.length,
@@ -804,14 +690,10 @@ export class ChatService {
       this.logStage(
         'generate.model.error',
         {
-          sessionId: session._id.toString(),
+          sessionId: sid,
           error:
             error instanceof Error
-              ? {
-                  name: error.name,
-                  message: error.message,
-                  stack: error.stack,
-                }
+              ? { name: error.name, message: error.message, stack: error.stack }
               : { detail: this.toLog(error) },
         },
         'error',
@@ -820,7 +702,7 @@ export class ChatService {
     }
 
     const fallbackMarkdown = await this.buildFallbackMarkdownFromPseudoToolCall(
-      session._id.toString(),
+      sid,
       text,
       tools as unknown as ExecutableToolSet,
     );
@@ -835,19 +717,17 @@ export class ChatService {
     await session.save();
 
     this.logStage('generate.session.assistant_message_saved', {
-      sessionId: session._id.toString(),
+      sessionId: sid,
       totalMessages: session.messages.length,
     });
-
-    const parsed = parseChatResponse(finalReply);
 
     return {
       success: true,
       message: 'Chat response generated',
       data: {
         reply: finalReply,
-        parsed,
-        sessionId: session._id.toString(),
+        parsed: parseChatResponse(finalReply),
+        sessionId: sid,
       },
     };
   }
