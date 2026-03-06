@@ -62,8 +62,20 @@ export class ChatController {
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Session-Id', sessionId);
 
-    // Pipe the AI SDK text stream as SSE
-    result.pipeTextStreamToResponse(res);
+    const chunks: string[] = [];
+
+    result.pipeTextStreamToResponse({
+      write: (data: string) => {
+        chunks.push(data);
+        return true;
+      },
+      end: () => {
+        const raw = chunks.join('');
+        const normalized = this.chatService.normalizeAssistantOutput(raw);
+        res.write(normalized);
+        res.end();
+      },
+    });
   }
 
   /**

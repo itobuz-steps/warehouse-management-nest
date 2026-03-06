@@ -49,11 +49,11 @@ export class AuthService {
 
     const isUser = await this.userModel.findOne({ email }).exec();
 
-    if (isUser?.isVerified) {
-      throw new BadRequestException('User already exists');
-    }
     if (!isUser) {
       await this.userModel.create({ email, role });
+    }
+    if (isUser?.isVerified) {
+      throw new BadRequestException('User already exists');
     }
 
     const inviteToken = this.tokenGenerator.invitationToken(email);

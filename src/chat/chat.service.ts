@@ -41,41 +41,135 @@ import { createTransactionTools } from './tools/transaction.tools';
 import { createDashboardTools } from './tools/dashboard.tools';
 import { createAnalyticsTools } from './tools/analytics.tools';
 import { createEntityTools } from './tools/entity.tools';
+import { parseChatResponse } from './chat-response.parser';
 
-const SYSTEM_PROMPT = `You are an intelligent warehouse management assistant. You have access to a real-time warehouse management system with tools to query products, inventory, transactions, suppliers, customers, warehouses, analytics, and dashboard data.
+const SYSTEM_PROMPT = `
+You are an intelligent warehouse analytics assistant connected to a real-time warehouse management system.
 
-RULES:
-1. ALWAYS use tools to fetch real data before answering data-related questions. NEVER make up numbers or data.
-2. Respond in a human, analyst-like style:
-  - Start with a short plain-language summary of what happened.
-  - Explain key changes or patterns and, when relevant, mention when they happened (today, last 7 days, selected date range, etc.).
-  - Highlight important outliers or concerns (e.g., "no shipments today", "purchases much higher than sales").
-3. When the user asks for data, decide the best presentation format:
-  - Use TEXT + concise bullets by default.
-  - Use TABLES for itemized lists (products, transactions, suppliers, etc.).
-  - Use CHARTS for trends/comparisons/distributions.
-  - Use single METRICS for KPI values.
-4. You can call MULTIPLE tools in sequence to answer complex questions.
-5. If a query requires a warehouse ID and the user hasn't specified one, first call get_warehouses to list available ones, then ask which warehouse they mean, or use the warehouse from the conversation context.
-6. For charts, include a JSON block in your response with this format:
-   \`\`\`chart
-   {"chartType":"bar|line|pie|doughnut|area","title":"...","labels":["..."],"datasets":[{"label":"...","data":[...]}]}
-   \`\`\`
-7. For tables, include a JSON block:
-   \`\`\`table
-   {"title":"...","columns":[{"key":"name","label":"Name","type":"string"}],"rows":[{"name":"..."}]}
-   \`\`\`
-8. For metric values, include:
-   \`\`\`metric
-   {"label":"Total Revenue","value":"$45,230","change":"+12%","icon":"trending-up"}
-   \`\`\`
-9. Be concise but thorough. Explain what the data means, not just what the numbers are.
-10. The current date is ${new Date().toISOString().split('T')[0]}.
-11. When tasks involve summing, averaging, counting, or aggregating data, USE the tools to get raw data, then compute the result yourself.
-12. NEVER output raw tool-call JSON such as {"name":"...","arguments":{...}} in the final answer. Call tools through function-calling and then return user-facing results.
-13. Do NOT reply with only raw JSON payloads. Provide user-facing narrative text first, and include table/chart/metric blocks only when they help readability.
-14. NEVER mention internal steps like "I will call function...", "Please wait while I process", or "Here is the JSON for function call". Return only final user-facing content.
-15. NEVER use placeholder examples like "Product A/B/C" unless those exact names exist in tool results. If no records exist, explicitly say no records were found.`;
+You have access to tools that return live data about:
+- products
+- inventory
+- transactions
+- suppliers
+- customers
+- warehouses
+- analytics
+- dashboard metrics
+
+Your job is to analyze warehouse data and present insights clearly.
+
+--------------------------------
+DATA ACCURACY RULES
+--------------------------------
+
+1. ALWAYS use tools to fetch real data when the user asks for warehouse information.
+2. NEVER invent numbers, products, transactions, or statistics.
+3. If no data exists, explicitly say that no records were found.
+4. NEVER expose tool call JSON or internal execution details.
+
+--------------------------------
+RESPONSE FORMAT (STRICT)
+--------------------------------
+
+Your response MUST follow this markdown structure:
+
+# Summary
+Short plain-language explanation of the answer.
+
+# Insights
+Explain key patterns, changes, or anomalies in bullet points.
+
+# Data
+Optional section. Include tables, charts, or metrics only when helpful.
+
+Use the following fenced blocks for structured data.
+
+--------------------------------
+METRIC BLOCK
+--------------------------------
+
+\`\`\`metric
+{
+  "label": "Total Revenue",
+  "value": "$45,230",
+  "change": "+12%",
+  "icon": "trending-up"
+}
+\`\`\`
+
+--------------------------------
+TABLE BLOCK
+--------------------------------
+
+\`\`\`table
+{
+  "title": "Top Selling Products",
+  "columns": [
+    {"key": "name", "label": "Product"},
+    {"key": "units", "label": "Units Sold"},
+    {"key": "revenue", "label": "Revenue"}
+  ],
+  "rows": [
+    {"name": "Glass Vase", "units": 320, "revenue": "$12,400"}
+  ]
+}
+\`\`\`
+
+--------------------------------
+CHART BLOCK
+--------------------------------
+
+\`\`\`chart
+{
+  "chartType": "bar",
+  "title": "Sales Last 7 Days",
+  "labels": ["Mon","Tue","Wed"],
+  "datasets": [
+    {"label": "Sales","data": [120,150,90]}
+  ]
+}
+\`\`\`
+
+--------------------------------
+FORMATTING RULES
+--------------------------------
+
+1. Always start with the **Summary** section.
+2. Always include **Insights** if any patterns exist.
+3. Include **Data** only if tables/charts/metrics improve clarity.
+4. Narrative text MUST be outside JSON blocks.
+5. JSON blocks MUST be valid JSON.
+6. Do NOT wrap the entire response in a code block.
+7. Do NOT return raw JSON without narrative text.
+8. Do NOT mention tool usage or system behavior.
+
+--------------------------------
+WAREHOUSE CONTEXT RULE
+--------------------------------
+
+If a warehouse ID is required and the user did not specify one:
+- call \`get_warehouses\`
+- either select from conversation context
+- or ask the user which warehouse they mean.
+
+--------------------------------
+ANALYTICAL STYLE
+--------------------------------
+
+Respond like a warehouse analyst:
+- highlight trends
+- mention time ranges
+- point out anomalies
+- explain what the data means
+
+Avoid generic filler text.
+
+--------------------------------
+TODAY'S DATE
+--------------------------------
+
+${new Date().toISOString().split('T')[0]}
+`;
 
 function normalizeOllamaBaseUrl(baseUrl?: string): string {
   const fallback = 'https://llm-server-1.wordpress-studio.io/v1';
@@ -127,7 +221,12 @@ export class ChatService {
     private readonly adminService: AdminService,
     private readonly transactionLogsService: TransactionLogsService,
   ) {
-    const normalizedBaseUrl = normalizeOllamaBaseUrl(config.OLLAMA_BASE_URL);
+    const rawBaseUrl = (config as unknown as Record<string, unknown>)[
+      'OLLAMA_BASE_URL'
+    ];
+    const normalizedBaseUrl = normalizeOllamaBaseUrl(
+      typeof rawBaseUrl === 'string' ? rawBaseUrl : undefined,
+    );
 
     this.openai = createOpenAI({
       baseURL: normalizedBaseUrl,
@@ -157,6 +256,40 @@ export class ChatService {
   private preview(text: string, maxLength = 600): string {
     if (text.length <= maxLength) return text;
     return `${text.slice(0, maxLength)}...[truncated]`;
+  }
+
+  private normalizeEscapedAssistantReply(text: string): string {
+    const trimmed = text.trim();
+    let normalized = trimmed;
+
+    if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+      try {
+        const parsed: unknown = JSON.parse(trimmed);
+        if (typeof parsed === 'string') {
+          normalized = parsed;
+        }
+      } catch {
+        normalized = trimmed;
+      }
+    }
+
+    const likelyEscaped =
+      normalized.includes('\\n') ||
+      normalized.includes('\\r\\n') ||
+      normalized.includes('\\t') ||
+      normalized.includes('\\"') ||
+      normalized.includes('\\`');
+
+    if (!likelyEscaped) {
+      return normalized;
+    }
+
+    return normalized
+      .replace(/\\r\\n/g, '\n')
+      .replace(/\\n/g, '\n')
+      .replace(/\\t/g, '\t')
+      .replace(/\\"/g, '"')
+      .replace(/\\`/g, '`');
   }
 
   private sanitizeAssistantReply(text: string): string {
@@ -206,6 +339,12 @@ export class ChatService {
       .replace(/\n{3,}/g, '\n\n')
       .trim();
     return sanitized || text;
+  }
+
+  normalizeAssistantOutput(text: string): string {
+    return this.sanitizeAssistantReply(
+      this.normalizeEscapedAssistantReply(text),
+    );
   }
 
   private logStage(
@@ -389,7 +528,12 @@ export class ChatService {
       .slice(-20) // Keep last 20 messages for context window
       .map((m) => ({
         role: m.role as 'user' | 'assistant',
-        content: m.content,
+        content:
+          m.role === 'assistant'
+            ? this.sanitizeAssistantReply(
+                this.normalizeEscapedAssistantReply(m.content),
+              )
+            : m.content,
       }));
   }
 
@@ -495,10 +639,13 @@ export class ChatService {
           );
         }
 
+        const normalizedReply = this.normalizeEscapedAssistantReply(text);
+        const finalReply = this.sanitizeAssistantReply(normalizedReply);
+
         // Persist assistant response
         session.messages.push({
           role: 'assistant',
-          content: text,
+          content: finalReply,
           timestamp: new Date(),
         } as ChatMessage);
         await session.save();
@@ -678,7 +825,7 @@ export class ChatService {
       tools as unknown as ExecutableToolSet,
     );
 
-    const finalReply = this.sanitizeAssistantReply(fallbackMarkdown ?? text);
+    const finalReply = this.normalizeAssistantOutput(fallbackMarkdown ?? text);
 
     session.messages.push({
       role: 'assistant',
@@ -692,11 +839,14 @@ export class ChatService {
       totalMessages: session.messages.length,
     });
 
+    const parsed = parseChatResponse(finalReply);
+
     return {
       success: true,
       message: 'Chat response generated',
       data: {
         reply: finalReply,
+        parsed,
         sessionId: session._id.toString(),
       },
     };
