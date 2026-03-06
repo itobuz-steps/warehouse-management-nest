@@ -58,14 +58,13 @@ export class NotificationHelper {
   async notify(payload: NotificationPayload) {
     if (!payload.users?.length) return;
 
-    // Convert all IDs to strings for the DB notification record
-    const stringIds: string[] = payload.users.map((u) => {
+    const objectIds: Types.ObjectId[] = payload.users.map((u) => {
       const id = u._id;
-      return id instanceof Types.ObjectId ? id.toHexString() : String(id);
+      return id instanceof Types.ObjectId ? id : new Types.ObjectId(id);
     });
 
     const freshUsers = await this.userModel
-      .find({ _id: { $in: stringIds } })
+      .find({ _id: { $in: objectIds } })
       .select('_id email preferences')
       .lean();
 
@@ -77,7 +76,7 @@ export class NotificationHelper {
 
     // Create the database record
     await this.notificationModel.create({
-      userIds: stringIds,
+      userIds: objectIds,
       type: payload.type,
       title: payload.title,
       message: payload.message,
