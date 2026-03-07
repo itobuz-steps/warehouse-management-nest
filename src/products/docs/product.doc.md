@@ -30,8 +30,7 @@ src/products/
 ├── products.module.ts           # Module definition
 ├── products.controller.ts       # HTTP endpoints
 ├── products.service.ts          # Business logic
-├── product.type.ts              # TypeScript types
-├── PRODUCT.doc.md              # This documentation
+├── product.doc.md              # This documentation
 ├── entities/
 │   └── product.entity.ts        # Database schema
 ├── constants/
@@ -39,7 +38,8 @@ src/products/
 └── dto/
     ├── create-product.dto.ts    # Create DTO
     ├── update-product.dto.ts    # Update DTO
-    └── get-product-query.dto.ts # Query DTO
+    ├── get-product-query.dto.ts # Query DTO
+    └── get-warehouse-products-query.ts # Warehouse query DTO
 ```
 
 ---
@@ -55,14 +55,14 @@ The Product entity represents a product in the warehouse:
   _id: ObjectId,
   name: string,
   category: PRODUCT_CATEGORY_TYPES,
-  brand: string,
+  brand: string (uppercase, required),
   label: string (unique uppercase identifier),
   description: string,
   createdBy: ObjectId (User reference),
   isArchived: boolean (default: false),
   variantCount: number (default: 0),
-  createdAt: Date,
-  updatedAt: Date
+  createdAt: Date (auto-generated),
+  updatedAt: Date (auto-generated)
 }
 ```
 
@@ -153,7 +153,52 @@ GET /product?search=laptop&category=Electronics&sort=latest&page=1&limit=10
 
 ---
 
-### 2. Create Product
+### 2. Get Warehouse Products
+
+**Endpoint:** `GET /product/warehouse-products`
+
+**Authentication:** Required (Bearer Token)
+
+**Query Parameters:**
+
+| Parameter     | Type   | Required | Description            |
+| ------------- | ------ | -------- | ---------------------- |
+| `warehouseId` | string | No       | Filter by warehouse ID |
+| `category`    | string | No       | Filter by category     |
+
+**Process:**
+
+1. Queries VariantStock collection for products in the warehouse
+2. Filters by warehouse ID if provided
+3. Filters by category if provided
+4. Returns only non-archived products
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "_id": "60d5ec49c1234567890abcde",
+      "name": "Laptop Pro",
+      "category": "Electronics",
+      "brand": "APPLE",
+      "label": "LAPPR",
+      "description": "High performance laptop",
+      "createdBy": "60d5ec49c1234567890abcdf",
+      "isArchived": false,
+      "variantCount": 5,
+      "createdAt": "2025-02-25T10:30:00Z",
+      "updatedAt": "2025-02-25T10:30:00Z"
+    }
+  ]
+}
+```
+
+---
+
+### 3. Create Product
 
 **Endpoint:** `POST /product`
 
@@ -161,32 +206,64 @@ GET /product?search=laptop&category=Electronics&sort=latest&page=1&limit=10
 
 **Content-Type:** multipart/form-data
 
-**Body:**
+**Body Parameters:**
 
-```json
-{
-  "name": "Laptop Pro (required)",
-  "category": "Electronics (required)",
-  "brand": "APPLE (required)",
-  "description": "High performance laptop (optional)",
-  "price": 1200 (required),
-  "markup": 20 (optional, 0-100),
-  "variantAttributes": { "color": "silver", "storage": "256gb" } (required),
-  "productImage": [file1, file2] (optional)
-}
+| Parameter           | Type   | Required | Description                             |
+| ------------------- | ------ | -------- | --------------------------------------- |
+| `name`              | string | Yes      | Product name                            |
+| `category`          | string | Yes      | Product category (must be valid enum)   |
+| `brand`             | string | Yes      | Product brand                           |
+| `label`             | string | No       | Product label (auto-generated if empty) |
+| `description`       | string | No       | Product description                     |
+| `price`             | number | Yes      | Cost price (must be >= 0)               |
+| `markup`            | number | No       | Markup percentage (0-100)               |
+| `variantAttributes` | object | Yes      | Variant attributes as JSON string       |
+| `productImage`      | File[] | No       | Product images (max 5 files)            |
+| `isArchived`        | bool   | No       | Archive status (default: false)         |
+
+**Validation Rules:**
+
+```typescript
+- name: required, string, non-empty
+- category: required, must match PRODUCT_CATEGORY_TYPES enum
+- brand: required, string (converted to uppercase)
+- price: required, number >= 0
+- markup: optional, number between 0-100
+- variantAttributes: required, valid JSON object
+- productImage: optional, valid URLs only
+- description: optional, string
+```
+
+**Request Example:**
+
+```bash
+curl -X POST http://localhost:3000/product \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -F "name=Laptop Pro" \
+  -F "category=Electronics" \
+  -F "brand=Apple" \
+  -F "price=1200" \
+  -F "markup=20" \
+  -F 'variantAttributes={"color":"silver","storage":"256GB"}' \
+  -F "productImage=@image1.jpg" \
+  -F "productImage=@image2.jpg"
 ```
 
 **Process Flow:**
 
 1. Validates input using `CreateProductDto`
 2. Extracts user ID from authenticated request
-3. Processes uploaded images and generates URLs
-4. Initiates database transaction session
-5. Normalizes product name (lowercase)
-6. Generates unique uppercase label from product name
-7. Creates product document
-8. Creates variants through `VariantService`
-9. Commits transaction or rolls back on error
+3. Processes uploaded images
+4. Starts MongoDB transaction session
+5. Generates unique uppercase label from product name
+6. Creates product document with:
+   - Normalized name (lowercase)
+   - Brand (uppercase)
+   - Label (uppercase)
+   - variantCount: 0
+7. Creates variants through `VariantService.createInternal()`
+8. Creates transaction log entry
+9. Commits transaction
 10. Returns created product
 
 **Response:**
@@ -197,7 +274,7 @@ GET /product?search=laptop&category=Electronics&sort=latest&page=1&limit=10
   "message": "Product Successfully Saved",
   "data": {
     "_id": "60d5ec49c1234567890abcde",
-    "name": "laptop pro",
+    "name": "Laptop Pro",
     "category": "Electronics",
     "brand": "APPLE",
     "label": "LAPPR",
@@ -214,47 +291,37 @@ GET /product?search=laptop&category=Electronics&sort=latest&page=1&limit=10
 **Error Responses:**
 
 ```json
-// Validation Error
 {
   "statusCode": 400,
   "message": "Product name is required"
-}
-
-// Unauthorized
-{
-  "statusCode": 401,
-  "message": "Unauthorized"
 }
 ```
 
 ---
 
-### 3. Update Product
+### 4. Update Product
 
 **Endpoint:** `PUT /product/:id`
 
 **Authentication:** Required
 
-**Content-Type:** multipart/form-data
+**Content-Type:** application/json
 
 **URL Parameters:**
 
-| Parameter | Type   | Description                   |
-| --------- | ------ | ----------------------------- |
-| `id`      | string | Product ID (MongoDB ObjectId) |
+| Parameter | Type   | Required | Description        |
+| --------- | ------ | -------- | ------------------ |
+| `id`      | string | Yes      | Product MongoDB ID |
 
 **Body:**
 
 ```json
 {
-  "name": "Updated Product Name (optional)",
-  "category": "Electronics (optional)",
-  "description": "Updated description (optional)",
-  "price": 1500 (optional),
-  "markup": 25 (optional, 0-100),
-  "productImage": [file1] (optional)
+  "description": "Updated description (optional)"
 }
 ```
+
+**Note:** Currently only `description` field is updatable via the DTO. Other fields require direct database modification.
 
 **Response:**
 
@@ -264,7 +331,7 @@ GET /product?search=laptop&category=Electronics&sort=latest&page=1&limit=10
   "message": "Product updated successfully",
   "data": {
     "_id": "60d5ec49c1234567890abcde",
-    "name": "Updated Product Name",
+    "name": "Laptop Pro",
     "category": "Electronics",
     "brand": "APPLE",
     "label": "LAPPR",
@@ -277,23 +344,37 @@ GET /product?search=laptop&category=Electronics&sort=latest&page=1&limit=10
 }
 ```
 
+**Error Response:**
+
+```json
+{
+  "statusCode": 404,
+  "message": "Product not found"
+}
+```
+
 ---
 
-### 4. Delete Product (Archive)
+### 5. Delete Product (Archive)
 
 **Endpoint:** `DELETE /product/:id`
 
 **Authentication:** Required
 
-**Authorization:** Admin only
+**Authorization:** Admin only (`USER_TYPES.ADMIN`)
 
 **URL Parameters:**
 
-| Parameter | Type   | Description |
-| --------- | ------ | ----------- |
-| `id`      | string | Product ID  |
+| Parameter | Type   | Required | Description        |
+| --------- | ------ | -------- | ------------------ |
+| `id`      | string | Yes      | Product MongoDB ID |
 
-**Process:** Sets `isArchived` field to `true` (soft delete)
+**Process:**
+
+1. Validates user is admin
+2. Sets `isArchived` field to `true` (soft delete)
+3. Creates transaction log entry
+4. Returns success message
 
 **Response:**
 
@@ -304,18 +385,25 @@ GET /product?search=laptop&category=Electronics&sort=latest&page=1&limit=10
 }
 ```
 
-**Error Response:**
+**Error Responses:**
+
+```json
+{
+  "statusCode": 403,
+  "message": "Forbidden - Admin access required"
+}
+```
 
 ```json
 {
   "statusCode": 404,
-  "message": "Not Found"
+  "message": "Product not found"
 }
 ```
 
 ---
 
-### 5. Restore Product
+### 6. Restore Product
 
 **Endpoint:** `PATCH /product/:id`
 
@@ -323,11 +411,15 @@ GET /product?search=laptop&category=Electronics&sort=latest&page=1&limit=10
 
 **URL Parameters:**
 
-| Parameter | Type   | Description |
-| --------- | ------ | ----------- |
-| `id`      | string | Product ID  |
+| Parameter | Type   | Required | Description        |
+| --------- | ------ | -------- | ------------------ |
+| `id`      | string | Yes      | Product MongoDB ID |
 
-**Process:** Sets `isArchived` field to `false`
+**Process:**
+
+1. Sets `isArchived` field to `false`
+2. Creates transaction log entry
+3. Returns success message
 
 **Response:**
 
@@ -340,15 +432,15 @@ GET /product?search=laptop&category=Electronics&sort=latest&page=1&limit=10
 
 ---
 
-### 6. Get Archived Products
+### 7. Get Archived Products
 
 **Endpoint:** `GET /product/archived/all`
 
 **Authentication:** Required
 
-**Authorization:** Admin only
+**Authorization:** Admin only (`USER_TYPES.ADMIN`)
 
-**Query Parameters:** Same as Get All Products
+**Query Parameters:** Same as [Get All Products](#1-get-all-products)
 
 **Response:** Same paginated format as Get All Products, but only archived products
 
@@ -369,7 +461,7 @@ GET /product?search=laptop&category=Electronics&sort=latest&page=1&limit=10
 
 ---
 
-### 7. Generate QR Code
+### 8. Generate QR Code
 
 **Endpoint:** `GET /product/qr/:id`
 
@@ -377,18 +469,33 @@ GET /product?search=laptop&category=Electronics&sort=latest&page=1&limit=10
 
 **URL Parameters:**
 
-| Parameter | Type   | Description |
-| --------- | ------ | ----------- |
-| `id`      | string | Product ID  |
+| Parameter | Type   | Required | Description        |
+| --------- | ------ | -------- | ------------------ |
+| `id`      | string | Yes      | Product MongoDB ID |
 
 **Process:**
 
 1. Retrieves product by ID
-2. Constructs QR URL: `{FRONTEND_URL}/pages/qr-product.html?id={productId}`
+2. Constructs QR URL: `{protocol}://{FRONTEND_URL}/pages/qr-product.html?id={productId}`
 3. Generates QR code image using `qrcode` library
 4. Returns PNG image binary
 
-**Response:** PNG image file (Content-Type: image/png)
+**Response:** PNG image file
+
+**Headers:**
+
+```
+Content-Type: image/png
+Content-Disposition: inline; filename="qrcode.png"
+```
+
+**Example:**
+
+```bash
+curl -X GET http://localhost:3000/product/qr/60d5ec49c1234567890abcde \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -o qrcode.png
+```
 
 **Error Response:**
 
@@ -401,7 +508,7 @@ GET /product?search=laptop&category=Electronics&sort=latest&page=1&limit=10
 
 ---
 
-### 8. Get Product by ID
+### 9. Get Product by ID
 
 **Endpoint:** `POST /product/qr/:id`
 
@@ -409,9 +516,11 @@ GET /product?search=laptop&category=Electronics&sort=latest&page=1&limit=10
 
 **URL Parameters:**
 
-| Parameter | Type   | Description |
-| --------- | ------ | ----------- |
-| `id`      | string | Product ID  |
+| Parameter | Type   | Required | Description        |
+| --------- | ------ | -------- | ------------------ |
+| `id`      | string | Yes      | Product MongoDB ID |
+
+**Note:** This endpoint uses POST method (typically GET would be used, but implementation uses POST)
 
 **Response:**
 
@@ -421,7 +530,7 @@ GET /product?search=laptop&category=Electronics&sort=latest&page=1&limit=10
   "message": "Product with specific id",
   "data": {
     "_id": "60d5ec49c1234567890abcde",
-    "name": "laptop pro",
+    "name": "Laptop Pro",
     "category": "Electronics",
     "brand": "APPLE",
     "label": "LAPPR",
@@ -441,14 +550,14 @@ GET /product?search=laptop&category=Electronics&sort=latest&page=1&limit=10
 
 ### ProductsService
 
-#### `getProducts(queryDto: GetProductsQueryDto)`
+#### `getProducts(queryDto: GetProductsQueryDto): Promise<PaginatedProducts>`
 
 Retrieves paginated list of active products with filtering and sorting.
 
 **Parameters:**
 
 ```typescript
-{
+GetProductsQueryDto {
   search?: string;        // Filter by product name (case-insensitive regex)
   category?: string;      // Filter by category
   sort?: SORT_CATEGORY;   // Apply sorting rules
@@ -460,33 +569,25 @@ Retrieves paginated list of active products with filtering and sorting.
 **Filter Logic:**
 
 - Only returns products where `isArchived: false`
-- Search applies to product name field with regex
+- Search uses MongoDB regex with case-insensitive option
+- Category filter is exact match
 
 **Sorting Logic:**
 
 ```typescript
-NAME_ASC: {
-  name: 1;
-}
-NAME_DESC: {
-  name: -1;
-}
-CATEGORY_ASC: {
-  category: 1;
-}
-CATEGORY_DESC: {
-  category: -1;
-}
-LATEST: {
-  createdAt: -1;
-}
-QUANTITY_ASC: {
-  quantity: 1;
-}
-QUANTITY_DESC: {
-  quantity: -1;
-}
+NAME_ASC: { name: 1 }
+NAME_DESC: { name: -1 }
+CATEGORY_ASC: { category: 1 }
+CATEGORY_DESC: { category: -1 }
+LATEST (default): { createdAt: -1 }
 ```
+
+**Pagination:**
+
+- Minimum page: 1
+- Minimum limit: 1
+- Default page: 1
+- Default limit: 10
 
 **Returns:**
 
@@ -514,115 +615,232 @@ const result = await this.productsService.getProducts({
 
 ---
 
-#### `create(createProductDto: CreateProductDto, imageUrls: string[])`
+#### `getProductsForWarehouse(query: GetWarehouseProductsQueryDto): Promise<Product[]>`
+
+Retrieves products available in a specific warehouse by checking VariantStock collection.
+
+**Parameters:**
+
+```typescript
+GetWarehouseProductsQueryDto {
+  warehouseId?: string;  // Warehouse MongoDB ID
+  category?: string;     // Filter by category
+}
+```
+
+**Logic:**
+
+1. If `warehouseId` provided:
+   - Queries VariantStock collection
+   - Finds all distinct productIds in that warehouse
+   - Filters Product collection by those IDs
+
+2. If `category` provided:
+   - Adds category filter to Product query
+
+3. Always filters out archived products (`isArchived: false`)
+
+**Returns:** `Product[]` (unsorted, unfiltered except for above criteria)
+
+**Example:**
+
+```typescript
+const products = await this.productsService.getProductsForWarehouse({
+  warehouseId: '507f1f77bcf86cd799439011',
+  category: 'Electronics',
+});
+```
+
+---
+
+#### `create(userId: Types.ObjectId, createProductDto: CreateProductDto, user: UserDocument, imageUrls: string[]): Promise<Product>`
 
 Creates new product with variants in a database transaction.
 
 **Parameters:**
 
-- `createProductDto` - Product creation data
-- `imageUrls` - Array of uploaded image URLs
+- `userId` - User creating the product (Types.ObjectId)
+- `createProductDto` - Product creation DTO with validation
+- `user` - Full user document (for audit logging)
+- `imageUrls` - Array of image URLs from file upload
 
 **Process:**
 
 1. **Start Transaction**
-   - Creates MongoDB session
-   - Initiates transaction
 
-2. **Validate Uniqueness**
-   - Generates unique label
+   ```typescript
+   const session = await this.productModel.db.startSession();
+   session.startTransaction();
+   ```
+
+2. **Generate Unique Label**
+
+   ```typescript
+   const normalizedName = createProductDto.name
+     .toUpperCase()
+     .replace(/[^A-Z0-9]/g, '');
+   const label = await this.generateUniqueLabel(normalizedName);
+   ```
 
 3. **Create Product**
-   - Normalizes name to lowercase
-   - Sets brand to uppercase
-   - Sets label to uppercase
-   - Creates product document
 
-4. **Create Variants**
-   - Calls `VariantService.createInternal()`
-   - Associates variants with product
+   ```typescript
+   const product = await new this.productModel({
+     name: createProductDto.name,
+     category: createProductDto.category,
+     description: createProductDto.description,
+     isArchived: createProductDto.isArchived || false,
+     createdBy: userId,
+     brand: createProductDto.brand,
+     label: createProductDto.label || label,
+     variantCount: 0,
+   }).save({ session });
+   ```
 
-5. **Commit or Abort**
-   - On success: Commits transaction
-   - On error: Aborts transaction, throws error
+4. **Create Audit Log**
+
+   ```typescript
+   await this.logsService.createLog({
+     action: LOG_ACTION.PRODUCT_CREATED,
+     entityType: LOG_ENTITY_TYPE.PRODUCT,
+     entityId: product._id.toHexString(),
+     performedBy: user,
+     metadata: {
+       /* product data */
+     },
+   });
+   ```
+
+5. **Create Variants**
+
+   ```typescript
+   await this.variantService.createInternal(
+     product._id.toString(),
+     createProductDto.variantAttributes,
+     createProductDto.price,
+     createProductDto.markup,
+     imageUrls,
+     user,
+     session,
+   );
+   ```
+
+6. **Commit or Abort**
+   ```typescript
+   await session.commitTransaction();
+   await session.endSession();
+   ```
 
 **Label Generation Algorithm:**
 
 ```
-1. Start with first 5 characters of product name (uppercase)
-2. Check if label exists in database
-3. If exists, increase substring length by 1
-4. Repeat step 2-3 until unique
-5. If entire name exhausted, append counter: "{name}1", "{name}2", etc.
+1. Start with first 5 characters of normalized name (uppercase)
+2. Query database: "Does this label exist?"
+3. If NO: Return this label
+4. If YES:
+   - Increase substring length by 1
+   - Repeat from step 2
+5. If entire name exhausted:
+   - Append counter: "{base}1", "{base}2", etc.
+   - Repeat until unique label found
 ```
 
 **Returns:** Created Product document
 
 **Throws:**
 
-- `BadRequestException` - Invalid input
-- `ConflictException` - Label generation conflict
+- `BadRequestException` - Invalid input validation
+- `ConflictException` - Persistent label generation conflict
+- Database/validation errors from VariantService
 
 **Example:**
 
 ```typescript
 const product = await this.productsService.create(
+  userId,
   {
     name: 'Laptop Pro',
     category: 'Electronics',
     brand: 'Apple',
     price: 1200,
     markup: 20,
-    variantAttributes: { color: 'silver' },
-    createdBy: userId,
+    variantAttributes: { color: 'silver', storage: '256GB' },
   },
-  ['http://example.com/image1.jpg'],
+  user,
+  ['https://example.com/image1.jpg'],
 );
 ```
 
 ---
 
-#### `update(id: string, updateProductDto: updateProductDto, imageUrls?: string[])`
+#### `update(id: string, updateProductDto: updateProductDto, user: UserDocument): Promise<Product>`
 
-Updates product by ID with optional image replacement.
+Updates product by ID with audit logging.
 
 **Parameters:**
 
-- `id` - Product ID (MongoDB ObjectId)
-- `updateProductDto` - Fields to update
-- `imageUrls` - New image URLs (optional, replaces existing)
+- `id` - Product ID (MongoDB ObjectId string)
+- `updateProductDto` - DTO containing only description field
+- `user` - Full user document (for audit logging)
 
 **Update Logic:**
 
-- Only specified fields are updated
-- Other fields remain unchanged
-- Images are replaced entirely (not merged)
+1. Validates product exists
+2. Captures old values
+3. Applies update via `findByIdAndUpdate`
+4. Captures new values
+5. Creates audit log with old/new comparison
+
+**Allowed Updates:**
+
+- `description` field only
 
 **Returns:** Updated Product document
 
 **Throws:**
 
-- `NotFoundException` - Product ID not found
-- `BadRequestException` - Invalid input
+- `NotFoundException` - Product not found
+
+**Audit Log Created:**
+
+```typescript
+{
+  action: LOG_ACTION.PRODUCT_UPDATED,
+  entityType: LOG_ENTITY_TYPE.PRODUCT,
+  metadata: {
+    oldValue: { description: '...' },
+    newValue: { description: '...' }
+  }
+}
+```
 
 **Example:**
 
 ```typescript
 const updated = await this.productsService.update(
-  '60d5ec49c1234567890abcde',
-  {
-    name: 'Updated Laptop',
-    price: 1500,
-  },
-  ['http://example.com/new-image.jpg'],
+  '507f1f77bcf86cd799439011',
+  { description: 'New description' },
+  user,
 );
 ```
 
 ---
 
-#### `remove(id: string)`
+#### `remove(id: string, user: UserDocument): Promise<Product>`
 
-Archives product by setting `isArchived` to `true` (soft delete).
+Archives (soft-delete) a product.
+
+**Parameters:**
+
+- `id` - Product ID (MongoDB ObjectId string)
+- `user` - Full user document (for audit logging)
+
+**Process:**
+
+1. Updates product: `{ isArchived: true }`
+2. Creates audit log entry
+3. Product still exists in database
+4. Won't appear in active queries
 
 **Returns:** Archived Product document
 
@@ -630,17 +848,41 @@ Archives product by setting `isArchived` to `true` (soft delete).
 
 - `NotFoundException` - Product not found
 
+**Audit Log Created:**
+
+```typescript
+{
+  action: LOG_ACTION.PRODUCT_ARCHIVED,
+  entityType: LOG_ENTITY_TYPE.PRODUCT,
+  metadata: {
+    name: product.name,
+    isArchived: true
+  }
+}
+```
+
 **Example:**
 
 ```typescript
-const archived = await this.productsService.remove('60d5ec49c1234567890abcde');
+await this.productsService.remove('507f1f77bcf86cd799439011', user);
 ```
 
 ---
 
-#### `restore(id: string)`
+#### `restore(id: string, user: UserDocument): Promise<Product>`
 
-Restores archived product by setting `isArchived` to `false`.
+Restores an archived product.
+
+**Parameters:**
+
+- `id` - Product ID
+- `user` - Full user document (for audit logging)
+
+**Process:**
+
+1. Updates product: `{ isArchived: false }`
+2. Creates audit log entry
+3. Product now appears in active queries
 
 **Returns:** Restored Product document
 
@@ -648,19 +890,36 @@ Restores archived product by setting `isArchived` to `false`.
 
 - `NotFoundException` - Product not found
 
+**Audit Log Created:**
+
+```typescript
+{
+  action: LOG_ACTION.PRODUCT_RESTORED,
+  entityType: LOG_ENTITY_TYPE.PRODUCT,
+  metadata: {
+    name: product.name,
+    isArchived: false
+  }
+}
+```
+
 **Example:**
 
 ```typescript
-const restored = await this.productsService.restore('60d5ec49c1234567890abcde');
+await this.productsService.restore('507f1f77bcf86cd799439011', user);
 ```
 
 ---
 
-#### `findOne(id: string)`
+#### `findOne(id: string): Promise<Product>`
 
 Retrieves single product by ID.
 
-**Returns:** Product document or null
+**Parameters:**
+
+- `id` - Product ID (MongoDB ObjectId string)
+
+**Returns:** Product document
 
 **Throws:**
 
@@ -669,12 +928,12 @@ Retrieves single product by ID.
 **Example:**
 
 ```typescript
-const product = await this.productsService.findOne('60d5ec49c1234567890abcde');
+const product = await this.productsService.findOne('507f1f77bcf86cd799439011');
 ```
 
 ---
 
-#### `findArchived(queryDto: GetProductsQueryDto)`
+#### `findArchived(queryDto: GetProductsQueryDto): Promise<PaginatedProducts>`
 
 Retrieves paginated list of archived products with filtering and sorting.
 
@@ -683,6 +942,8 @@ Retrieves paginated list of archived products with filtering and sorting.
 **Filter Logic:**
 
 - Only returns products where `isArchived: true`
+- Search applies to product name
+- Category filter is exact match
 
 **Returns:** Paginated archived products with metadata
 
@@ -700,7 +961,7 @@ const archived = await this.productsService.findArchived({
 
 #### `generateQrCode(url: string): Promise<Buffer>`
 
-Generates QR code PNG buffer from URL.
+Generates QR code PNG buffer from URL using `qrcode` library.
 
 **Parameters:**
 
@@ -727,59 +988,72 @@ Generates unique product label from base string.
 ```
 1. Start with base.slice(0, 5)
 2. Query database for existing label
-3. If found:
+3. If NOT found: Return label
+4. If FOUND:
    - Increase length by 1: base.slice(0, 6)
    - Repeat from step 2
-4. If entire string exhausted:
-   - Append counter: "{base}1", "{base}2", etc.
-5. Return unique label (uppercase)
+5. If entire base exhausted:
+   - Set counter = 1
+   - Try: "{base.slice(0, 5)}{counter}"
+   - Repeat until unique or increment counter
 ```
 
 **Example:**
 
 ```
 Input: 'Laptop Pro'
-Output: 'LAPPR' (if unique)
-Output: 'LAPTOP' (if 'LAPPR' exists)
-Output: 'LAPTOP P' (if 'LAPTOP' exists)
-etc.
+Normalized: 'LAPTOPPRO'
+
+Step 1: Check 'LAPPR' - Not found → Return 'LAPPR'
+
+Alternative if 'LAPPR' exists:
+Step 1: Check 'LAPPR' - Found
+Step 2: Check 'LAPTOP' - Not found → Return 'LAPTOP'
+
+Alternative if 'LAPTOP' exists:
+Step 1-3: All substring lengths exhausted
+Step 4: Check 'LAPPR1' - Not found → Return 'LAPPR1'
 ```
 
 ---
 
 ## Module Dependencies
 
-### Providers
-
-```typescript
-ProductsModule {
-  imports: [
-    MongooseModule.forFeature([
-      { name: Product.name, schema: ProductSchema },
-      { name: User.name, schema: UserSchema },
-      { name: Variant.name, schema: VariantSchema }
-    ]),
-    VariantModule
-  ],
-  controllers: [ProductsController],
-  providers: [ProductsService]
-}
-```
-
 ### Injected Models
 
-| Model          | Purpose                           |
-| -------------- | --------------------------------- |
-| `ProductModel` | Main product schema operations    |
-| `UserModel`    | User reference and authentication |
-| `VariantModel` | Product variant management        |
+| Model               | Provider                          | Purpose                        |
+| ------------------- | --------------------------------- | ------------------------------ |
+| `ProductModel`      | `@InjectModel(Product.name)`      | Main product schema operations |
+| `VariantStockModel` | `@InjectModel(VariantStock.name)` | Warehouse stock tracking       |
 
 ### Injected Services
 
-| Service          | Purpose                        |
-| ---------------- | ------------------------------ |
-| `VariantService` | Create/manage product variants |
-| `ConfigService`  | Read environment variables     |
+| Service                  | Purpose                                   |
+| ------------------------ | ----------------------------------------- |
+| `VariantService`         | Create/manage product variants            |
+| `TransactionLogsService` | Audit logging for all product operations  |
+| `StorageService`         | File upload and URL management            |
+| `ConfigService`          | Read environment variables (FRONTEND_URL) |
+
+### Module Registration
+
+```typescript
+@Module({
+  imports: [
+    MongooseModule.forFeature([
+      { name: Product.name, schema: ProductSchema },
+      { name: VariantStock.name, schema: VariantStockSchema },
+    ]),
+    VariantModule,
+    TransactionLogsModule,
+    StorageModule,
+  ],
+  controllers: [ProductsController],
+  providers: [ProductsService],
+  exports: [ProductsService],
+})
+export class ProductsModule {}
+```
 
 ---
 
@@ -787,22 +1061,63 @@ ProductsModule {
 
 ### Authentication
 
-- **Guard:** `AuthGuard` from `@nestjs/passport`
-- **Strategy:** Bearer Token (JWT)
-- **Applied:** All endpoints require valid JWT token
+**Guard:** `AuthGuard` (from custom guard implementation)
+
+**Applied To:** All controller methods
+
+**Mechanism:**
+
+- Extracts JWT token from Authorization header
+- Validates token signature and expiration
+- Injects user data into request object (req.user)
+
+**Token Format:**
+
+```
+Authorization: Bearer <JWT_TOKEN>
+```
 
 ### Authorization
 
-- **Decorator:** `@Roles(USER_TYPES.ADMIN)`
-- **Protected Endpoints:**
-  - `DELETE /product/:id` - Delete/Archive product
-  - `GET /product/archived/all` - View archived products
+**Decorator:** `@Roles(USER_TYPES.ADMIN)`
 
-### Swagger Documentation
+**Protected Endpoints:**
 
-- **Decorator:** `@ApiBearerAuth()`
-- **Applied:** Controller-level
-- **Description:** Indicates Bearer token authentication required
+1. `DELETE /product/:id` - Archive product (requires ADMIN role)
+2. `GET /product/archived/all` - View archived products (requires ADMIN role)
+
+**User Types:**
+
+```typescript
+enum USER_TYPES {
+  ADMIN = 'admin',
+  MANAGER = 'manager',
+  STAFF = 'staff',
+  // ... other types
+}
+```
+
+### Request Context
+
+**Type:** `RequestWithUser`
+
+```typescript
+interface RequestWithUser extends Request {
+  user: {
+    _id: ObjectId;
+    email: string;
+    roles: USER_TYPES[];
+    // ... other user properties
+  };
+}
+```
+
+### Documentation
+
+**Decorator:** `@ApiBearerAuth()` (Swagger)
+
+- Applied at controller level
+- Indicates Bearer token requirement in API docs
 
 ---
 
@@ -810,43 +1125,64 @@ ProductsModule {
 
 ### Configuration
 
-**Field Name:** `productImage`
-
-- Sourced from `FILE_FIELD.productImage` constant
-- Supports multiple files (array)
-
-**Max Files:** Defined in `FILE_COUNT` constant
-
-- Typical: 5-10 files per product
-
-**Storage Configuration:** Custom multer setup
-
 ```typescript
 @UseInterceptors(
-  FilesInterceptor('productImage', FILE_COUNT, {
-    storage: multerStorage()
-  })
+  FilesInterceptor(
+    FILE_FIELD.productImage,  // Field name: 'productImage'
+    FILE_COUNT,               // Max files: typically 5
+    { storage: multerStorage() }  // Custom storage config
+  )
 )
 ```
 
-**Upload Directory:** `uploads/products/`
+### File Parameters
 
-**URL Construction:**
-
-```
-{protocol}://{host}/uploads/products/{filename}
-
-Example:
-http://localhost:3000/uploads/products/product_123_1708934400000.jpg
-```
+| Parameter  | Value          | Description                      |
+| ---------- | -------------- | -------------------------------- |
+| Field Name | `productImage` | Form field name for file upload  |
+| Max Files  | 5              | Maximum files per request        |
+| Storage    | Multer custom  | Configured via `multerStorage()` |
 
 ### Supported File Types
+
+Based on multer configuration:
 
 - `.jpg` / `.jpeg`
 - `.png`
 - `.gif`
 - `.webp`
-- (Determined by multer configuration)
+- (Configured in multer.ts)
+
+### Upload Flow
+
+1. **Multer Validation**
+   - Validates file types
+   - Checks file size
+   - Enforces file count limit
+
+2. **File Processing**
+
+   ```typescript
+   if (files && files.length) {
+     const uploadedImages =
+       await this.storageService.uploadMultipleFiles(files);
+     imageUrls.push(...uploadedImages.map((img) => img.key));
+   }
+   ```
+
+3. **URL Generation**
+   - Storage service returns file keys
+   - Keys used as URLs in product creation
+
+4. **Variant Image Association**
+   - URLs passed to VariantService
+   - Images associated with product variants
+
+**Error Handling:**
+
+- Invalid file types: Rejected by Multer
+- Exceeds max count: Rejected by Multer
+- Upload failure: Throws exception, transaction rolls back
 
 ---
 
@@ -854,39 +1190,51 @@ http://localhost:3000/uploads/products/product_123_1708934400000.jpg
 
 ### Used In
 
-- **Product Creation** - Ensures product and variants are created atomically
+Product creation via `create()` method
 
-### Transaction Flow
+### Transaction Implementation
 
 ```typescript
-// 1. Start session and transaction
 const session = await this.productModel.db.startSession();
 session.startTransaction();
 
 try {
-  // 2. Create product
-  const product = await this.productModel.create([productData], { session });
+  // 1. Create product document
+  const product = await new this.productModel({...}).save({ session });
+
+  // 2. Create audit log
+  await this.logsService.createLog({...});
 
   // 3. Create variants
-  await this.variantService.createInternal(variantData, { session });
+  await this.variantService.createInternal(..., session);
 
-  // 4. Commit transaction
+  // Commit if all successful
   await session.commitTransaction();
-} catch (error) {
-  // 5. Abort on error
-  await session.abortTransaction();
-  throw error;
-} finally {
-  // 6. End session
   await session.endSession();
+  return product;
+} catch (error) {
+  // Rollback on any error
+  await session.abortTransaction();
+  await session.endSession();
+  throw error;
 }
 ```
 
+### ACID Properties
+
+| Property    | Assurance                                                |
+| ----------- | -------------------------------------------------------- |
+| Atomicity   | All product/variant/log operations succeed or all fail   |
+| Consistency | Product and variants always in sync, no orphaned records |
+| Isolation   | Concurrent requests don't interfere with each other      |
+| Durability  | Committed data persists in database                      |
+
 ### Benefits
 
-- **Atomicity:** All-or-nothing operation
-- **Data Consistency:** No orphaned products/variants
+- **Data Integrity:** Product and variants created atomically
 - **Error Recovery:** Automatic rollback on failure
+- **No Orphans:** Partial failures don't leave inconsistent state
+- **Audit Trail:** Log creation is part of transaction
 
 ---
 
@@ -894,18 +1242,54 @@ try {
 
 ### HTTP Status Codes
 
-| Status | Error Type            | Cause                         | Example                    |
-| ------ | --------------------- | ----------------------------- | -------------------------- |
-| 400    | Bad Request           | Invalid DTO/Validation failed | Invalid category enum      |
-| 401    | Unauthorized          | Missing/invalid JWT token     | Expired token              |
-| 403    | Forbidden             | Insufficient permissions      | Non-admin trying to delete |
-| 404    | Not Found             | Resource doesn't exist        | Product ID not found       |
-| 409    | Conflict              | Data conflict                 | Duplicate label generation |
-| 500    | Internal Server Error | Unexpected error              | Database connection error  |
+| Status | Error Type            | Example                                   |
+| ------ | --------------------- | ----------------------------------------- |
+| 400    | Bad Request           | Invalid category enum, validation failed  |
+| 401    | Unauthorized          | Missing JWT token or invalid token        |
+| 403    | Forbidden             | Non-admin trying to delete product        |
+| 404    | Not Found             | Product ID doesn't exist                  |
+| 409    | Conflict              | Label generation conflict                 |
+| 500    | Internal Server Error | Database connection error, unexpected err |
 
-### Validation Errors
+### Exception Types & Handling
 
-**Example Response:**
+**NotFoundException**
+
+```typescript
+if (!product) {
+  throw new NotFoundException('Product not found');
+}
+```
+
+Response:
+
+```json
+{
+  "statusCode": 404,
+  "message": "Product not found",
+  "error": "Not Found"
+}
+```
+
+**BadRequestException**
+
+```typescript
+throw new BadRequestException('Invalid input');
+```
+
+Response:
+
+```json
+{
+  "statusCode": 400,
+  "message": "Invalid input",
+  "error": "Bad Request"
+}
+```
+
+**Validation Errors (from DTO)**
+
+Response:
 
 ```json
 {
@@ -919,27 +1303,15 @@ try {
 }
 ```
 
-### Not Found Errors
+### Transaction Error Handling
 
-**Example Response:**
-
-```json
-{
-  "statusCode": 404,
-  "message": "Supplier Not Found",
-  "error": "Not Found"
-}
-```
-
-### Authorization Errors
-
-**Example Response:**
-
-```json
-{
-  "statusCode": 403,
-  "message": "Forbidden resource",
-  "error": "Forbidden"
+```typescript
+try {
+  // ... operations
+} catch (error) {
+  await session.abortTransaction();
+  await session.endSession();
+  throw error; // Re-throw for controller handling
 }
 ```
 
@@ -950,12 +1322,17 @@ try {
 ### 1. Authentication & Authorization
 
 ```typescript
-// ✓ DO - Always authenticate
+// ✓ DO - All endpoints require authentication
 @UseGuards(AuthGuard)
 @Get()
 async getProducts() { }
 
-// ✗ DON'T - Expose endpoints without auth
+// ✓ DO - Admin endpoints explicit
+@Roles(USER_TYPES.ADMIN)
+@Delete(':id')
+async deleteProduct() { }
+
+// ✗ DON'T - Expose endpoints without guards
 @Get()
 async getProducts() { }
 ```
@@ -963,32 +1340,32 @@ async getProducts() { }
 ### 2. Pagination
 
 ```typescript
-// ✓ DO - Use pagination for large datasets
+// ✓ DO - Always paginate results
 GET /product?page=1&limit=10
 
-// ✗ DON'T - Fetch all records at once
+// ✗ DON'T - Fetch all records without pagination
 GET /product
 ```
 
 ### 3. Input Validation
 
 ```typescript
-// ✓ DO - Use DTOs and class-validator
+// ✓ DO - Use DTOs with class-validator
 @Body() createProductDto: CreateProductDto
 
-// ✗ DON'T - Skip validation
+// ✗ DON'T - Skip validation or use any type
 @Body() data: any
 ```
 
 ### 4. Error Handling
 
 ```typescript
-// ✓ DO - Throw appropriate exceptions
+// ✓ DO - Throw specific exceptions
 if (!product) {
   throw new NotFoundException('Product not found');
 }
 
-// ✗ DON'T - Return null or generic errors
+// ✗ DON'T - Generic errors or returning null
 if (!product) return null;
 ```
 
@@ -996,21 +1373,23 @@ if (!product) return null;
 
 ```typescript
 // ✓ DO - Use transactions for related operations
-const session = await this.model.db.startSession();
+const session = await model.db.startSession();
 session.startTransaction();
+// ... operations with { session }
+await session.commitTransaction();
 
 // ✗ DON'T - Separate operations without transaction
-await this.productModel.create(data);
-await this.variantService.create(data);
+await productModel.create(data);
+await variantService.create(data);
 ```
 
 ### 6. Search Safety
 
 ```typescript
-// ✓ DO - Validate and escape search input
+// ✓ DO - Use MongoDB operators safely
 const filter = { name: { $regex: search, $options: 'i' } };
 
-// ✗ DON'T - Allow raw user input in queries
+// ✗ DON'T - String injection vulnerabilities
 const filter = { $where: `this.name == '${search}'` };
 ```
 
@@ -1018,71 +1397,51 @@ const filter = { $where: `this.name == '${search}'` };
 
 ```typescript
 // ✓ DO - Archive instead of permanent delete
-await this.productModel.updateOne({ _id: id }, { isArchived: true });
+await productModel.updateOne({ _id: id }, { isArchived: true });
 
 // ✗ DON'T - Permanently delete data
-await this.productModel.deleteOne({ _id: id });
+await productModel.deleteOne({ _id: id });
 ```
 
-### 8. Rate Limiting
+### 8. Audit Logging
 
 ```typescript
-// ✓ DO - Implement rate limiting on sensitive endpoints
-@UseGuards(ThrottlerGuard)
-@Delete(':id')
-async deleteProduct() { }
+// ✓ DO - Log all important operations
+await this.logsService.createLog({
+  action: LOG_ACTION.PRODUCT_CREATED,
+  entityType: LOG_ENTITY_TYPE.PRODUCT,
+  entityId: product._id.toHexString(),
+  performedBy: user,
+  metadata: {
+    /* details */
+  },
+});
 ```
 
-### 9. Logging
+### 9. Response Consistency
 
 ```typescript
-// ✓ DO - Log important operations
-this.logger.log(`Product created: ${productId}`);
-this.logger.error(`Product creation failed: ${error}`);
-```
-
-### 10. Response Consistency
-
-```typescript
-// ✓ DO - Use consistent response format
+// ✓ DO - Use consistent format
 {
   "success": true,
   "message": "Operation successful",
   "data": { /* payload */ }
 }
 
-// ✗ DON'T - Inconsistent response structure
+// ✗ DON'T - Inconsistent structure
 { "product": { } }
 { "data": [ ] }
 ```
 
----
+### 10. Label Generation
 
-## Integration Points
+```typescript
+// ✓ DO - Allow custom labels with fallback
+label: createProductDto.label || (await this.generateUniqueLabel(name));
 
-### Variant Module
-
-- **Purpose:** Manage product variants (sizes, colors, etc.)
-- **Integration:** Called during product creation
-- **Method:** `VariantService.createInternal()`
-
-### Auth Module
-
-- **Purpose:** User authentication and authorization
-- **Integration:** Extract user from JWT token
-- **Usage:** Store creator ID in product metadata
-
-### File Storage Module
-
-- **Purpose:** Handle image uploads
-- **Integration:** Multer middleware
-- **Path:** `uploads/products/`
-
-### Config Module
-
-- **Purpose:** Environment variables
-- **Integration:** Read FRONTEND_URL for QR codes
-- **Usage:** `this.configService.get<string>('FRONTEND_URL')`
+// ✗ DON'T - Force auto-generation
+label: await this.generateUniqueLabel(name); // Ignores input
+```
 
 ---
 
@@ -1092,9 +1451,10 @@ this.logger.error(`Product creation failed: ${error}`);
 
 ```bash
 POST /product
+Authorization: Bearer <TOKEN>
 Content-Type: multipart/form-data
 
-Body:
+Form Data:
 - name: "Laptop Pro"
 - category: "Electronics"
 - brand: "Apple"
@@ -1103,20 +1463,21 @@ Body:
 - variantAttributes: {"color":"silver","storage":"256gb"}
 - productImage: [image1.jpg, image2.jpg]
 
-Response: 201 Created
+Response: 201
 {
   "success": true,
   "message": "Product Successfully Saved",
-  "data": { /* product document */ }
+  "data": { product document }
 }
 ```
 
 ### Use Case 2: Search Products
 
 ```bash
-GET /product?search=laptop&category=Electronics&page=1&limit=10
+GET /product?search=laptop&category=Electronics&sort=latest&page=1&limit=10
+Authorization: Bearer <TOKEN>
 
-Response: 200 OK
+Response: 200
 {
   "success": true,
   "data": {
@@ -1129,29 +1490,76 @@ Response: 200 OK
 }
 ```
 
-### Use Case 3: Archive Product
+### Use Case 3: Get Warehouse Products
+
+```bash
+GET /product/warehouse-products?warehouseId=507f1f77bcf86cd799439011&category=Electronics
+Authorization: Bearer <TOKEN>
+
+Response: 200
+{
+  "success": true,
+  "data": [
+    { product1 },
+    { product2 },
+    ...
+  ]
+}
+```
+
+### Use Case 4: Archive Product
 
 ```bash
 DELETE /product/60d5ec49c1234567890abcde
-Authorization: Bearer {token}
+Authorization: Bearer <ADMIN_TOKEN>
 
-Response: 200 OK
+Response: 200
 {
   "success": true,
   "message": "Product archived successfully"
 }
 ```
 
-### Use Case 4: Generate QR Code
+### Use Case 5: Generate QR Code
 
 ```bash
 GET /product/qr/60d5ec49c1234567890abcde
-Authorization: Bearer {token}
+Authorization: Bearer <TOKEN>
 
-Response: 200 OK
+Response: 200
 Content-Type: image/png
 [PNG binary data]
 ```
+
+### Use Case 6: Update Product Description
+
+```bash
+PUT /product/60d5ec49c1234567890abcde
+Authorization: Bearer <TOKEN>
+Content-Type: application/json
+
+{
+  "description": "Updated product description"
+}
+
+Response: 200
+{
+  "success": true,
+  "message": "Product updated successfully",
+  "data": { updated product }
+}
+```
+
+---
+
+## Related Modules
+
+| Module           | Purpose                 | Integration Point                      |
+| ---------------- | ----------------------- | -------------------------------------- |
+| Variant          | Manage product variants | `VariantService.createInternal()`      |
+| Transaction Logs | Audit trail             | `TransactionLogsService.createLog()`   |
+| Storage          | File upload/management  | `StorageService.uploadMultipleFiles()` |
+| Auth             | User authentication     | `AuthGuard` validation                 |
 
 ---
 
@@ -1160,47 +1568,81 @@ Content-Type: image/png
 ### Issue: "Product Not Found"
 
 **Cause:** Invalid product ID or product doesn't exist
-**Solution:** Verify product ID format and existence in database
 
-### Issue: "Supplier Already Exists"
+**Solutions:**
 
-**Cause:** Duplicate product label
-**Solution:** System auto-generates unique labels, retry creation
+- Verify product ID format (valid MongoDB ObjectId)
+- Confirm product exists: `db.products.findById(id)`
+- Check `isArchived` status (may be archived)
+
+### Issue: "Category must be a valid enum value"
+
+**Cause:** Invalid category provided
+
+**Solution:** Use valid values from `PRODUCT_CATEGORY_TYPES` enum
 
 ### Issue: "Unauthorized"
 
 **Cause:** Missing or invalid JWT token
+
 **Solution:** Include valid Bearer token in Authorization header
 
-### Issue: "Forbidden"
+### Issue: "Forbidden resource"
 
 **Cause:** Insufficient permissions (non-admin accessing admin endpoint)
-**Solution:** Use admin account or request admin privileges
 
-### Issue: "Transaction Abort"
+**Solution:** Use admin account or request elevated permissions
+
+### Issue: "Product archived successfully" but product still visible
+
+**Cause:** Querying all products (includes archived)
+
+**Solution:** Use `GET /product/archived/all` to view archived products
+
+### Issue: Transaction Abort Error
 
 **Cause:** Database session error or conflicting operation
-**Solution:** Retry operation, check database connectivity
 
----
+**Solutions:**
 
-## Related Documentation
+- Check database connectivity
+- Verify variant data is valid
+- Retry operation
+- Check MongoDB server logs
 
-- [Variant Module](../variant/VARIANT.doc.md)
-- [Auth Module](../auth/AUTH.doc.md)
-- [File Upload Guide](../../docs/FILE_UPLOAD.md)
-- [API Response Format](../../docs/API_FORMAT.md)
+### Issue: "Price must be greater than or equal to 0"
+
+**Cause:** Negative price provided
+
+**Solution:** Provide price >= 0
+
+### Issue: "Markup cannot be more than 100%"
+
+**Cause:** Markup percentage exceeds 100
+
+**Solution:** Provide markup between 0-100
 
 ---
 
 ## Version History
 
-| Version | Date       | Changes               |
-| ------- | ---------- | --------------------- |
-| 1.0     | 2025-02-25 | Initial documentation |
+| Version | Date       | Changes                       |
+| ------- | ---------- | ----------------------------- |
+| 2.0     | 2025-03-07 | Updated with current codebase |
+| 1.0     | 2025-02-25 | Initial documentation         |
 
 ---
 
-**Last Updated:** 25 February 2026
-**Author:** Sohan Chatterjee
-**Status:** Active
+## Environment Variables
+
+No product-specific environment variables. Inherits from application config:
+
+- `FRONTEND_URL` - For QR code generation (from ConfigService)
+- `DB_URI` - MongoDB connection (from DbModule)
+- `JWT_SECRET` - Token validation (from AuthModule)
+
+---
+
+**Last Updated:** 7 March 2026
+**Author:** GitHub Copilot (Updated)
+**Status:** Active & Current
