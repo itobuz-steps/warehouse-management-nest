@@ -8,7 +8,6 @@ import { InjectModel, InjectConnection } from '@nestjs/mongoose';
 import { Model, Connection, Types } from 'mongoose';
 import { Transaction, TransactionDocument } from './schemas/transaction.schema';
 import { StockInDto } from './dto/stock-in.dto';
-import { Notification } from 'src/notification/entities/notification.entity';
 import {
   Warehouse,
   WarehouseDocument,
@@ -23,7 +22,6 @@ import {
   LogProduct,
   PopulatedTransactionForPdfGeneration,
 } from './types/types';
-import { Quantity } from 'src/quantity/entities/quantity.entity';
 import { TRANSACTION_TYPES } from './constants/transactionConstants';
 import { StockOutDto } from './dto/stock-out.dto';
 import { Product } from 'src/products/entities/product.entity';
@@ -50,9 +48,6 @@ export class TransactionService {
     @InjectModel(Transaction.name)
     private readonly transactionModel: Model<Transaction>,
 
-    @InjectModel(Quantity.name)
-    private readonly quantityModel: Model<Quantity>,
-
     @InjectModel(Warehouse.name)
     private readonly warehouseModel: Model<Warehouse>,
 
@@ -70,9 +65,6 @@ export class TransactionService {
 
     @InjectConnection()
     private readonly connection: Connection,
-
-    @InjectModel(Notification.name)
-    private readonly notification: Model<Notification>,
 
     @InjectModel(Batch.name)
     private readonly batchModel: Model<Batch>,
@@ -217,8 +209,6 @@ export class TransactionService {
       }
 
       const totalAmount = await this.calculateTransactionAmount(dto.products);
-
-      console.log(totalAmount);
 
       const requiresApproval = totalAmount > warehouse.maxTransactionPriceLimit;
 
