@@ -16,5 +16,6 @@ import { User, UserSchema } from 'src/auth/entities/auth.entity';
   ],
   controllers: [BatchController],
   providers: [BatchService],
+  exports: [BatchService],
 })
 export class BatchModule {}

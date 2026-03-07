@@ -14,5 +14,6 @@ import { ConfigModule } from 'src/config/config.module';
   ],
   controllers: [QuantityController],
   providers: [QuantityService],
+  exports: [QuantityService],
 })
 export class QuantityModule {}

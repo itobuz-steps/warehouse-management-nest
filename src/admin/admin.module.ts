@@ -17,5 +17,6 @@ import { User, UserSchema } from 'src/auth/entities/auth.entity';
   ],
   controllers: [AdminController],
   providers: [AdminService],
+  exports: [AdminService],
 })
 export class AdminModule {}
