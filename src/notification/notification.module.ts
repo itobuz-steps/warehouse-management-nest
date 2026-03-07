@@ -29,6 +29,15 @@ import {
 } from 'src/warehouse/schemas/warehouse.schema';
 import SendEmail from 'src/utils/SendEmail';
 import { PdfService } from 'src/transaction/services/pdf.service';
+import {
+  Supplier,
+  SupplierSchema,
+} from 'src/supplier/entities/supplier.entity';
+import {
+  Customer,
+  CustomerSchema,
+} from 'src/customer/entities/customer.entity';
+import { TransactionLogsModule } from 'src/transaction-logs/transaction-logs.module';
 
 @Module({
   imports: [
@@ -41,7 +50,10 @@ import { PdfService } from 'src/transaction/services/pdf.service';
       { name: Quantity.name, schema: QuantitySchema },
       { name: User.name, schema: UserSchema },
       { name: Warehouse.name, schema: WarehouseSchema },
+      { name: Supplier.name, schema: SupplierSchema },
+      { name: Customer.name, schema: CustomerSchema },
     ]),
+    TransactionLogsModule,
   ],
   controllers: [NotificationController],
   providers: [

@@ -7,12 +7,12 @@ import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Supplier } from './entities/supplier.entity';
 import { SupplierDocument } from './entities/supplier.entity';
-import { Model, QueryFilter } from 'mongoose';
+import { Model, QueryFilter, Types } from 'mongoose';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { UserDocument } from 'src/auth/entities/auth.entity';
 import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
-import { LogAction } from 'src/transaction-logs/enums/log-action.enum';
-import { LogEntityType } from 'src/transaction-logs/enums/log-entity-type.enum';
+import { LOG_ACTION } from 'src/transaction-logs/enums/log-action.enum';
+import { LOG_ENTITY_TYPE } from 'src/transaction-logs/enums/log-entity-type.enum';
 
 @Injectable()
 export class SupplierService {
@@ -36,8 +36,8 @@ export class SupplierService {
     const newSupplier = await this.supplierModel.create(data);
 
     await this.logsService.createLog({
-      action: LogAction.SUPPLIER_CREATED,
-      entityType: LogEntityType.SUPPLIER,
+      action: LOG_ACTION.SUPPLIER_CREATED,
+      entityType: LOG_ENTITY_TYPE.SUPPLIER,
       entityId: newSupplier._id.toHexString(),
       performedBy: user,
       metadata: {
@@ -78,8 +78,8 @@ export class SupplierService {
     }
 
     await this.logsService.createLog({
-      action: LogAction.SUPPLIER_UPDATED,
-      entityType: LogEntityType.SUPPLIER,
+      action: LOG_ACTION.SUPPLIER_UPDATED,
+      entityType: LOG_ENTITY_TYPE.SUPPLIER,
       entityId: updatedSupplier._id.toHexString(),
       performedBy: user,
       metadata: {
@@ -115,16 +115,13 @@ export class SupplierService {
     }
 
     await this.logsService.createLog({
-      action: LogAction.SUPPLIER_DELETED,
-      entityType: LogEntityType.SUPPLIER,
+      action: LOG_ACTION.SUPPLIER_DELETED,
+      entityType: LOG_ENTITY_TYPE.SUPPLIER,
       entityId: deletedSupplier._id.toHexString(),
       performedBy: user,
       metadata: {
         name: deletedSupplier.name,
         email: deletedSupplier.email,
-        phoneNumber: deletedSupplier.phoneNumber,
-        address: deletedSupplier.address,
-        suppliedProduct: deletedSupplier.suppliedProduct,
       },
     });
 
@@ -152,5 +149,13 @@ export class SupplierService {
     }
 
     return this.supplierModel.find(filter, { __v: 0 }).sort({ isActive: -1 });
+  }
+
+  async getSpecificSupplier(id: string): Promise<Supplier> {
+    const res = await this.supplierModel.findOne(new Types.ObjectId(id));
+    if (!res) {
+      throw new NotFoundException('Supplier not Found');
+    }
+    return res;
   }
 }

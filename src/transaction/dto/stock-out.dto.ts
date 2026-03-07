@@ -1,8 +1,6 @@
 import {
   IsArray,
-  IsEmail,
   IsMongoId,
-  IsNumber,
   IsOptional,
   IsString,
   ValidateNested,
@@ -16,21 +14,8 @@ export class StockOutDto {
   @Type(() => ProductItemDto)
   products: ProductItemDto[];
 
-  @IsOptional()
-  @IsString()
-  customerName?: string;
-
-  @IsOptional()
-  @IsEmail()
-  customerEmail?: string;
-
-  @IsOptional()
-  @IsNumber()
-  customerPhone?: number;
-
-  @IsOptional()
-  @IsString()
-  customerAddress?: string;
+  @IsMongoId()
+  customer?: string;
 
   @IsOptional()
   @IsString()

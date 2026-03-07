@@ -8,6 +8,7 @@ import {
   Quantity,
   QuantitySchema,
 } from 'src/quantity/entities/quantity.entity';
+import { TransactionLogsModule } from 'src/transaction-logs/transaction-logs.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import {
       { name: User.name, schema: UserSchema },
       { name: Quantity.name, schema: QuantitySchema },
     ]),
+    TransactionLogsModule,
   ],
   controllers: [WarehouseController],
   providers: [WarehouseService],

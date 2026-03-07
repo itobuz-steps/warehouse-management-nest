@@ -5,7 +5,6 @@ import {
   IsNumber,
   IsObject,
   IsOptional,
-  IsUrl,
   Max,
   Min,
 } from 'class-validator';
@@ -19,7 +18,6 @@ export class CreateVariantDto {
   attributes?: Record<string, string>;
 
   @IsArray()
-  @IsUrl({}, { each: true, message: 'Each product image must be a valid URL' })
   @IsOptional()
   productImage?: string[];
 

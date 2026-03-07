@@ -5,6 +5,10 @@ import { Variant, VariantDocument } from './schemas/variant.schema';
 import { CreateVariantDto } from './dto/create-variant.dto';
 import { Product, ProductDocument } from 'src/products/entities/product.entity';
 import { StorageService } from 'src/storage/storage.service';
+import { LOG_ACTION } from 'src/transaction-logs/enums/log-action.enum';
+import { LOG_ENTITY_TYPE } from 'src/transaction-logs/enums/log-entity-type.enum';
+import { UserDocument } from 'src/auth/entities/auth.entity';
+import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
 @Injectable()
 export class VariantService {
   constructor(
@@ -15,6 +19,8 @@ export class VariantService {
     private readonly productModel: Model<ProductDocument>,
 
     private readonly storageService: StorageService,
+
+    private readonly logsService: TransactionLogsService,
   ) {}
 
   private normalize(value: string, length = 5): string {
@@ -48,13 +54,14 @@ export class VariantService {
     return `${cat}-${br}-${prod}-${variant}`;
   }
 
-  async create(dto: CreateVariantDto) {
+  async create(dto: CreateVariantDto, user: UserDocument) {
     const data = await this.createInternal(
       dto.product,
       dto.attributes,
       dto.price,
       dto.markup,
       dto.productImage || [],
+      user,
     );
 
     return {
@@ -65,7 +72,9 @@ export class VariantService {
   }
 
   async findById(variantId: string) {
-    const variant = await this.variantModel.findById(variantId).lean();
+    const variant = await this.variantModel
+      .findById(new Types.ObjectId(variantId))
+      .lean();
 
     if (!variant) {
       return { success: false, message: 'Variant not found', data: null };
@@ -87,12 +96,82 @@ export class VariantService {
     };
   }
 
+  async findByProductId(
+    productId: string,
+    warehouseId: string,
+    hasStock: boolean,
+  ) {
+    if (!hasStock) {
+      const variants = await this.variantModel.find({
+        product: new Types.ObjectId(productId),
+      });
+
+      return {
+        success: true,
+        message: 'Variants retrieved successfully',
+        data: variants,
+      };
+    }
+
+    const variants = await this.variantModel.aggregate([
+      {
+        $match: {
+          product: new Types.ObjectId(productId),
+        },
+      },
+      {
+        $lookup: {
+          from: 'variantstocks',
+          let: { variantId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$variantId', '$$variantId'] },
+                    { $eq: ['$warehouseId', new Types.ObjectId(warehouseId)] },
+                  ],
+                },
+              },
+            },
+          ],
+          as: 'stock',
+        },
+      },
+      {
+        $unwind: '$stock',
+      },
+      {
+        $match: {
+          'stock.quantity': { $gt: 0 },
+        },
+      },
+      {
+        $addFields: {
+          quantity: '$stock.quantity',
+        },
+      },
+      {
+        $project: {
+          stock: 0,
+        },
+      },
+    ]);
+
+    return {
+      success: true,
+      message: 'Variants retrieved based on product id successfully',
+      data: variants,
+    };
+  }
+
   async createInternal(
     productId: string,
     attributes: Record<string, string> = {},
     price: number,
     markup?: number,
     imageUrls: string[] = [],
+    user?: UserDocument,
     session?: ClientSession,
   ) {
     const product = await this.productModel
@@ -126,6 +205,22 @@ export class VariantService {
       markup,
       sku,
     }).save({ session });
+
+    await this.logsService.createLog({
+      action: LOG_ACTION.VARIANT_CREATED,
+      entityType: LOG_ENTITY_TYPE.VARIANT,
+      entityId: (await variant)._id.toHexString(),
+      performedBy: user as UserDocument,
+      metadata: {
+        productId: product._id,
+        productName: product.name,
+        sku: sku,
+        price: price,
+        markup: markup as number,
+        attributes: attributes,
+        variantImage: imageUrls,
+      },
+    });
 
     await this.productModel.updateOne(
       { _id: productId },

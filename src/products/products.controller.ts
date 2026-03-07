@@ -27,8 +27,9 @@ import { FILE_COUNT, FILE_FIELD } from 'src/common/constants/file.constant';
 import { ApiBearerAuth } from '@nestjs/swagger';
 import { Roles } from 'src/common/guard/roles.decorator';
 import { USER_TYPES } from 'src/auth/userType';
-import type { RequestWithUser } from 'src/warehouse/types/userType';
+import type { RequestWithUser } from 'src/profile/profile.controller';
 import { StorageService } from 'src/storage/storage.service';
+import { GetWarehouseProductsQueryDto } from './dto/get-warehouse-products-query';
 
 @UseGuards(AuthGuard)
 @ApiBearerAuth()
@@ -50,31 +51,26 @@ export class ProductsController {
     };
   }
 
+  @Get('/warehouse-products')
+  async getProductsForWarehouse(@Query() query: GetWarehouseProductsQueryDto) {
+    const data = await this.productsService.getProductsForWarehouse(query);
+
+    return {
+      success: true,
+      data,
+    };
+  }
+
   @Put(':id')
-  @UseInterceptors(
-    FilesInterceptor(FILE_FIELD.productImage, FILE_COUNT, {
-      storage: multerStorage(),
-    }),
-  )
   async updateProduct(
     @Param('id') id: string,
     @Body() updateProductDto: updateProductDto,
-    @UploadedFiles() files: Array<Express.Multer.File>,
-    @Req() req: Request,
+    @Req() req: RequestWithUser,
   ) {
-    let imageUrls: string[] | undefined;
-
-    if (files && files.length) {
-      imageUrls = files.map((file) => {
-        const fileName = file.filename;
-        return `${req.protocol}://${req.get('host')}/uploads/products/${fileName}`;
-      });
-    }
-
     const data = await this.productsService.update(
       id,
       updateProductDto,
-      imageUrls,
+      req.user,
     );
 
     return {
@@ -106,6 +102,7 @@ export class ProductsController {
     const product = await this.productsService.create(
       req.user._id,
       createProductDto,
+      req.user,
       imageUrls,
     );
 
@@ -118,8 +115,11 @@ export class ProductsController {
 
   @Delete(':id')
   @Roles(USER_TYPES.ADMIN)
-  async deleteProduct(@Param() params: updateProductDto) {
-    await this.productsService.remove(params.id);
+  async deleteProduct(
+    @Param() params: updateProductDto,
+    @Req() req: RequestWithUser,
+  ) {
+    await this.productsService.remove(params.id, req.user);
 
     return {
       success: true,
@@ -128,8 +128,11 @@ export class ProductsController {
   }
 
   @Patch(':id')
-  async restoreProduct(@Param() params: updateProductDto) {
-    await this.productsService.restore(params.id);
+  async restoreProduct(
+    @Param() params: updateProductDto,
+    @Req() req: RequestWithUser,
+  ) {
+    await this.productsService.restore(params.id, req.user);
 
     return {
       success: true,

@@ -18,6 +18,8 @@ import { StockOutDto } from './dto/stock-out.dto';
 import { TransferDto } from './dto/transfer.dto';
 import { AdjustmentDto } from './dto/adjustment.dto';
 import { ApiBearerAuth } from '@nestjs/swagger';
+import { Roles } from 'src/common/guard/roles.decorator';
+import { USER_TYPES } from 'src/auth/userType';
 
 @Controller('transaction')
 @UseGuards(AuthGuard)
@@ -43,7 +45,7 @@ export class TransactionController {
 
   @Post('stock-in')
   createStockIn(@Req() req: RequestWithUserDocument, @Body() dto: StockInDto) {
-    return this.transactionService.createStockIn(dto, req.user.id);
+    return this.transactionService.createStockIn(dto, req.user);
   }
 
   @Post('stock-out')
@@ -51,7 +53,7 @@ export class TransactionController {
     @Req() req: RequestWithUserDocument,
     @Body() dto: StockOutDto,
   ) {
-    return this.transactionService.createStockOut(dto, req.user.id);
+    return this.transactionService.createStockOut(dto, req.user);
   }
 
   @Post('transfer')
@@ -59,7 +61,7 @@ export class TransactionController {
     @Req() req: RequestWithUserDocument,
     @Body() dto: TransferDto,
   ) {
-    return this.transactionService.createTransfer(dto, req.user.id);
+    return this.transactionService.createTransfer(dto, req.user);
   }
 
   @Post('adjustment')
@@ -67,7 +69,16 @@ export class TransactionController {
     @Req() req: RequestWithUserDocument,
     @Body() dto: AdjustmentDto,
   ) {
-    return this.transactionService.createAdjustment(dto, req.user.id);
+    return this.transactionService.createAdjustment(dto, req.user);
+  }
+
+  @Post('approve/:id')
+  @Roles(USER_TYPES.ADMIN)
+  approveTransaction(
+    @Param('id') id: string,
+    @Req() req: RequestWithUserDocument,
+  ) {
+    return this.transactionService.approveTransaction(id, req.user._id);
   }
 
   @Get('generate-invoice/:id')

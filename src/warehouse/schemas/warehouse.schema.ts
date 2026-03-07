@@ -14,9 +14,6 @@ export class Warehouse {
   @Prop()
   description?: string;
 
-  @Prop()
-  image?: string;
-
   @Prop({
     type: [{ type: Types.ObjectId, ref: 'User' }],
   })

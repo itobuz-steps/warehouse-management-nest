@@ -4,6 +4,8 @@ import {
   Get,
   Param,
   Post,
+  Query,
+  Req,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
@@ -15,6 +17,7 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 import { FILE_FIELD, FILE_COUNT } from 'src/common/constants/file.constant';
 import { memoryStorage } from 'multer';
 import { StorageService } from 'src/storage/storage.service';
+import type { RequestWithUser } from 'src/profile/profile.controller';
 @Controller('variant')
 @UseGuards(AuthGuard)
 export class VariantController {
@@ -32,6 +35,7 @@ export class VariantController {
   async create(
     @Body() dto: CreateVariantDto,
     @UploadedFiles() files: Express.Multer.File[],
+    @Req() req: RequestWithUser,
   ) {
     const imageKeys: string[] = [];
 
@@ -41,14 +45,29 @@ export class VariantController {
       imageKeys.push(...uploadedImages.map((img) => img.key));
     }
 
-    return await this.variantService.create({
-      ...dto,
-      productImage: imageKeys,
-    });
+    return await this.variantService.create(
+      {
+        ...dto,
+        productImage: imageKeys,
+      },
+      req.user,
+    );
   }
 
-  @Get('product/:id')
+  @Get('/:id')
   async findById(@Param('id') id: string) {
     return await this.variantService.findById(id);
+  }
+
+  @Get('/product/:id')
+  async findByProductId(
+    @Param('id') id: string,
+    @Query() query: { warehouseId: string; hasStock?: string },
+  ) {
+    return this.variantService.findByProductId(
+      id,
+      query.warehouseId,
+      query.hasStock === 'true',
+    );
   }
 }
