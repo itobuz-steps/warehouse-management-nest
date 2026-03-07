@@ -18,6 +18,8 @@ import { StockOutDto } from './dto/stock-out.dto';
 import { TransferDto } from './dto/transfer.dto';
 import { AdjustmentDto } from './dto/adjustment.dto';
 import { ApiBearerAuth } from '@nestjs/swagger';
+import { Roles } from 'src/common/guard/roles.decorator';
+import { USER_TYPES } from 'src/auth/userType';
 
 @Controller('transaction')
 @UseGuards(AuthGuard)
@@ -68,6 +70,15 @@ export class TransactionController {
     @Body() dto: AdjustmentDto,
   ) {
     return this.transactionService.createAdjustment(dto, req.user);
+  }
+
+  @Post('approve/:id')
+  @Roles(USER_TYPES.ADMIN)
+  approveTransaction(
+    @Param('id') id: string,
+    @Req() req: RequestWithUserDocument,
+  ) {
+    return this.transactionService.approveTransaction(id, req.user._id);
   }
 
   @Get('generate-invoice/:id')
