@@ -543,6 +543,7 @@ export class TransactionService {
           const sourceStock = await this.variantStockModel.findOne({
             variantId,
             warehouseId: sourceWarehouseId,
+            productId: new Types.ObjectId(product.productId),
           });
 
           if (!sourceStock || sourceStock.quantity < variant.quantity) {
@@ -722,6 +723,8 @@ export class TransactionService {
       );
 
       for (const product of products) {
+        const productId = new Types.ObjectId(product.productId);
+
         for (const variant of product.variants) {
           const variantId = new Types.ObjectId(variant.variantId);
           const adjustmentQty = variant.quantity;
@@ -729,6 +732,7 @@ export class TransactionService {
           const stock = await this.variantStockModel.findOne({
             variantId,
             warehouseId: warehouseId,
+            productId,
           });
 
           if (!stock) {
@@ -820,7 +824,7 @@ export class TransactionService {
         .lean();
 
       if (!destinationWarehouseDoc) {
-        throw new BadRequestException("Warehouses doesn't exists");
+        throw new BadRequestException("Warehouse doesn't exist");
       }
 
       const newProducts = await this.buildProductLogItems(products);
