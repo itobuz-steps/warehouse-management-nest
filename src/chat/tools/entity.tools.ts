@@ -7,6 +7,7 @@ import { BatchService } from 'src/batch/batch.service';
 import { AdminService } from 'src/admin/admin.service';
 import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
 import type User from 'src/warehouse/types/userType';
+import type { UserDocument } from 'src/auth/entities/auth.entity';
 import { unwrapToolResponse } from './unwrap-tool-response';
 
 export function createEntityTools(
@@ -24,7 +25,7 @@ export function createEntityTools(
         'List all warehouses the current user has access to. Admins see all active warehouses; managers see only their assigned ones. Returns name, address, capacity, and manager list.',
       inputSchema: z.object({}),
       execute: async () => {
-        const user = getUserContext() as User;
+        const user = getUserContext() as User as unknown as UserDocument;
         return unwrapToolResponse(await warehouseService.getWarehouses(user));
       },
     }),
@@ -36,7 +37,7 @@ export function createEntityTools(
         warehouseId: z.string().describe('MongoDB ObjectId of the warehouse'),
       }),
       execute: async ({ warehouseId }) => {
-        const user = getUserContext() as User;
+        const user = getUserContext() as User as unknown as UserDocument;
         return unwrapToolResponse(
           await warehouseService.getWarehouseById(warehouseId, user),
         );
@@ -50,7 +51,7 @@ export function createEntityTools(
         warehouseId: z.string().describe('MongoDB ObjectId of the warehouse'),
       }),
       execute: async ({ warehouseId }) => {
-        const user = getUserContext() as User;
+        const user = getUserContext() as User as unknown as UserDocument;
         return unwrapToolResponse(
           await warehouseService.getWarehouseCapacity(warehouseId, user),
         );
