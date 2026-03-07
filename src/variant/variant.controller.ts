@@ -62,7 +62,6 @@ export class VariantController {
   @Get('/product/:id')
   async findByProductId(
     @Param('id') id: string,
-    // @Query('warehouseId') warehouseId: string,
     @Query() query: { warehouseId: string; hasStock?: string },
   ) {
     return this.variantService.findByProductId(
