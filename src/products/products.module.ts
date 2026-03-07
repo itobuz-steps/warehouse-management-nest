@@ -9,6 +9,10 @@ import { Variant, VariantSchema } from 'src/variant/schemas/variant.schema';
 import { VariantModule } from 'src/variant/variant.module';
 import { TransactionLogsModule } from 'src/transaction-logs/transaction-logs.module';
 import { StorageModule } from 'src/storage/storage.module';
+import {
+  VariantStock,
+  VariantStockSchema,
+} from 'src/variant-stock/schemas/variant-stock.schema';
 
 @Module({
   imports: [
@@ -16,6 +20,7 @@ import { StorageModule } from 'src/storage/storage.module';
       { name: Product.name, schema: ProductSchema },
       { name: User.name, schema: UserSchema },
       { name: Variant.name, schema: VariantSchema },
+      { name: VariantStock.name, schema: VariantStockSchema },
     ]),
     VariantModule,
     TransactionLogsModule,

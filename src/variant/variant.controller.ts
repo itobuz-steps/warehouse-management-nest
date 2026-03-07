@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   Post,
+  Query,
   Req,
   UploadedFiles,
   UseGuards,
@@ -53,8 +54,20 @@ export class VariantController {
     );
   }
 
-  @Get('product/:id')
+  @Get('/:id')
   async findById(@Param('id') id: string) {
     return await this.variantService.findById(id);
+  }
+
+  @Get('/product/:id')
+  async findByProductId(
+    @Param('id') id: string,
+    @Query() query: { warehouseId: string; hasStock?: string },
+  ) {
+    return this.variantService.findByProductId(
+      id,
+      query.warehouseId,
+      query.hasStock === 'true',
+    );
   }
 }

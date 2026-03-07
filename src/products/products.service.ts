@@ -9,6 +9,11 @@ import { SORT_CATEGORY } from './constants/product.constant';
 import * as QRCode from 'qrcode';
 import { SortOrder } from 'mongoose';
 import { VariantService } from 'src/variant/variant.service';
+import { GetWarehouseProductsQueryDto } from './dto/get-warehouse-products-query';
+import {
+  VariantStock,
+  VariantStockDocument,
+} from 'src/variant-stock/schemas/variant-stock.schema';
 import { UserDocument } from 'src/auth/entities/auth.entity';
 import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
 import { LOG_ACTION } from 'src/transaction-logs/enums/log-action.enum';
@@ -18,6 +23,9 @@ import { LOG_ENTITY_TYPE } from 'src/transaction-logs/enums/log-entity-type.enum
 export class ProductsService {
   constructor(
     @InjectModel(Product.name) private productModel: Model<ProductDocument>,
+
+    @InjectModel(VariantStock.name)
+    private variantStockModel: Model<VariantStockDocument>,
 
     private readonly variantService: VariantService,
     private readonly logsService: TransactionLogsService,
@@ -70,6 +78,25 @@ export class ProductsService {
       currentPage: pageNumber,
       productsPerPage: limitNumber,
     };
+  }
+
+  async getProductsForWarehouse(query: GetWarehouseProductsQueryDto) {
+    const filter: QueryFilter<ProductDocument> = { isArchived: false };
+
+    if (query.warehouseId) {
+      const productStocks = await this.variantStockModel
+        .find({
+          warehouseId: new Types.ObjectId(query.warehouseId),
+        })
+        .distinct('productId');
+      filter._id = { $in: productStocks };
+    }
+
+    if (query.category) {
+      filter.category = query.category;
+    }
+
+    return this.productModel.find(filter);
   }
 
   async update(

@@ -285,6 +285,7 @@ export class TransactionService {
           {
             variantId: new Types.ObjectId(variant.variantId),
             warehouseId,
+            productId: product.productId,
           },
           { $inc: { quantity: variant.quantity } },
           { upsert: true, session },
@@ -936,8 +937,6 @@ export class TransactionService {
           stock.quantity -= absoluteQty;
           await stock.save({ session });
         }
-
-        /* ---------------- STOCK INCREASE ---------------- */
 
         if (adjustmentQty > 0) {
           stock.quantity += adjustmentQty;
