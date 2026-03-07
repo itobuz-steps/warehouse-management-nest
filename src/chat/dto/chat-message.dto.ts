@@ -1,4 +1,10 @@
-import { IsNotEmpty, IsOptional, IsString, IsMongoId } from 'class-validator';
+import {
+  IsArray,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsMongoId,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class ChatMessageDto {
@@ -26,4 +32,12 @@ export class ChatMessageDto {
   @IsOptional()
   @IsString()
   model?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Client-side history array (ignored — server loads history from session)',
+  })
+  @IsOptional()
+  @IsArray()
+  history?: unknown[];
 }

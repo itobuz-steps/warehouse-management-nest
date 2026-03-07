@@ -9,7 +9,9 @@ import { DelayInterceptor } from './delay.interceptor';
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-  app.enableCors();
+  app.enableCors({
+    exposedHeaders: ['X-Session-Id'],
+  });
 
   app.useGlobalPipes(
     new ValidationPipe({

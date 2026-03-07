@@ -66,6 +66,10 @@ export class ChatController {
       res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
       res.flushHeaders();
 
+      // // Inject sessionId as the very first chunk so the client can read it
+      // // even when response headers aren't accessible (e.g. in streaming fetch)
+      // res.write(`{"sessionId":"${sessionId}"}\n`);
+
       // Get the text stream response and pipe it
       const streamResponse = result.toTextStreamResponse();
       const reader = streamResponse.body?.getReader();
