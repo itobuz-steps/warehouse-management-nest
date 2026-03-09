@@ -36,10 +36,7 @@ export class VariantStock {
 
 export const VariantStockSchema = SchemaFactory.createForClass(VariantStock);
 
-VariantStockSchema.index(
-  { variantId: 1, warehouseId: 1, productId: 1 },
-  { unique: true },
-);
+VariantStockSchema.index({ variantId: 1, warehouseId: 1 }, { unique: true });
 
 VariantStockSchema.index({ warehouseId: 1 });
 VariantStockSchema.index({ variantId: 1 });

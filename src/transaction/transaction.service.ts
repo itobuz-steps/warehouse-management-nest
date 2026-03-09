@@ -291,7 +291,6 @@ export class TransactionService {
           {
             variantId,
             warehouseId,
-            productId: product.productId,
           },
           { $inc: { quantity: variant.quantity } },
           { upsert: true, session },

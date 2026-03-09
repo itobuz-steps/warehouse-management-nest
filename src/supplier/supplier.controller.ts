@@ -74,7 +74,7 @@ export class SupplierController {
 
     return {
       success: true,
-      message: 'Obtained Supplier  Data successfully',
+      message: 'Obtained Supplier Data Successfully',
       data: res,
     };
   }
