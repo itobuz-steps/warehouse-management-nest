@@ -9,6 +9,7 @@ import { LOG_ACTION } from 'src/transaction-logs/enums/log-action.enum';
 import { LOG_ENTITY_TYPE } from 'src/transaction-logs/enums/log-entity-type.enum';
 import { UserDocument } from 'src/auth/entities/auth.entity';
 import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
+import { UpdateVariantDto } from './dto/update-variant.dto';
 @Injectable()
 export class VariantService {
   constructor(
@@ -60,13 +61,26 @@ export class VariantService {
       dto.attributes,
       dto.price,
       dto.markup,
-      dto.productImage || [],
+      dto.variantImage || [],
       user,
     );
 
     return {
       success: true,
       message: 'Variant created successfully',
+      data,
+    };
+  }
+
+  async update(id: string, dto: UpdateVariantDto) {
+    const data = await this.variantModel.findByIdAndUpdate(
+      new Types.ObjectId(id),
+      dto,
+    );
+
+    return {
+      success: true,
+      message: 'Variant Updated successfully',
       data,
     };
   }
@@ -105,6 +119,20 @@ export class VariantService {
       const variants = await this.variantModel.find({
         product: new Types.ObjectId(productId),
       });
+
+      if (!variants) {
+        throw new Error('Variants not Found');
+      }
+
+      for (const variant of variants) {
+        const imageUrls: string[] = await Promise.all(
+          variant.variantImage.map((key: string) =>
+            this.storageService.getPresignedSignedUrl(key),
+          ),
+        );
+
+        variant.variantImage = imageUrls;
+      }
 
       return {
         success: true,

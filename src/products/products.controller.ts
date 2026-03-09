@@ -82,7 +82,7 @@ export class ProductsController {
 
   @Post()
   @UseInterceptors(
-    FilesInterceptor(FILE_FIELD.productImage, FILE_COUNT, {
+    FilesInterceptor(FILE_FIELD.variantImage, FILE_COUNT, {
       storage: multerStorage(),
     }),
   )
