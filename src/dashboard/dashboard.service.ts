@@ -542,7 +542,6 @@ export class DashboardService {
       sourceWarehouse: warehouseId,
     };
 
-    // Date range filter
     if (startDate || endDate) {
       match.createdAt = {};
 
@@ -559,26 +558,44 @@ export class DashboardService {
 
     const mostCancelledProducts = await this.transactionModel.aggregate([
       { $match: match },
+
+      { $unwind: '$products' },
+
+      { $unwind: '$products.variants' },
+
       {
         $lookup: {
           from: 'products',
-          localField: 'product',
+          localField: 'products.product',
           foreignField: '_id',
           as: 'product',
         },
       },
+
       { $unwind: '$product' },
-      { $match: { 'product.isArchived': false } },
+
+      {
+        $match: {
+          'product.isArchived': false,
+        },
+      },
+
       {
         $group: {
           _id: '$product._id',
           productName: { $first: '$product.name' },
           category: { $first: '$product.category' },
-          totalCancelledQuantity: { $sum: '$quantity' },
+
+          totalCancelledQuantity: {
+            $sum: '$products.variants.quantity',
+          },
         },
       },
+
       { $sort: { totalCancelledQuantity: -1 } },
+
       { $limit: limit },
+
       {
         $project: {
           _id: 0,
@@ -614,10 +631,28 @@ export class DashboardService {
         },
       },
 
+      { $unwind: '$products' },
+
+      { $unwind: '$products.variants' },
+
+      {
+        $group: {
+          _id: '$products.product',
+          totalAdjustedQuantity: {
+            $sum: '$products.variants.quantity',
+          },
+          reason: { $first: '$reason' },
+        },
+      },
+
+      { $sort: { totalAdjustedQuantity: -1 } },
+
+      { $limit: limit },
+
       {
         $lookup: {
           from: 'products',
-          localField: 'product',
+          localField: '_id',
           foreignField: '_id',
           as: 'product',
         },
@@ -632,24 +667,11 @@ export class DashboardService {
       },
 
       {
-        $group: {
-          _id: '$product._id',
-          productName: { $first: '$product.name' },
-          category: { $first: '$product.category' },
-          totalAdjustedQuantity: { $sum: '$quantity' },
-          reason: { $first: '$reason' },
-        },
-      },
-
-      { $sort: { totalAdjustedQuantity: -1 } },
-      { $limit: limit },
-
-      {
         $project: {
           _id: 0,
           productId: '$_id',
-          productName: 1,
-          category: 1,
+          productName: '$product.name',
+          category: '$product.category',
           totalAdjustedQuantity: 1,
           reason: 1,
         },
@@ -724,51 +746,111 @@ export class DashboardService {
       ];
     }
 
+    // const dbData = await this.transactionModel.aggregate<ProfitLossItem>([
+    //   { $match: match },
+
+    //   {
+    //     $lookup: {
+    //       from: 'products',
+    //       localField: 'product',
+    //       foreignField: '_id',
+    //       as: 'product',
+    //     },
+    //   },
+
+    //   { $unwind: '$product' },
+
+    //   {
+    //     $addFields: {
+    //       profitAmount: {
+    //         $cond: [
+    //           {
+    //             $in: [
+    //               '$type',
+    //               [TRANSACTION_TYPES.OUT, TRANSACTION_TYPES.TRANSFER],
+    //             ],
+    //           },
+    //           {
+    //             $multiply: [
+    //               '$quantity',
+    //               {
+    //                 $multiply: [
+    //                   '$product.price',
+    //                   { $add: [1, { $divide: ['$product.markup', 100] }] },
+    //                 ],
+    //               },
+    //             ],
+    //           },
+    //           0,
+    //         ],
+    //       },
+
+    //       lossAmount: {
+    //         $cond: [
+    //           { $in: ['$type', [TRANSACTION_TYPES.ADJUSTMENT]] },
+    //           { $multiply: ['$quantity', '$product.price'] },
+    //           0,
+    //         ],
+    //       },
+    //     },
+    //   },
+
+    //   {
+    //     $group: {
+    //       _id: {
+    //         $dateToString: {
+    //           format: '%d-%m-%Y',
+    //           date: '$createdAt',
+    //           timezone: TIME_ZONE,
+    //         },
+    //       },
+    //       profit: { $sum: '$profitAmount' },
+    //       loss: { $sum: '$lossAmount' },
+    //     },
+    //   },
+
+    //   {
+    //     $project: {
+    //       _id: 0,
+    //       label: '$_id',
+    //       profit: { $round: ['$profit', 2] },
+    //       loss: { $round: ['$loss', 2] },
+    //       net: { $round: [{ $subtract: ['$profit', '$loss'] }, 2] },
+    //     },
+    //   },
+    // ]);
+
+    // 🗺️ Create typed map
     const dbData = await this.transactionModel.aggregate<ProfitLossItem>([
       { $match: match },
+
+      { $unwind: '$products' },
+      { $unwind: '$products.variants' },
 
       {
         $lookup: {
           from: 'products',
-          localField: 'product',
+          localField: 'products.product',
           foreignField: '_id',
           as: 'product',
         },
       },
-
       { $unwind: '$product' },
 
       {
-        $addFields: {
-          profitAmount: {
-            $cond: [
-              {
-                $in: [
-                  '$type',
-                  [TRANSACTION_TYPES.OUT, TRANSACTION_TYPES.TRANSFER],
-                ],
-              },
-              {
-                $multiply: [
-                  '$quantity',
-                  {
-                    $multiply: [
-                      '$product.price',
-                      { $add: [1, { $divide: ['$product.markup', 100] }] },
-                    ],
-                  },
-                ],
-              },
-              0,
-            ],
-          },
+        $lookup: {
+          from: 'variants',
+          localField: 'products.variants.variant',
+          foreignField: '_id',
+          as: 'variant',
+        },
+      },
+      { $unwind: '$variant' },
 
-          lossAmount: {
-            $cond: [
-              { $in: ['$type', [TRANSACTION_TYPES.ADJUSTMENT]] },
-              { $multiply: ['$quantity', '$product.price'] },
-              0,
-            ],
+      {
+        $addFields: {
+          costAmount: {
+            $multiply: ['$products.variants.quantity', '$variant.price'],
           },
         },
       },
@@ -776,14 +858,33 @@ export class DashboardService {
       {
         $group: {
           _id: {
-            $dateToString: {
-              format: '%Y-%m-%d',
-              date: '$createdAt',
-              timezone: TIME_ZONE,
+            date: {
+              $dateToString: {
+                format: '%d-%m-%Y',
+                date: '$createdAt',
+                timezone: TIME_ZONE,
+              },
+            },
+            transactionId: '$_id',
+          },
+          totalCost: { $sum: '$costAmount' },
+          totalRevenue: { $first: '$totalAmount' },
+        },
+      },
+
+      {
+        $group: {
+          _id: '$_id.date',
+          profit: {
+            $sum: {
+              $max: [{ $subtract: ['$totalRevenue', '$totalCost'] }, 0],
             },
           },
-          profit: { $sum: '$profitAmount' },
-          loss: { $sum: '$lossAmount' },
+          loss: {
+            $sum: {
+              $max: [{ $subtract: ['$totalCost', '$totalRevenue'] }, 0],
+            },
+          },
         },
       },
 
@@ -798,7 +899,6 @@ export class DashboardService {
       },
     ]);
 
-    // 🗺️ Create typed map
     const map = dbData.reduce<Record<string, ProfitLossItem>>((acc, item) => {
       acc[item.label] = item;
       return acc;
