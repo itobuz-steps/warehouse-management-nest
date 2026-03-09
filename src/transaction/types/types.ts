@@ -54,4 +54,4 @@ export type LogProduct = Array<{
   }>;
 }>;
 
-export type batchBreakdownType = { batch: Types.ObjectId; quantity: number };
+export type BatchBreakdownType = { batch: Types.ObjectId; quantity: number };
