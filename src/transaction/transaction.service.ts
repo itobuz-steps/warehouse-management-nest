@@ -19,6 +19,7 @@ import { GetTransactionsQueryDto } from './dto/query/get-transactions.query.dto'
 import type { ClientSession, QueryFilter } from 'mongoose';
 import { PdfService } from './services/pdf.service';
 import {
+  batchBreakdownType,
   LogProduct,
   PopulatedTransactionForPdfGeneration,
 } from './types/types';
@@ -474,8 +475,7 @@ export class TransactionService {
 
         let remainingToDeduct = requiredQty;
 
-        const batchBreakdown: { batch: Types.ObjectId; quantity: number }[] =
-          [];
+        const batchBreakdown: batchBreakdownType[] = [];
 
         const batches = await this.batchModel
           .find(
@@ -726,8 +726,7 @@ export class TransactionService {
 
         let remainingToMove = requiredQty;
 
-        const batchBreakdown: { batch: Types.ObjectId; quantity: number }[] =
-          [];
+        const batchBreakdown: batchBreakdownType[] = [];
 
         const batches = await this.batchModel
           .find({
@@ -977,8 +976,7 @@ export class TransactionService {
 
           let remainingToDeduct = absoluteQty;
 
-          const batchBreakdown: { batch: Types.ObjectId; quantity: number }[] =
-            [];
+          const batchBreakdown: batchBreakdownType[] = [];
 
           const batches = await this.batchModel
             .find({
