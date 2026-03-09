@@ -19,6 +19,7 @@ import { GetTransactionsQueryDto } from './dto/query/get-transactions.query.dto'
 import type { ClientSession, QueryFilter } from 'mongoose';
 import { PdfService } from './services/pdf.service';
 import {
+  BatchBreakdownType,
   LogProduct,
   PopulatedTransactionForPdfGeneration,
 } from './types/types';
@@ -231,6 +232,7 @@ export class TransactionService {
           variants: product.variants.map((variant) => ({
             variant: new Types.ObjectId(variant.variantId),
             quantity: variant.quantity,
+            batches: [],
           })),
         })),
       });
@@ -238,7 +240,7 @@ export class TransactionService {
       await transaction.save({ session });
 
       if (!requiresApproval) {
-        await this.executeStockIn(dto, warehouseId, session);
+        await this.executeStockIn(dto, warehouseId, transaction, session);
       }
 
       await session.commitTransaction();
@@ -263,10 +265,11 @@ export class TransactionService {
   private async executeStockIn(
     dto: StockInDto,
     warehouseId: Types.ObjectId,
+    transaction: TransactionDocument,
     session: ClientSession,
   ) {
     for (const product of dto.products) {
-      await this.batchModel.create(
+      const batch = await this.batchModel.create(
         [
           {
             destinationWarehouse: warehouseId,
@@ -280,18 +283,38 @@ export class TransactionService {
         { session },
       );
 
+      const batchId = batch[0]._id;
+
       for (const variant of product.variants) {
+        const variantId = new Types.ObjectId(variant.variantId);
+
         await this.variantStockModel.findOneAndUpdate(
           {
-            variantId: new Types.ObjectId(variant.variantId),
+            variantId,
             warehouseId,
-            productId: product.productId,
           },
           { $inc: { quantity: variant.quantity } },
           { upsert: true, session },
         );
+
+        const transactionProduct = transaction.products.find(
+          (p) => p.product.toString() === product.productId,
+        );
+
+        const transactionVariant = transactionProduct?.variants.find(
+          (v) => v.variant.toString() === variant.variantId,
+        );
+
+        if (transactionVariant) {
+          transactionVariant.batches.push({
+            batch: batchId,
+            quantity: variant.quantity,
+          });
+        }
       }
     }
+
+    await transaction.save({ session });
   }
 
   private async afterStockInActions(
@@ -393,6 +416,7 @@ export class TransactionService {
           variants: product.variants.map((variant) => ({
             variant: new Types.ObjectId(variant.variantId),
             quantity: variant.quantity,
+            batches: [],
           })),
         })),
       });
@@ -400,7 +424,7 @@ export class TransactionService {
       await transaction.save({ session });
 
       if (!requiresApproval) {
-        await this.executeStockOut(dto, warehouseId, session);
+        await this.executeStockOut(dto, warehouseId, transaction, session);
       }
 
       await session.commitTransaction();
@@ -425,6 +449,7 @@ export class TransactionService {
   private async executeStockOut(
     dto: StockOutDto,
     warehouseId: Types.ObjectId,
+    transaction: TransactionDocument,
     session: ClientSession,
   ) {
     for (const product of dto.products) {
@@ -450,6 +475,8 @@ export class TransactionService {
 
         let remainingToDeduct = requiredQty;
 
+        const batchBreakdown: BatchBreakdownType[] = [];
+
         const batches = await this.batchModel
           .find(
             {
@@ -460,7 +487,6 @@ export class TransactionService {
             { items: 1 },
           )
           .sort({ createdAt: 1 })
-          .lean()
           .session(session);
 
         for (const batch of batches) {
@@ -488,11 +514,14 @@ export class TransactionService {
             { session },
           );
 
-          if (!batchUpdate.modifiedCount) {
-            continue;
-          }
+          if (!batchUpdate.modifiedCount) continue;
 
           remainingToDeduct -= deduct;
+
+          batchBreakdown.push({
+            batch: batch._id,
+            quantity: deduct,
+          });
         }
 
         if (remainingToDeduct) {
@@ -500,8 +529,22 @@ export class TransactionService {
             'Stock inconsistency detected (FIFO failure)',
           );
         }
+
+        const transactionProduct = transaction.products.find(
+          (p) => p.product.toString() === product.productId,
+        );
+
+        const transactionVariant = transactionProduct?.variants.find(
+          (v) => v.variant.toString() === variant.variantId,
+        );
+
+        if (transactionVariant) {
+          transactionVariant.batches.push(...batchBreakdown);
+        }
       }
     }
+
+    await transaction.save({ session });
   }
 
   private async afterStockOutActions(
@@ -616,6 +659,7 @@ export class TransactionService {
           variants: product.variants.map((variant) => ({
             variant: new Types.ObjectId(variant.variantId),
             quantity: variant.quantity,
+            batches: [],
           })),
         })),
       });
@@ -627,6 +671,7 @@ export class TransactionService {
           dto,
           sourceWarehouseId,
           destinationWarehouseId,
+          transaction,
           session,
         );
       }
@@ -660,6 +705,7 @@ export class TransactionService {
     dto: TransferDto,
     sourceWarehouseId: Types.ObjectId,
     destinationWarehouseId: Types.ObjectId,
+    transaction: TransactionDocument,
     session: ClientSession,
   ) {
     for (const product of dto.products) {
@@ -679,6 +725,8 @@ export class TransactionService {
         }
 
         let remainingToMove = requiredQty;
+
+        const batchBreakdown: BatchBreakdownType[] = [];
 
         const batches = await this.batchModel
           .find({
@@ -706,6 +754,11 @@ export class TransactionService {
           remainingToMove -= deduct;
 
           await batch.save({ session });
+
+          batchBreakdown.push({
+            batch: batch._id,
+            quantity: deduct,
+          });
         }
 
         if (remainingToMove) {
@@ -729,7 +782,7 @@ export class TransactionService {
           },
         );
 
-        await this.batchModel.create(
+        const newBatch = await this.batchModel.create(
           [
             {
               sourceWarehouse: sourceWarehouseId,
@@ -745,8 +798,27 @@ export class TransactionService {
           ],
           { session },
         );
+
+        const transactionProduct = transaction.products.find(
+          (p) => p.product.toString() === product.productId,
+        );
+
+        const transactionVariant = transactionProduct?.variants.find(
+          (v) => v.variant.toString() === variant.variantId,
+        );
+
+        if (transactionVariant) {
+          transactionVariant.batches.push(...batchBreakdown);
+
+          transactionVariant.batches.push({
+            batch: newBatch[0]._id,
+            quantity: requiredQty,
+          });
+        }
       }
     }
+
+    await transaction.save({ session });
   }
 
   private async afterTransferActions(
@@ -839,6 +911,7 @@ export class TransactionService {
           variants: product.variants.map((variant) => ({
             variant: new Types.ObjectId(variant.variantId),
             quantity: variant.quantity,
+            batches: [],
           })),
         })),
       });
@@ -846,7 +919,7 @@ export class TransactionService {
       await transaction.save({ session });
 
       if (!requiresApproval) {
-        await this.executeAdjustment(dto, warehouseId, session);
+        await this.executeAdjustment(dto, warehouseId, transaction, session);
       }
 
       await session.commitTransaction();
@@ -871,6 +944,7 @@ export class TransactionService {
   private async executeAdjustment(
     dto: AdjustmentDto,
     warehouseId: Types.ObjectId,
+    transaction: TransactionDocument,
     session: ClientSession,
   ) {
     for (const product of dto.products) {
@@ -902,6 +976,8 @@ export class TransactionService {
 
           let remainingToDeduct = absoluteQty;
 
+          const batchBreakdown: BatchBreakdownType[] = [];
+
           const batches = await this.batchModel
             .find({
               destinationWarehouse: warehouseId,
@@ -928,6 +1004,11 @@ export class TransactionService {
             remainingToDeduct -= deduct;
 
             await batch.save({ session });
+
+            batchBreakdown.push({
+              batch: batch._id,
+              quantity: deduct,
+            });
           }
 
           if (remainingToDeduct) {
@@ -936,13 +1017,25 @@ export class TransactionService {
 
           stock.quantity -= absoluteQty;
           await stock.save({ session });
+
+          const transactionProduct = transaction.products.find(
+            (p) => p.product.toString() === product.productId,
+          );
+
+          const transactionVariant = transactionProduct?.variants.find(
+            (v) => v.variant.toString() === variant.variantId,
+          );
+
+          if (transactionVariant) {
+            transactionVariant.batches.push(...batchBreakdown);
+          }
         }
 
         if (adjustmentQty > 0) {
           stock.quantity += adjustmentQty;
           await stock.save({ session });
 
-          await this.batchModel.create(
+          const batch = await this.batchModel.create(
             [
               {
                 destinationWarehouse: warehouseId,
@@ -957,9 +1050,26 @@ export class TransactionService {
             ],
             { session },
           );
+
+          const transactionProduct = transaction.products.find(
+            (p) => p.product.toString() === product.productId,
+          );
+
+          const transactionVariant = transactionProduct?.variants.find(
+            (v) => v.variant.toString() === variant.variantId,
+          );
+
+          if (transactionVariant) {
+            transactionVariant.batches.push({
+              batch: batch[0]._id,
+              quantity: adjustmentQty,
+            });
+          }
         }
       }
     }
+
+    await transaction.save({ session });
   }
 
   private async afterAdjustmentActions(
@@ -1112,6 +1222,7 @@ export class TransactionService {
               transaction.destinationWarehouse?.toHexString() as string,
           },
           transaction.destinationWarehouse as Types.ObjectId,
+          transaction,
           session,
         );
       } else if (transaction.type === TRANSACTION_TYPES.OUT) {
@@ -1122,6 +1233,7 @@ export class TransactionService {
             sourceWarehouse: transaction.sourceWarehouse?.toHexString(),
           } as StockOutDto,
           transaction.sourceWarehouse as Types.ObjectId,
+          transaction,
           session,
         );
       } else if (transaction.type === TRANSACTION_TYPES.TRANSFER) {
@@ -1134,6 +1246,7 @@ export class TransactionService {
           } as TransferDto,
           transaction.sourceWarehouse as Types.ObjectId,
           transaction.destinationWarehouse as Types.ObjectId,
+          transaction,
           session,
         );
       } else {
@@ -1150,6 +1263,7 @@ export class TransactionService {
             reason: transaction.reason,
           } as AdjustmentDto,
           transaction.destinationWarehouse as Types.ObjectId,
+          transaction,
           session,
         );
       }

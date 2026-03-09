@@ -47,7 +47,6 @@ export class CustomerService {
 
       const lowerQuery = query.toLowerCase();
 
-      //handles boolean field
       if (lowerQuery === 'active') {
         searchConditions.push({ isActive: true });
       } else if (lowerQuery === 'inactive') {
