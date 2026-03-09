@@ -18,7 +18,7 @@ export default {
     {
       rules: {
         'validate-commit-message': ({ subject }: { subject: string }) => {
-          if (/^WMDT-\d+\s.*$/.test(subject)) {
+          if (/^WM-\d+\s.*$/.test(subject)) {
             return [true];
           }
 
