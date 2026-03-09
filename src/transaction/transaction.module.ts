@@ -66,6 +66,6 @@ import { Variant, VariantSchema } from 'src/variant/schemas/variant.schema';
   ],
   controllers: [TransactionController],
   providers: [TransactionService, PdfService, NotificationService, SendEmail],
-  exports: [SendEmail],
+  exports: [SendEmail, TransactionService],
 })
 export class TransactionModule {}

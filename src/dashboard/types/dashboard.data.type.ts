@@ -21,24 +21,6 @@ export type ProductTransactionDay = {
   OUT: number;
 };
 
-export type SalesOverview = {
-  totalSales: number;
-  saleQuantity: number;
-};
-
-export type PurchaseOverview = {
-  totalPurchase: number;
-  purchaseQuantity: number;
-};
-
-export type InventoryOverview = {
-  totalQuantity: number;
-};
-
-export type TodayShipmentOverview = {
-  quantity: number;
-};
-
 export type LowStockProduct = {
   productId: Types.ObjectId;
   quantity: number;
@@ -60,4 +42,22 @@ export type ProfitLossItem = {
   profit: number;
   loss: number;
   net: number;
+};
+
+export type SalesOverview = {
+  totalSalesAmount: number;
+  totalTransactions: number;
+};
+
+export type PurchaseOverview = {
+  totalPurchaseAmount: number;
+  totalTransactions: number;
+};
+
+export type InventoryOverview = {
+  totalQuantity: number;
+};
+
+export type TodayShipmentOverview = {
+  quantity: number;
 };

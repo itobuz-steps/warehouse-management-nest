@@ -31,5 +31,6 @@ import { User, UserSchema } from 'src/auth/entities/auth.entity';
   ],
   controllers: [AnalyticsController],
   providers: [AnalyticsService, ExcelService],
+  exports: [AnalyticsService],
 })
 export class AnalyticsModule {}

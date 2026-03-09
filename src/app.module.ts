@@ -20,6 +20,7 @@ import { TransactionLogsModule } from './transaction-logs/transaction-logs.modul
 import { BatchModule } from './batch/batch.module';
 import { VariantStockModule } from './variant-stock/variant-stock.module';
 import { StorageModule } from './storage/storage.module';
+import { ChatModule } from './chat/chat.module';
 import configService from './config/config.service';
 
 @Module({
@@ -46,6 +47,7 @@ import configService from './config/config.service';
     BatchModule,
     VariantStockModule,
     StorageModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [AppService],

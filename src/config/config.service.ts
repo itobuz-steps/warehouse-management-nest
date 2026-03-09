@@ -32,10 +32,17 @@ export const config = {
 
   DEFAULT_QUANTITY: process.env.DEFAULT_QUANTITY,
 
+  STOCK_LIMIT: process.env.STOCK_LIMIT,
+
   S3_REGION: process.env.S3_REGION,
   S3_BUCKET_NAME: process.env.S3_BUCKET_NAME,
   S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY,
   S3_ACCESS_KEY: process.env.S3_ACCESS_KEY,
+
+  OLLAMA_BASE_URL:
+    process.env.OLLAMA_BASE_URL || 'https://llm-server-1.wordpress-studio.io/',
+  OLLAMA_MODEL: process.env.OLLAMA_MODEL || 'llama3.1:8b',
+  OLLAMA_TEMPERATURE: Number(process.env.OLLAMA_TEMPERATURE ?? 0.1),
 };
 
 export default registerAs('app', () => {
@@ -70,9 +77,17 @@ export default registerAs('app', () => {
 
     DEFAULT_QUANTITY: process.env.DEFAULT_QUANTITY,
 
+    STOCK_LIMIT: process.env.STOCK_LIMIT,
+
     S3_REGION: process.env.S3_REGION,
     S3_BUCKET_NAME: process.env.S3_BUCKET_NAME,
     S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY,
     S3_ACCESS_KEY: process.env.S3_ACCESS_KEY,
+
+    OLLAMA_BASE_URL:
+      process.env.OLLAMA_BASE_URL ||
+      'https://llm-server-1.wordpress-studio.io/',
+    OLLAMA_MODEL: process.env.OLLAMA_MODEL || 'llama3.1:8b',
+    OLLAMA_TEMPERATURE: Number(process.env.OLLAMA_TEMPERATURE ?? 0.1),
   };
 });

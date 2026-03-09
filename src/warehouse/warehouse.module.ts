@@ -21,5 +21,6 @@ import { TransactionLogsModule } from 'src/transaction-logs/transaction-logs.mod
   ],
   controllers: [WarehouseController],
   providers: [WarehouseService],
+  exports: [WarehouseService],
 })
 export class WarehouseModule {}
