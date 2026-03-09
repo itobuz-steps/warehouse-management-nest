@@ -165,13 +165,7 @@ export class ExcelService {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Top Products');
 
-    const header = [
-      'Product ID',
-      'Product Name',
-      'Category',
-      'Price',
-      'Total Quantity',
-    ];
+    const header = ['Product ID', 'Product Name', 'Category', 'Total Quantity'];
 
     const headerRow = worksheet.addRow(header);
 
@@ -196,7 +190,6 @@ export class ExcelService {
         p.productId.toString(),
         p.productName,
         p.category,
-        p.price,
         p.totalQuantity,
       ]);
 
