@@ -23,6 +23,8 @@ import {
   ProfitLossItem,
 } from './types/dashboard.data.type';
 import { defaultDataLimit, TIME_RANGE, TIME_ZONE } from './dashboard.constants';
+import { VariantStock } from 'src/variant-stock/schemas/variant-stock.schema';
+import config from '../config/config.service';
 
 @Injectable()
 export class DashboardService {
@@ -37,6 +39,9 @@ export class DashboardService {
 
     @InjectModel(Transaction.name)
     private readonly transactionModel: Model<Transaction>,
+
+    @InjectModel(VariantStock.name)
+    private readonly variantStockModel: Model<VariantStock>,
   ) {}
 
   validateWarehouse(id?: string) {
@@ -365,41 +370,59 @@ export class DashboardService {
   }
 
   async getLowStockProducts(id: string) {
+    const stockLimit = Number(config().STOCK_LIMIT);
+    console.log(stockLimit);
+
     const warehouseId = this.validateWarehouse(id);
 
     const lowStockProducts =
-      await this.quantityModel.aggregate<LowStockProduct>([
+      await this.variantStockModel.aggregate<LowStockProduct>([
         {
           $match: {
             warehouseId: warehouseId,
           },
         },
+
+        //add all quantity per variant
         {
-          // quantity <= limit
-          $match: {
-            $expr: { $lte: ['$quantity', '$limit'] },
+          $group: {
+            _id: '$productId',
+            totalQuantity: { $sum: '$quantity' },
           },
         },
+
+        // need to be taken from env kept for testing
+        {
+          $match: {
+            totalQuantity: { $lt: stockLimit },
+          },
+        },
+
+        // Lookup product details
         {
           $lookup: {
             from: 'products',
-            localField: 'productId',
+            localField: '_id',
             foreignField: '_id',
-            as: 'productData',
+            as: 'product',
           },
         },
-        { $unwind: '$productData' },
+
+        { $unwind: '$product' },
+
         {
           $match: {
-            'productData.isArchived': false,
+            'product.isArchived': false,
           },
         },
+
         {
           $project: {
             _id: 0,
-            productId: '$productData._id',
-            quantity: 1,
-            productName: '$productData.name',
+            productId: '$product._id',
+            productName: '$product.name',
+            quantity: '$totalQuantity',
+            category: '$product.category',
           },
         },
       ]);
