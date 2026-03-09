@@ -32,8 +32,6 @@ export class DashboardService {
     private excel: ExcelService,
 
     @InjectModel(Quantity.name)
-    private readonly quantityModel: Model<Quantity>,
-
     @InjectModel(Product.name)
     private readonly productModel: Model<Product>,
 
@@ -54,11 +52,29 @@ export class DashboardService {
   async getTopFiveProductsData(id: string) {
     const warehouseId = this.validateWarehouse(id);
 
-    const data: TopProductItem[] = await this.quantityModel.aggregate([
-      { $match: { warehouseId } },
-      { $group: { _id: '$productId', totalQuantity: { $sum: '$quantity' } } },
-      { $sort: { totalQuantity: -1 } },
+    const data: TopProductItem[] = await this.variantStockModel.aggregate([
+      {
+        $match: { warehouseId },
+      },
 
+      // Aggregate per product
+      {
+        $group: {
+          _id: '$productId',
+          totalVariants: { $sum: 1 }, // total variant entries
+          totalQuantity: { $sum: '$quantity' }, // sum of all variant quantities
+        },
+      },
+
+      {
+        $sort: { totalQuantity: -1 }, // sort by total stock (better metric)
+      },
+
+      {
+        $limit: defaultDataLimit,
+      },
+
+      // Join product details
       {
         $lookup: {
           from: 'products',
@@ -68,8 +84,15 @@ export class DashboardService {
         },
       },
 
-      { $unwind: '$product' },
-      { $match: { 'product.isArchived': false } },
+      {
+        $unwind: '$product',
+      },
+
+      {
+        $match: {
+          'product.isArchived': false,
+        },
+      },
 
       {
         $project: {
@@ -77,12 +100,10 @@ export class DashboardService {
           productId: { $toString: '$_id' },
           productName: '$product.name',
           category: '$product.category',
-          price: '$product.price',
+          totalVariants: 1,
           totalQuantity: 1,
         },
       },
-
-      { $limit: defaultDataLimit },
     ]);
 
     return data;
@@ -106,7 +127,7 @@ export class DashboardService {
     const warehouseId = this.validateWarehouse(id);
 
     const productsCategory =
-      await this.quantityModel.aggregate<InventoryByCategoryAggItem>([
+      await this.variantStockModel.aggregate<InventoryByCategoryAggItem>([
         {
           $match: { warehouseId },
         },
@@ -120,7 +141,9 @@ export class DashboardService {
           },
         },
 
-        { $unwind: '$product' },
+        {
+          $unwind: '$product',
+        },
 
         {
           $match: {
@@ -131,9 +154,12 @@ export class DashboardService {
         {
           $group: {
             _id: '$product.category',
-            totalProducts: { $sum: '$quantity' },
-            products: { $push: '$product' },
+            totalProducts: { $sum: 1 },
           },
+        },
+
+        {
+          $sort: { totalProducts: -1 },
         },
       ]);
 
@@ -294,35 +320,42 @@ export class DashboardService {
     ]);
 
     // Inventory Overview
-    const inventory = await this.quantityModel.aggregate<InventoryOverview>([
-      { $match: { warehouseId } },
-      {
-        $lookup: {
-          from: 'products',
-          localField: 'productId',
-          foreignField: '_id',
-          as: 'product',
+    const inventory = await this.variantStockModel.aggregate<InventoryOverview>(
+      [
+        {
+          $match: {
+            warehouseId,
+            quantity: { $gt: 0 }, // only variants that still have stock
+          },
         },
-      },
-      { $unwind: '$product' },
-      {
-        $match: {
-          'product.isArchived': false,
+        {
+          $lookup: {
+            from: 'products',
+            localField: 'productId',
+            foreignField: '_id',
+            as: 'product',
+          },
         },
-      },
-      {
-        $group: {
-          _id: null,
-          totalQuantity: { $sum: '$quantity' },
+        { $unwind: '$product' },
+        {
+          $match: {
+            'product.isArchived': false,
+          },
         },
-      },
-      {
-        $project: {
-          _id: 0,
-          totalQuantity: 1,
+        {
+          $group: {
+            _id: null,
+            totalVariants: { $sum: 1 }, // count variants instead of quantity
+          },
         },
-      },
-    ]);
+        {
+          $project: {
+            _id: 0,
+            totalVariants: 1,
+          },
+        },
+      ],
+    );
 
     // Today's Shipment Count
     const dayStarting = new Date();
@@ -371,7 +404,6 @@ export class DashboardService {
 
   async getLowStockProducts(id: string) {
     const stockLimit = Number(config().STOCK_LIMIT);
-    console.log(stockLimit);
 
     const warehouseId = this.validateWarehouse(id);
 
@@ -383,7 +415,6 @@ export class DashboardService {
           },
         },
 
-        //add all quantity per variant
         {
           $group: {
             _id: '$productId',
@@ -391,7 +422,6 @@ export class DashboardService {
           },
         },
 
-        // need to be taken from env kept for testing
         {
           $match: {
             totalQuantity: { $lt: stockLimit },
@@ -490,6 +520,7 @@ export class DashboardService {
 
             productName: { $first: '$product.name' },
             category: { $first: '$product.category' },
+            variantImage: { $first: '$variant.variantImage' },
 
             totalSoldQuantity: {
               $sum: '$products.variants.quantity',
@@ -513,6 +544,7 @@ export class DashboardService {
             category: 1,
             totalSoldQuantity: 1,
             totalSalesAmount: 1,
+            variantImage: 1,
           },
         },
       ]);
@@ -685,6 +717,7 @@ export class DashboardService {
     };
   }
 
+  //need to be changed
   async getProfitLoss(query: {
     period?: string;
     id?: string;
@@ -746,81 +779,6 @@ export class DashboardService {
       ];
     }
 
-    // const dbData = await this.transactionModel.aggregate<ProfitLossItem>([
-    //   { $match: match },
-
-    //   {
-    //     $lookup: {
-    //       from: 'products',
-    //       localField: 'product',
-    //       foreignField: '_id',
-    //       as: 'product',
-    //     },
-    //   },
-
-    //   { $unwind: '$product' },
-
-    //   {
-    //     $addFields: {
-    //       profitAmount: {
-    //         $cond: [
-    //           {
-    //             $in: [
-    //               '$type',
-    //               [TRANSACTION_TYPES.OUT, TRANSACTION_TYPES.TRANSFER],
-    //             ],
-    //           },
-    //           {
-    //             $multiply: [
-    //               '$quantity',
-    //               {
-    //                 $multiply: [
-    //                   '$product.price',
-    //                   { $add: [1, { $divide: ['$product.markup', 100] }] },
-    //                 ],
-    //               },
-    //             ],
-    //           },
-    //           0,
-    //         ],
-    //       },
-
-    //       lossAmount: {
-    //         $cond: [
-    //           { $in: ['$type', [TRANSACTION_TYPES.ADJUSTMENT]] },
-    //           { $multiply: ['$quantity', '$product.price'] },
-    //           0,
-    //         ],
-    //       },
-    //     },
-    //   },
-
-    //   {
-    //     $group: {
-    //       _id: {
-    //         $dateToString: {
-    //           format: '%d-%m-%Y',
-    //           date: '$createdAt',
-    //           timezone: TIME_ZONE,
-    //         },
-    //       },
-    //       profit: { $sum: '$profitAmount' },
-    //       loss: { $sum: '$lossAmount' },
-    //     },
-    //   },
-
-    //   {
-    //     $project: {
-    //       _id: 0,
-    //       label: '$_id',
-    //       profit: { $round: ['$profit', 2] },
-    //       loss: { $round: ['$loss', 2] },
-    //       net: { $round: [{ $subtract: ['$profit', '$loss'] }, 2] },
-    //     },
-    //   },
-    // ]);
-
-    // 🗺️ Create typed map
     const dbData = await this.transactionModel.aggregate<ProfitLossItem>([
       { $match: match },
 
@@ -904,7 +862,6 @@ export class DashboardService {
       return acc;
     }, {});
 
-    // 📅 Fill missing dates
     const final: ProfitLossItem[] = [];
 
     for (let i = 0; i < totalDays; i++) {

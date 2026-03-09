@@ -47,7 +47,6 @@ export type TopProductExcelItem = {
   productId: mongoose.Types.ObjectId;
   productName: string;
   category: string;
-  price: number;
   totalQuantity: number;
 };
 
