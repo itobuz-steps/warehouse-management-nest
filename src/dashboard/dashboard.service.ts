@@ -1,6 +1,6 @@
 // src/dashboard/dashboard.service.ts
 import { Injectable, HttpException, BadRequestException } from '@nestjs/common';
-import mongoose, { Model, QueryFilter } from 'mongoose';
+import mongoose, { Model, QueryFilter, Types } from 'mongoose';
 import { Quantity } from 'src/quantity/entities/quantity.entity';
 
 import { subDays, eachDayOfInterval, format } from 'date-fns';
@@ -23,6 +23,8 @@ import {
   ProfitLossItem,
 } from './types/dashboard.data.type';
 import { defaultDataLimit, TIME_RANGE, TIME_ZONE } from './dashboard.constants';
+import { VariantStock } from 'src/variant-stock/schemas/variant-stock.schema';
+import config from '../config/config.service';
 
 @Injectable()
 export class DashboardService {
@@ -30,13 +32,14 @@ export class DashboardService {
     private excel: ExcelService,
 
     @InjectModel(Quantity.name)
-    private readonly quantityModel: Model<Quantity>,
-
     @InjectModel(Product.name)
     private readonly productModel: Model<Product>,
 
     @InjectModel(Transaction.name)
     private readonly transactionModel: Model<Transaction>,
+
+    @InjectModel(VariantStock.name)
+    private readonly variantStockModel: Model<VariantStock>,
   ) {}
 
   validateWarehouse(id?: string) {
@@ -49,11 +52,29 @@ export class DashboardService {
   async getTopFiveProductsData(id: string) {
     const warehouseId = this.validateWarehouse(id);
 
-    const data: TopProductItem[] = await this.quantityModel.aggregate([
-      { $match: { warehouseId } },
-      { $group: { _id: '$productId', totalQuantity: { $sum: '$quantity' } } },
-      { $sort: { totalQuantity: -1 } },
+    const data: TopProductItem[] = await this.variantStockModel.aggregate([
+      {
+        $match: { warehouseId },
+      },
 
+      // Aggregate per product
+      {
+        $group: {
+          _id: '$productId',
+          totalVariants: { $sum: 1 }, // total variant entries
+          totalQuantity: { $sum: '$quantity' }, // sum of all variant quantities
+        },
+      },
+
+      {
+        $sort: { totalQuantity: -1 }, // sort by total stock (better metric)
+      },
+
+      {
+        $limit: defaultDataLimit,
+      },
+
+      // Join product details
       {
         $lookup: {
           from: 'products',
@@ -63,8 +84,15 @@ export class DashboardService {
         },
       },
 
-      { $unwind: '$product' },
-      { $match: { 'product.isArchived': false } },
+      {
+        $unwind: '$product',
+      },
+
+      {
+        $match: {
+          'product.isArchived': false,
+        },
+      },
 
       {
         $project: {
@@ -72,12 +100,10 @@ export class DashboardService {
           productId: { $toString: '$_id' },
           productName: '$product.name',
           category: '$product.category',
-          price: '$product.price',
+          totalVariants: 1,
           totalQuantity: 1,
         },
       },
-
-      { $limit: defaultDataLimit },
     ]);
 
     return data;
@@ -101,7 +127,7 @@ export class DashboardService {
     const warehouseId = this.validateWarehouse(id);
 
     const productsCategory =
-      await this.quantityModel.aggregate<InventoryByCategoryAggItem>([
+      await this.variantStockModel.aggregate<InventoryByCategoryAggItem>([
         {
           $match: { warehouseId },
         },
@@ -115,7 +141,9 @@ export class DashboardService {
           },
         },
 
-        { $unwind: '$product' },
+        {
+          $unwind: '$product',
+        },
 
         {
           $match: {
@@ -126,9 +154,12 @@ export class DashboardService {
         {
           $group: {
             _id: '$product.category',
-            totalProducts: { $sum: '$quantity' },
-            products: { $push: '$product' },
+            totalProducts: { $sum: 1 },
           },
+        },
+
+        {
+          $sort: { totalProducts: -1 },
         },
       ]);
 
@@ -252,7 +283,7 @@ export class DashboardService {
   // ---------------------------------------------------
 
   async getTransactionStats(id: string) {
-    const warehouseId = this.validateWarehouse(id);
+    const warehouseId = new Types.ObjectId(this.validateWarehouse(id));
 
     // Sales Overview
     const sales = await this.transactionModel.aggregate<SalesOverview>([
@@ -263,28 +294,10 @@ export class DashboardService {
         },
       },
       {
-        $lookup: {
-          from: 'products',
-          localField: 'product',
-          foreignField: '_id',
-          as: 'productData',
-        },
-      },
-      { $unwind: '$productData' },
-      {
         $group: {
           _id: null,
-          totalSales: {
-            $sum: { $multiply: ['$quantity', '$productData.price'] },
-          },
-          saleQuantity: { $sum: '$quantity' },
-        },
-      },
-      {
-        $project: {
-          _id: 0,
-          totalSales: 1,
-          saleQuantity: 1,
+          totalSalesAmount: { $sum: '$totalAmount' },
+          totalTransactions: { $sum: 1 },
         },
       },
     ]);
@@ -298,68 +311,55 @@ export class DashboardService {
         },
       },
       {
-        $lookup: {
-          from: 'products',
-          localField: 'product',
-          foreignField: '_id',
-          as: 'productData',
-        },
-      },
-      { $unwind: '$productData' },
-      {
         $group: {
           _id: null,
-          totalPurchase: {
-            $sum: { $multiply: ['$quantity', '$productData.price'] },
-          },
-          purchaseQuantity: { $sum: '$quantity' },
-        },
-      },
-      {
-        $project: {
-          _id: 0,
-          totalPurchase: 1,
-          purchaseQuantity: 1,
+          totalPurchaseAmount: { $sum: '$totalAmount' },
+          totalTransactions: { $sum: 1 },
         },
       },
     ]);
 
     // Inventory Overview
-    const inventory = await this.quantityModel.aggregate<InventoryOverview>([
-      { $match: { warehouseId: warehouseId } },
-      {
-        $lookup: {
-          from: 'products',
-          localField: 'productId',
-          foreignField: '_id',
-          as: 'product',
+    const inventory = await this.variantStockModel.aggregate<InventoryOverview>(
+      [
+        {
+          $match: {
+            warehouseId,
+            quantity: { $gt: 0 }, // only variants that still have stock
+          },
         },
-      },
-      { $unwind: '$product' },
-      {
-        $match: {
-          'product.isArchived': false,
+        {
+          $lookup: {
+            from: 'products',
+            localField: 'productId',
+            foreignField: '_id',
+            as: 'product',
+          },
         },
-      },
-      {
-        $group: {
-          _id: null,
-          totalQuantity: { $sum: '$quantity' },
+        { $unwind: '$product' },
+        {
+          $match: {
+            'product.isArchived': false,
+          },
         },
-      },
-      {
-        $project: {
-          _id: 0,
-          totalQuantity: 1,
+        {
+          $group: {
+            _id: null,
+            totalVariants: { $sum: 1 }, // count variants instead of quantity
+          },
         },
-      },
-    ]);
+        {
+          $project: {
+            _id: 0,
+            totalVariants: 1,
+          },
+        },
+      ],
+    );
 
     // Today's Shipment Count
     const dayStarting = new Date();
     dayStarting.setHours(0, 0, 0, 0);
-
-    const now = new Date();
 
     const todayShipment =
       await this.transactionModel.aggregate<TodayShipmentOverview>([
@@ -367,7 +367,7 @@ export class DashboardService {
           $match: {
             sourceWarehouse: warehouseId,
             type: TRANSACTION_TYPES.OUT,
-            createdAt: { $gte: dayStarting, $lte: now },
+            createdAt: { $gte: dayStarting },
           },
         },
         {
@@ -388,8 +388,14 @@ export class DashboardService {
       message: 'Data fetched successfully',
       success: true,
       data: {
-        sales: sales[0] ?? { totalSales: 0, saleQuantity: 0 },
-        purchase: purchase[0] ?? { totalPurchase: 0, purchaseQuantity: 0 },
+        sales: sales[0] ?? {
+          totalSalesAmount: 0,
+          totalTransactions: 0,
+        },
+        purchase: purchase[0] ?? {
+          totalPurchaseAmount: 0,
+          totalTransactions: 0,
+        },
         inventory: inventory[0] ?? { totalQuantity: 0 },
         todayShipment: todayShipment[0] ?? { quantity: 0 },
       },
@@ -397,41 +403,56 @@ export class DashboardService {
   }
 
   async getLowStockProducts(id: string) {
+    const stockLimit = Number(config().STOCK_LIMIT);
+
     const warehouseId = this.validateWarehouse(id);
 
     const lowStockProducts =
-      await this.quantityModel.aggregate<LowStockProduct>([
+      await this.variantStockModel.aggregate<LowStockProduct>([
         {
           $match: {
             warehouseId: warehouseId,
           },
         },
+
         {
-          // quantity <= limit
-          $match: {
-            $expr: { $lte: ['$quantity', '$limit'] },
+          $group: {
+            _id: '$productId',
+            totalQuantity: { $sum: '$quantity' },
           },
         },
+
+        {
+          $match: {
+            totalQuantity: { $lt: stockLimit },
+          },
+        },
+
+        // Lookup product details
         {
           $lookup: {
             from: 'products',
-            localField: 'productId',
+            localField: '_id',
             foreignField: '_id',
-            as: 'productData',
+            as: 'product',
           },
         },
-        { $unwind: '$productData' },
+
+        { $unwind: '$product' },
+
         {
           $match: {
-            'productData.isArchived': false,
+            'product.isArchived': false,
           },
         },
+
         {
           $project: {
             _id: 0,
-            productId: '$productData._id',
-            quantity: 1,
-            productName: '$productData.name',
+            productId: '$product._id',
+            productName: '$product.name',
+            quantity: '$totalQuantity',
+            category: '$product.category',
           },
         },
       ]);
@@ -454,45 +475,76 @@ export class DashboardService {
             sourceWarehouse: warehouseId,
           },
         },
+
+        { $unwind: '$products' },
+
+        { $unwind: '$products.variants' },
+
+        {
+          $lookup: {
+            from: 'variants',
+            localField: 'products.variants.variant',
+            foreignField: '_id',
+            as: 'variant',
+          },
+        },
+        { $unwind: '$variant' },
+
         {
           $lookup: {
             from: 'products',
-            localField: 'product',
+            localField: 'products.product',
             foreignField: '_id',
             as: 'product',
           },
         },
         { $unwind: '$product' },
+
         {
           $match: {
             'product.isArchived': false,
           },
         },
+
+        {
+          $addFields: {
+            revenue: {
+              $multiply: ['$products.variants.quantity', '$variant.price'],
+            },
+          },
+        },
+
         {
           $group: {
             _id: '$product._id',
+
             productName: { $first: '$product.name' },
             category: { $first: '$product.category' },
-            price: { $first: '$product.price' },
-            totalSoldQuantity: { $sum: '$quantity' },
-            totalSalesAmount: {
-              $sum: { $multiply: ['$quantity', '$product.price'] },
+            variantImage: { $first: '$variant.variantImage' },
+
+            totalSoldQuantity: {
+              $sum: '$products.variants.quantity',
             },
-            productImage: { $first: '$product.productImage' },
+
+            totalSalesAmount: {
+              $sum: '$revenue',
+            },
           },
         },
-        { $sort: { totalSoldQuantity: -1 } },
+
+        { $sort: { totalSalesAmount: -1 } },
+
         { $limit: limit },
+
         {
           $project: {
             _id: 0,
             productId: '$_id',
             productName: 1,
             category: 1,
-            price: 1,
             totalSoldQuantity: 1,
             totalSalesAmount: 1,
-            productImage: { $arrayElemAt: ['$productImage', 0] },
+            variantImage: 1,
           },
         },
       ]);
@@ -522,7 +574,6 @@ export class DashboardService {
       sourceWarehouse: warehouseId,
     };
 
-    // Date range filter
     if (startDate || endDate) {
       match.createdAt = {};
 
@@ -539,26 +590,44 @@ export class DashboardService {
 
     const mostCancelledProducts = await this.transactionModel.aggregate([
       { $match: match },
+
+      { $unwind: '$products' },
+
+      { $unwind: '$products.variants' },
+
       {
         $lookup: {
           from: 'products',
-          localField: 'product',
+          localField: 'products.product',
           foreignField: '_id',
           as: 'product',
         },
       },
+
       { $unwind: '$product' },
-      { $match: { 'product.isArchived': false } },
+
+      {
+        $match: {
+          'product.isArchived': false,
+        },
+      },
+
       {
         $group: {
           _id: '$product._id',
           productName: { $first: '$product.name' },
           category: { $first: '$product.category' },
-          totalCancelledQuantity: { $sum: '$quantity' },
+
+          totalCancelledQuantity: {
+            $sum: '$products.variants.quantity',
+          },
         },
       },
+
       { $sort: { totalCancelledQuantity: -1 } },
+
       { $limit: limit },
+
       {
         $project: {
           _id: 0,
@@ -594,10 +663,28 @@ export class DashboardService {
         },
       },
 
+      { $unwind: '$products' },
+
+      { $unwind: '$products.variants' },
+
+      {
+        $group: {
+          _id: '$products.product',
+          totalAdjustedQuantity: {
+            $sum: '$products.variants.quantity',
+          },
+          reason: { $first: '$reason' },
+        },
+      },
+
+      { $sort: { totalAdjustedQuantity: -1 } },
+
+      { $limit: limit },
+
       {
         $lookup: {
           from: 'products',
-          localField: 'product',
+          localField: '_id',
           foreignField: '_id',
           as: 'product',
         },
@@ -612,24 +699,11 @@ export class DashboardService {
       },
 
       {
-        $group: {
-          _id: '$product._id',
-          productName: { $first: '$product.name' },
-          category: { $first: '$product.category' },
-          totalAdjustedQuantity: { $sum: '$quantity' },
-          reason: { $first: '$reason' },
-        },
-      },
-
-      { $sort: { totalAdjustedQuantity: -1 } },
-      { $limit: limit },
-
-      {
         $project: {
           _id: 0,
           productId: '$_id',
-          productName: 1,
-          category: 1,
+          productName: '$product.name',
+          category: '$product.category',
           totalAdjustedQuantity: 1,
           reason: 1,
         },
@@ -643,6 +717,7 @@ export class DashboardService {
     };
   }
 
+  //need to be changed
   async getProfitLoss(query: {
     period?: string;
     id?: string;
@@ -707,48 +782,33 @@ export class DashboardService {
     const dbData = await this.transactionModel.aggregate<ProfitLossItem>([
       { $match: match },
 
+      { $unwind: '$products' },
+      { $unwind: '$products.variants' },
+
       {
         $lookup: {
           from: 'products',
-          localField: 'product',
+          localField: 'products.product',
           foreignField: '_id',
           as: 'product',
         },
       },
-
       { $unwind: '$product' },
 
       {
-        $addFields: {
-          profitAmount: {
-            $cond: [
-              {
-                $in: [
-                  '$type',
-                  [TRANSACTION_TYPES.OUT, TRANSACTION_TYPES.TRANSFER],
-                ],
-              },
-              {
-                $multiply: [
-                  '$quantity',
-                  {
-                    $multiply: [
-                      '$product.price',
-                      { $add: [1, { $divide: ['$product.markup', 100] }] },
-                    ],
-                  },
-                ],
-              },
-              0,
-            ],
-          },
+        $lookup: {
+          from: 'variants',
+          localField: 'products.variants.variant',
+          foreignField: '_id',
+          as: 'variant',
+        },
+      },
+      { $unwind: '$variant' },
 
-          lossAmount: {
-            $cond: [
-              { $in: ['$type', [TRANSACTION_TYPES.ADJUSTMENT]] },
-              { $multiply: ['$quantity', '$product.price'] },
-              0,
-            ],
+      {
+        $addFields: {
+          costAmount: {
+            $multiply: ['$products.variants.quantity', '$variant.price'],
           },
         },
       },
@@ -756,14 +816,33 @@ export class DashboardService {
       {
         $group: {
           _id: {
-            $dateToString: {
-              format: '%Y-%m-%d',
-              date: '$createdAt',
-              timezone: TIME_ZONE,
+            date: {
+              $dateToString: {
+                format: '%d-%m-%Y',
+                date: '$createdAt',
+                timezone: TIME_ZONE,
+              },
+            },
+            transactionId: '$_id',
+          },
+          totalCost: { $sum: '$costAmount' },
+          totalRevenue: { $first: '$totalAmount' },
+        },
+      },
+
+      {
+        $group: {
+          _id: '$_id.date',
+          profit: {
+            $sum: {
+              $max: [{ $subtract: ['$totalRevenue', '$totalCost'] }, 0],
             },
           },
-          profit: { $sum: '$profitAmount' },
-          loss: { $sum: '$lossAmount' },
+          loss: {
+            $sum: {
+              $max: [{ $subtract: ['$totalCost', '$totalRevenue'] }, 0],
+            },
+          },
         },
       },
 
@@ -778,13 +857,11 @@ export class DashboardService {
       },
     ]);
 
-    // 🗺️ Create typed map
     const map = dbData.reduce<Record<string, ProfitLossItem>>((acc, item) => {
       acc[item.label] = item;
       return acc;
     }, {});
 
-    // 📅 Fill missing dates
     const final: ProfitLossItem[] = [];
 
     for (let i = 0; i < totalDays; i++) {
