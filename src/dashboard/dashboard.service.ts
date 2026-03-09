@@ -1,6 +1,6 @@
 // src/dashboard/dashboard.service.ts
 import { Injectable, HttpException, BadRequestException } from '@nestjs/common';
-import mongoose, { Model, QueryFilter } from 'mongoose';
+import mongoose, { Model, QueryFilter, Types } from 'mongoose';
 import { Quantity } from 'src/quantity/entities/quantity.entity';
 
 import { subDays, eachDayOfInterval, format } from 'date-fns';
@@ -23,6 +23,8 @@ import {
   ProfitLossItem,
 } from './types/dashboard.data.type';
 import { defaultDataLimit, TIME_RANGE, TIME_ZONE } from './dashboard.constants';
+import { VariantStock } from 'src/variant-stock/schemas/variant-stock.schema';
+import config from '../config/config.service';
 
 @Injectable()
 export class DashboardService {
@@ -37,6 +39,9 @@ export class DashboardService {
 
     @InjectModel(Transaction.name)
     private readonly transactionModel: Model<Transaction>,
+
+    @InjectModel(VariantStock.name)
+    private readonly variantStockModel: Model<VariantStock>,
   ) {}
 
   validateWarehouse(id?: string) {
@@ -252,7 +257,7 @@ export class DashboardService {
   // ---------------------------------------------------
 
   async getTransactionStats(id: string) {
-    const warehouseId = this.validateWarehouse(id);
+    const warehouseId = new Types.ObjectId(this.validateWarehouse(id));
 
     // Sales Overview
     const sales = await this.transactionModel.aggregate<SalesOverview>([
@@ -263,28 +268,10 @@ export class DashboardService {
         },
       },
       {
-        $lookup: {
-          from: 'products',
-          localField: 'product',
-          foreignField: '_id',
-          as: 'productData',
-        },
-      },
-      { $unwind: '$productData' },
-      {
         $group: {
           _id: null,
-          totalSales: {
-            $sum: { $multiply: ['$quantity', '$productData.price'] },
-          },
-          saleQuantity: { $sum: '$quantity' },
-        },
-      },
-      {
-        $project: {
-          _id: 0,
-          totalSales: 1,
-          saleQuantity: 1,
+          totalSalesAmount: { $sum: '$totalAmount' },
+          totalTransactions: { $sum: 1 },
         },
       },
     ]);
@@ -298,35 +285,17 @@ export class DashboardService {
         },
       },
       {
-        $lookup: {
-          from: 'products',
-          localField: 'product',
-          foreignField: '_id',
-          as: 'productData',
-        },
-      },
-      { $unwind: '$productData' },
-      {
         $group: {
           _id: null,
-          totalPurchase: {
-            $sum: { $multiply: ['$quantity', '$productData.price'] },
-          },
-          purchaseQuantity: { $sum: '$quantity' },
-        },
-      },
-      {
-        $project: {
-          _id: 0,
-          totalPurchase: 1,
-          purchaseQuantity: 1,
+          totalPurchaseAmount: { $sum: '$totalAmount' },
+          totalTransactions: { $sum: 1 },
         },
       },
     ]);
 
     // Inventory Overview
     const inventory = await this.quantityModel.aggregate<InventoryOverview>([
-      { $match: { warehouseId: warehouseId } },
+      { $match: { warehouseId } },
       {
         $lookup: {
           from: 'products',
@@ -359,15 +328,13 @@ export class DashboardService {
     const dayStarting = new Date();
     dayStarting.setHours(0, 0, 0, 0);
 
-    const now = new Date();
-
     const todayShipment =
       await this.transactionModel.aggregate<TodayShipmentOverview>([
         {
           $match: {
             sourceWarehouse: warehouseId,
             type: TRANSACTION_TYPES.OUT,
-            createdAt: { $gte: dayStarting, $lte: now },
+            createdAt: { $gte: dayStarting },
           },
         },
         {
@@ -388,8 +355,14 @@ export class DashboardService {
       message: 'Data fetched successfully',
       success: true,
       data: {
-        sales: sales[0] ?? { totalSales: 0, saleQuantity: 0 },
-        purchase: purchase[0] ?? { totalPurchase: 0, purchaseQuantity: 0 },
+        sales: sales[0] ?? {
+          totalSalesAmount: 0,
+          totalTransactions: 0,
+        },
+        purchase: purchase[0] ?? {
+          totalPurchaseAmount: 0,
+          totalTransactions: 0,
+        },
         inventory: inventory[0] ?? { totalQuantity: 0 },
         todayShipment: todayShipment[0] ?? { quantity: 0 },
       },
@@ -397,41 +370,59 @@ export class DashboardService {
   }
 
   async getLowStockProducts(id: string) {
+    const stockLimit = Number(config().STOCK_LIMIT);
+    console.log(stockLimit);
+
     const warehouseId = this.validateWarehouse(id);
 
     const lowStockProducts =
-      await this.quantityModel.aggregate<LowStockProduct>([
+      await this.variantStockModel.aggregate<LowStockProduct>([
         {
           $match: {
             warehouseId: warehouseId,
           },
         },
+
+        //add all quantity per variant
         {
-          // quantity <= limit
-          $match: {
-            $expr: { $lte: ['$quantity', '$limit'] },
+          $group: {
+            _id: '$productId',
+            totalQuantity: { $sum: '$quantity' },
           },
         },
+
+        // need to be taken from env kept for testing
+        {
+          $match: {
+            totalQuantity: { $lt: stockLimit },
+          },
+        },
+
+        // Lookup product details
         {
           $lookup: {
             from: 'products',
-            localField: 'productId',
+            localField: '_id',
             foreignField: '_id',
-            as: 'productData',
+            as: 'product',
           },
         },
-        { $unwind: '$productData' },
+
+        { $unwind: '$product' },
+
         {
           $match: {
-            'productData.isArchived': false,
+            'product.isArchived': false,
           },
         },
+
         {
           $project: {
             _id: 0,
-            productId: '$productData._id',
-            quantity: 1,
-            productName: '$productData.name',
+            productId: '$product._id',
+            productName: '$product.name',
+            quantity: '$totalQuantity',
+            category: '$product.category',
           },
         },
       ]);
@@ -454,45 +445,74 @@ export class DashboardService {
             sourceWarehouse: warehouseId,
           },
         },
+
+        { $unwind: '$products' },
+
+        { $unwind: '$products.variants' },
+
+        {
+          $lookup: {
+            from: 'variants',
+            localField: 'products.variants.variant',
+            foreignField: '_id',
+            as: 'variant',
+          },
+        },
+        { $unwind: '$variant' },
+
         {
           $lookup: {
             from: 'products',
-            localField: 'product',
+            localField: 'products.product',
             foreignField: '_id',
             as: 'product',
           },
         },
         { $unwind: '$product' },
+
         {
           $match: {
             'product.isArchived': false,
           },
         },
+
+        {
+          $addFields: {
+            revenue: {
+              $multiply: ['$products.variants.quantity', '$variant.price'],
+            },
+          },
+        },
+
         {
           $group: {
             _id: '$product._id',
+
             productName: { $first: '$product.name' },
             category: { $first: '$product.category' },
-            price: { $first: '$product.price' },
-            totalSoldQuantity: { $sum: '$quantity' },
-            totalSalesAmount: {
-              $sum: { $multiply: ['$quantity', '$product.price'] },
+
+            totalSoldQuantity: {
+              $sum: '$products.variants.quantity',
             },
-            productImage: { $first: '$product.productImage' },
+
+            totalSalesAmount: {
+              $sum: '$revenue',
+            },
           },
         },
-        { $sort: { totalSoldQuantity: -1 } },
+
+        { $sort: { totalSalesAmount: -1 } },
+
         { $limit: limit },
+
         {
           $project: {
             _id: 0,
             productId: '$_id',
             productName: 1,
             category: 1,
-            price: 1,
             totalSoldQuantity: 1,
             totalSalesAmount: 1,
-            productImage: { $arrayElemAt: ['$productImage', 0] },
           },
         },
       ]);

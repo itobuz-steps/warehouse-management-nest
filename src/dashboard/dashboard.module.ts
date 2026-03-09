@@ -18,6 +18,10 @@ import {
 } from 'src/quantity/entities/quantity.entity';
 import { ExcelService } from 'src/helper/excelGenerator';
 import { User, UserSchema } from 'src/auth/entities/auth.entity';
+import {
+  VariantStock,
+  VariantStockSchema,
+} from 'src/variant-stock/schemas/variant-stock.schema';
 
 @Module({
   imports: [
@@ -27,6 +31,7 @@ import { User, UserSchema } from 'src/auth/entities/auth.entity';
       { name: Warehouse.name, schema: WarehouseSchema },
       { name: Quantity.name, schema: QuantitySchema },
       { name: User.name, schema: UserSchema },
+      { name: VariantStock.name, schema: VariantStockSchema },
     ]),
   ],
   controllers: [DashboardController],
