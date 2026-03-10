@@ -99,13 +99,13 @@ export class DashboardController {
   @Get('get-profit-loss')
   getProfitLoss(
     @Query('period') period?: string,
-    @Query('warehouseId') id?: string,
+    @Query('warehouseId') warehouseId?: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
   ) {
     return this.service.getProfitLoss({
       period,
-      id,
+      id: warehouseId,
       from,
       to,
     });
