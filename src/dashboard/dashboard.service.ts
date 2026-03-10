@@ -782,37 +782,6 @@ export class DashboardService {
     const dbData = await this.transactionModel.aggregate<ProfitLossItem>([
       { $match: match },
 
-      { $unwind: '$products' },
-      { $unwind: '$products.variants' },
-
-      {
-        $lookup: {
-          from: 'products',
-          localField: 'products.product',
-          foreignField: '_id',
-          as: 'product',
-        },
-      },
-      { $unwind: '$product' },
-
-      {
-        $lookup: {
-          from: 'variants',
-          localField: 'products.variants.variant',
-          foreignField: '_id',
-          as: 'variant',
-        },
-      },
-      { $unwind: '$variant' },
-
-      {
-        $addFields: {
-          costAmount: {
-            $multiply: ['$products.variants.quantity', '$variant.price'],
-          },
-        },
-      },
-
       {
         $group: {
           _id: {
@@ -823,10 +792,9 @@ export class DashboardService {
                 timezone: TIME_ZONE,
               },
             },
-            transactionId: '$_id',
+            type: '$type',
           },
-          totalCost: { $sum: '$costAmount' },
-          totalRevenue: { $first: '$totalAmount' },
+          totalAmount: { $sum: '$totalAmount' },
         },
       },
 
@@ -835,12 +803,20 @@ export class DashboardService {
           _id: '$_id.date',
           profit: {
             $sum: {
-              $max: [{ $subtract: ['$totalRevenue', '$totalCost'] }, 0],
+              $cond: [
+                { $eq: ['$_id.type', TRANSACTION_TYPES.OUT] },
+                '$totalAmount',
+                0,
+              ],
             },
           },
           loss: {
             $sum: {
-              $max: [{ $subtract: ['$totalCost', '$totalRevenue'] }, 0],
+              $cond: [
+                { $eq: ['$_id.type', TRANSACTION_TYPES.ADJUSTMENT] },
+                '$totalAmount',
+                0,
+              ],
             },
           },
         },
@@ -855,6 +831,8 @@ export class DashboardService {
           net: { $round: [{ $subtract: ['$profit', '$loss'] }, 2] },
         },
       },
+
+      { $sort: { label: 1 } },
     ]);
 
     const map = dbData.reduce<Record<string, ProfitLossItem>>((acc, item) => {
