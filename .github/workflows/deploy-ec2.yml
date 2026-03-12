@@ -47,7 +47,7 @@ jobs:
             --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" \
             --document-name "AWS-RunShellScript" \
             --comment "GitHub Actions deploy for warehouse-management-nest" \
-            --parameters 'commands=["runuser -l ubuntu -c \"set -e && cd /home/ubuntu/dev/warehouse-management-nest && git pull origin dev && npm i && npm run build && pm2 restart warehouse-nest-api\""]' \
+            --parameters 'commands=["runuser -l ubuntu -c \"set -e && source /home/ubuntu/.nvm/nvm.sh && cd /home/ubuntu/dev/warehouse-management-nest && git pull origin dev && npm i && npm run build && pm2 restart warehouse-nest-api\""]' \
             --query 'Command.CommandId' \
             --output text)
 
