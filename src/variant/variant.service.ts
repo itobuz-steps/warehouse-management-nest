@@ -141,51 +141,99 @@ export class VariantService {
       };
     }
 
-    const variants = await this.variantModel.aggregate([
-      {
-        $match: {
-          product: new Types.ObjectId(productId),
+    let variants: Variant[];
+    if (warehouseId) {
+      variants = await this.variantModel.aggregate([
+        {
+          $match: {
+            product: new Types.ObjectId(productId),
+          },
         },
-      },
-      {
-        $lookup: {
-          from: 'variantstocks',
-          let: { variantId: '$_id' },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    { $eq: ['$variantId', '$$variantId'] },
-                    { $eq: ['$warehouseId', new Types.ObjectId(warehouseId)] },
-                  ],
+        {
+          $lookup: {
+            from: 'variantstocks',
+            let: { variantId: '$_id' },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ['$variantId', '$$variantId'] },
+                      {
+                        $eq: ['$warehouseId', new Types.ObjectId(warehouseId)],
+                      },
+                    ],
+                  },
                 },
               },
-            },
-          ],
-          as: 'stock',
+            ],
+            as: 'stock',
+          },
         },
-      },
-      {
-        $unwind: '$stock',
-      },
-      {
-        $match: {
-          'stock.quantity': { $gt: 0 },
+        {
+          $unwind: '$stock',
         },
-      },
-      {
-        $addFields: {
-          quantity: '$stock.quantity',
+        {
+          $match: {
+            'stock.quantity': { $gt: 0 },
+          },
         },
-      },
-      {
-        $project: {
-          stock: 0,
+        {
+          $addFields: {
+            quantity: '$stock.quantity',
+          },
         },
-      },
-    ]);
+        {
+          $project: {
+            stock: 0,
+          },
+        },
+      ]);
+    } else {
+      variants = await this.variantModel.aggregate([
+        {
+          $match: {
+            product: new Types.ObjectId(productId),
+          },
+        },
+        {
+          $lookup: {
+            from: 'variantstocks',
+            let: { variantId: '$_id' },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [{ $eq: ['$variantId', '$$variantId'] }],
+                  },
+                },
+              },
+            ],
+            as: 'stock',
+          },
+        },
+        {
+          $unwind: '$stock',
+        },
+        {
+          $match: {
+            'stock.quantity': { $gt: 0 },
+          },
+        },
+        {
+          $addFields: {
+            quantity: '$stock.quantity',
+          },
+        },
+        {
+          $project: {
+            stock: 0,
+          },
+        },
+      ]);
+    }
 
+    console.log(variants);
     return {
       success: true,
       message: 'Variants retrieved based on product id successfully',
