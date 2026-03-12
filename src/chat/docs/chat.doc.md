@@ -29,6 +29,17 @@ Authentication: **Required** for all endpoints (`Authorization: Bearer <access_t
 9. [Error Handling & Edge Cases](#error-handling--edge-cases)
 10. [Quick Integration Checklist](#quick-integration-checklist)
 
+**Endpoints at a glance:**
+
+| Method | Path                        | Description                  |
+| ------ | --------------------------- | ---------------------------- |
+| POST   | `/chat/stream`              | Streaming SSE response       |
+| POST   | `/chat/message`             | Non-streaming JSON response  |
+| GET    | `/chat/models`              | List available Ollama models |
+| GET    | `/chat/sessions`            | List user's sessions         |
+| GET    | `/chat/sessions/:sessionId` | Get full session history     |
+| DELETE | `/chat/sessions/:sessionId` | Delete a session             |
+
 ---
 
 ## Files & Architecture
@@ -73,6 +84,9 @@ src/chat/
   message: string;           // required
   sessionId?: string;        // optional, continue existing chat
   warehouseId?: string;      // optional Mongo ObjectId for scoped context
+  model?: string;            // optional, Ollama model ID (e.g. "qwen2.5-coder:14b")
+                             // falls back to server default (llama3.1:8b) if omitted or invalid
+  history?: unknown[];       // optional, accepted but ignored — server loads history from session
 }
 ```
 
@@ -80,6 +94,8 @@ Validation behavior:
 
 - `message` is required and must be string
 - `warehouseId`, when passed, must be valid Mongo ObjectId
+- `model`, when passed, is validated against the list returned by `GET /chat/models`; invalid values silently fall back to the server default
+- `history` is accepted to avoid breaking clients that send it, but the server always uses DB-stored session history
 - unknown fields are stripped/rejected by global validation pipe
 
 ### Chat Session Entity (Stored)
@@ -125,17 +141,20 @@ Validation behavior:
 {
   "message": "Show low stock products in warehouse A",
   "sessionId": "65f...optional",
-  "warehouseId": "65f...optional"
+  "warehouseId": "65f...optional",
+  "model": "qwen2.5-coder:14b"
 }
 ```
 
 **Response:**
 
 - Content type: `text/event-stream`
-- Important response header: `X-Session-Id: <sessionId>`
-- Stream body: text chunks from the model
+- Important response header: `X-Session-Id: <sessionId>` (also exposed via CORS `exposedHeaders`)
+- Stream body: raw text chunks from the model
 
-Use `X-Session-Id` to persist/continue the same conversation in future calls.
+Use `X-Session-Id` to persist and continue the same conversation in future calls.
+
+> **Note:** `X-Session-Id` is exposed via `Access-Control-Expose-Headers` so browser `fetch()` can read it directly with `res.headers.get('X-Session-Id')`.
 
 ---
 
@@ -150,7 +169,16 @@ Use `X-Session-Id` to persist/continue the same conversation in future calls.
 - `Authorization: Bearer <token>`
 - `Content-Type: application/json`
 
-**Body:** same as `/chat/stream`
+**Body:**
+
+```json
+{
+  "message": "Show low stock products in warehouse A",
+  "sessionId": "65f...optional",
+  "warehouseId": "65f...optional",
+  "model": "qwen2.5-coder:14b"
+}
+```
 
 **Success Response (200):**
 
@@ -182,11 +210,31 @@ Use `X-Session-Id` to persist/continue the same conversation in future calls.
 
 ---
 
-## 3) Get User Sessions
+## 3) List Available Models
 
-**Endpoint:** `GET /chat/sessions`
+**Endpoint:** `GET /chat/models`
 
-**Purpose:** List all chat sessions for current authenticated user.
+**Purpose:** Return all Ollama models currently available on the server. Use the returned `id` values in the `model` field of `/chat/stream` or `/chat/message` requests.
+
+**Headers:**
+
+- `Authorization: Bearer <token>`
+
+**Success Response (200):**
+
+```json
+[
+  { "id": "llama3.1:8b", "name": "llama3.1:8b" },
+  { "id": "qwen2.5-coder:14b", "name": "qwen2.5-coder:14b" },
+  { "id": "deepseek-r1:1.5b", "name": "deepseek-r1:1.5b" }
+]
+```
+
+> Results are cached server-side for 5 minutes. If the server cannot reach Ollama, an empty array is returned and chat endpoints gracefully fall back to the configured default model.
+
+---
+
+## 4) Get User Sessions
 
 **Success Response (200):**
 
@@ -208,7 +256,7 @@ Use `X-Session-Id` to persist/continue the same conversation in future calls.
 
 ---
 
-## 4) Get Session History
+## 5) Get Session History
 
 **Endpoint:** `GET /chat/sessions/:sessionId`
 
@@ -255,7 +303,7 @@ Use `X-Session-Id` to persist/continue the same conversation in future calls.
 
 ---
 
-## 5) Delete Session
+## 6) Delete Session
 
 **Endpoint:** `DELETE /chat/sessions/:sessionId`
 
@@ -392,6 +440,7 @@ type StreamChatInput = {
   message: string;
   sessionId?: string;
   warehouseId?: string;
+  model?: string; // optional — use ID from GET /chat/models
 };
 
 type StreamChatOptions = {
@@ -421,6 +470,8 @@ export async function streamChat(
 
   const sessionId = res.headers.get('X-Session-Id');
   if (sessionId && options.onSessionId) options.onSessionId(sessionId);
+
+  // X-Session-Id is exposed via Access-Control-Expose-Headers so this works in browsers too
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -502,27 +553,29 @@ type ChatState = {
 };
 ```
 
-## 3) Session Flow
+## 3) Session & Model Flow
 
 - First message: call `/chat/stream` or `/chat/message` without `sessionId`
-- Save returned session id (`X-Session-Id` or `data.sessionId`)
-- Next messages: include `sessionId`
-- Sidebar session list: call `GET /chat/sessions`
-- Click session: call `GET /chat/sessions/:sessionId`
+- Save returned session ID from `X-Session-Id` header (or `data.sessionId` on `/chat/message`)
+- Next messages: include `sessionId` to continue the thread
+- Sidebar session list: `GET /chat/sessions`
+- Click session to restore: `GET /chat/sessions/:sessionId`
+- Show model picker: `GET /chat/models` on app load; pass chosen `id` as `model` in requests
+- If `model` is omitted or invalid, the server silently uses the default (`llama3.1:8b`)
 
 ## 4) Warehouse Context Flow
 
 - If chat is opened from a warehouse-specific screen, pass that `warehouseId`
-- Keep same `warehouseId` in ongoing session messages unless user switches warehouse
-- If user switches warehouse intentionally, either:
-  - start new session, or
-  - continue same session with new `warehouseId` (depends on product decision)
+- Keep the same `warehouseId` in ongoing session messages unless the user switches warehouse
+- If the user switches warehouse intentionally, either:
+  - start a new session, or
+  - continue the same session with a new `warehouseId` (depends on product decision)
 
 ## 5) Auth & Refresh
 
-- All chat APIs require valid access token
-- If backend returns 401/403, trigger your existing token refresh/login flow
-- Retry request after token refresh
+- All chat APIs require a valid access token
+- If the backend returns 401/403, trigger your existing token refresh/login flow
+- Retry the request after token refresh
 
 ---
 
@@ -989,9 +1042,11 @@ Recommended UI fallback messages:
 
 ## Quick Integration Checklist
 
-- [ ] Add chat API client functions for 5 endpoints
+- [ ] Add chat API client functions for 6 endpoints (including `GET /chat/models`)
+- [ ] Call `GET /chat/models` on app load and populate model selector UI
+- [ ] Pass selected `model` ID in stream/message request body
 - [ ] Implement `fetch` streaming reader for `/chat/stream`
-- [ ] Capture and persist `X-Session-Id`
+- [ ] Capture and persist `X-Session-Id` from response headers
 - [ ] Store/render session list and session history
 - [ ] Handle auth errors with refresh/login flow
 - [ ] Parse and render `table/chart/metric` blocks
@@ -1007,7 +1062,7 @@ Recommended UI fallback messages:
 curl -N -X POST http://localhost:3030/chat/stream \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
-  -d '{"message":"Show dashboard stats","warehouseId":"65f..."}'
+  -d '{"message":"Show dashboard stats","warehouseId":"65f...","model":"qwen2.5-coder:14b"}'
 ```
 
 ### Non-stream
@@ -1016,7 +1071,14 @@ curl -N -X POST http://localhost:3030/chat/stream \
 curl -X POST http://localhost:3030/chat/message \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
-  -d '{"message":"Show top selling products","sessionId":"65f..."}'
+  -d '{"message":"Show top selling products","sessionId":"65f...","model":"llama3.1:8b"}'
+```
+
+### List models
+
+```bash
+curl http://localhost:3030/chat/models \
+  -H "Authorization: Bearer <token>"
 ```
 
 ### Sessions
