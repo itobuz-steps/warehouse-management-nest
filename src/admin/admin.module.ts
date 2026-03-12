@@ -7,6 +7,7 @@ import {
   WarehouseSchema,
 } from 'src/warehouse/schemas/warehouse.schema';
 import { User, UserSchema } from 'src/auth/entities/auth.entity';
+import { StorageModule } from 'src/storage/storage.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { User, UserSchema } from 'src/auth/entities/auth.entity';
       { name: Warehouse.name, schema: WarehouseSchema },
       { name: User.name, schema: UserSchema },
     ]),
+    StorageModule,
   ],
   controllers: [AdminController],
   providers: [AdminService],
