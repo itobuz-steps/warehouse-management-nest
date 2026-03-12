@@ -1,7 +1,8 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { AuthGuard } from 'src/common/guard/auth.guard';
 import { ApiBearerAuth } from '@nestjs/swagger';
+import { GetManagersDto } from './dto/get-manager.dto';
 
 @Controller('admin')
 @ApiBearerAuth()
@@ -12,5 +13,10 @@ export class AdminController {
   @Get('get-managers')
   getManagers() {
     return this.adminService.getManagers();
+  }
+
+  @Get('get-all-managers')
+  getAllManagers(@Query() query: GetManagersDto) {
+    return this.adminService.getAllManagers(query);
   }
 }
