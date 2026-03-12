@@ -5,7 +5,7 @@ import {
   StreamableFile,
 } from '@nestjs/common';
 import { InjectModel, InjectConnection } from '@nestjs/mongoose';
-import { Model, Connection, Types } from 'mongoose';
+import { Model, Connection, Types, isValidObjectId } from 'mongoose';
 import { Transaction, TransactionDocument } from './schemas/transaction.schema';
 import { StockInDto } from './dto/stock-in.dto';
 import {
@@ -117,7 +117,54 @@ export class TransactionService {
     const [transactions, total] = await Promise.all([
       this.transactionModel
         .find(match)
-        .populate('products performedBy sourceWarehouse destinationWarehouse')
+        .populate([
+          {
+            path: 'performedBy',
+            select: 'name email role',
+          },
+          {
+            path: 'supplier',
+            select: 'name email address',
+          },
+          {
+            path: 'customer',
+            select: 'name email address phoneNumber',
+          },
+          {
+            path: 'sourceWarehouse',
+            select: 'name address',
+          },
+          {
+            path: 'destinationWarehouse',
+            select: 'name address',
+          },
+          {
+            path: 'products.product',
+            select: 'name category',
+          },
+          {
+            path: 'products.variants.variant',
+            select: 'sku attributes varinatImage',
+          },
+          {
+            path: 'approvedBy',
+            select: 'name',
+          },
+          {
+            path: 'products.variants.batches.batch',
+            select: 'items sourceWarehouse destinationWarehouse createdAt',
+            populate: [
+              {
+                path: 'sourceWarehouse',
+                select: 'name address',
+              },
+              {
+                path: 'destinationWarehouse',
+                select: 'name address',
+              },
+            ],
+          },
+        ])
         .sort({ updatedAt: -1 })
         .skip(skip)
         .limit(limit),
@@ -145,6 +192,10 @@ export class TransactionService {
   ) {
     const { startDate, endDate, type, status, page = 1, limit = 10 } = query;
 
+    if (!isValidObjectId(warehouseId)) {
+      return;
+    }
+
     const warehouseObjectId = new Types.ObjectId(warehouseId);
 
     const filter: QueryFilter<Transaction> = {
@@ -171,7 +222,54 @@ export class TransactionService {
     const [transactions, total] = await Promise.all([
       this.transactionModel
         .find(filter)
-        .populate('products performedBy sourceWarehouse destinationWarehouse')
+        .populate([
+          {
+            path: 'performedBy',
+            select: 'name email role',
+          },
+          {
+            path: 'supplier',
+            select: 'name email address',
+          },
+          {
+            path: 'customer',
+            select: 'name email address phoneNumber',
+          },
+          {
+            path: 'sourceWarehouse',
+            select: 'name address',
+          },
+          {
+            path: 'destinationWarehouse',
+            select: 'name address',
+          },
+          {
+            path: 'products.product',
+            select: 'name category',
+          },
+          {
+            path: 'products.variants.variant',
+            select: 'sku attributes varinatImage',
+          },
+          {
+            path: 'approvedBy',
+            select: 'name',
+          },
+          {
+            path: 'products.variants.batches.batch',
+            select: 'items sourceWarehouse destinationWarehouse createdAt',
+            populate: [
+              {
+                path: 'sourceWarehouse',
+                select: 'name address',
+              },
+              {
+                path: 'destinationWarehouse',
+                select: 'name address',
+              },
+            ],
+          },
+        ])
         .sort({ updatedAt: -1 })
         .skip(skip)
         .limit(limit),
@@ -190,6 +288,66 @@ export class TransactionService {
           totalPages: Math.ceil(total / limit),
         },
       },
+    };
+  }
+
+  async getPendingApprovals() {
+    const transactions = await this.transactionModel
+      .find({
+        requiresApproval: true,
+        approvalStatus: 'PENDING',
+      })
+      .populate([
+        {
+          path: 'performedBy',
+          select: 'name email',
+        },
+        {
+          path: 'supplier',
+          select: 'name',
+        },
+        {
+          path: 'customer',
+          select: 'name email',
+        },
+        {
+          path: 'sourceWarehouse',
+          select: 'name',
+        },
+        {
+          path: 'destinationWarehouse',
+          select: 'name',
+        },
+        {
+          path: 'products.product',
+          select: 'name',
+        },
+        {
+          path: 'products.variants.variant',
+          select: 'sku attributes',
+        },
+        {
+          path: 'products.variants.batches.batch',
+          select: 'items sourceWarehouse destinationWarehouse createdAt',
+          populate: [
+            {
+              path: 'sourceWarehouse',
+              select: 'name',
+            },
+            {
+              path: 'destinationWarehouse',
+              select: 'name',
+            },
+          ],
+        },
+      ])
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return {
+      success: true,
+      message: 'All Pending Transactions',
+      data: transactions,
     };
   }
 
