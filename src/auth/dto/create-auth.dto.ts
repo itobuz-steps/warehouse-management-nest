@@ -14,6 +14,9 @@ export class CreateAuthDto {
 
 export class SignupDto extends CreateAuthDto {
   @IsNotEmpty()
+  name: string;
+
+  @IsNotEmpty()
   role: string;
 }
 

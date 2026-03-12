@@ -45,12 +45,12 @@ export class AuthService {
   ) {}
 
   async signup(dto: SignupDto) {
-    const { email, role } = dto;
+    const { name, email, role } = dto;
 
     const isUser = await this.userModel.findOne({ email }).exec();
 
     if (!isUser) {
-      await this.userModel.create({ email, role });
+      await this.userModel.create({ name, email, role });
     }
     if (isUser?.isVerified) {
       throw new BadRequestException('User already exists');
