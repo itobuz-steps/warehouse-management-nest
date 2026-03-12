@@ -21,6 +21,23 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
+      - name: Verify required secrets (safe)
+        shell: bash
+        run: |
+          set -e
+          [[ -n "${{ secrets.AWS_ACCESS_KEY_ID }}" ]] || { echo "Missing AWS_ACCESS_KEY_ID"; exit 1; }
+          [[ -n "${{ secrets.AWS_SECRET_ACCESS_KEY }}" ]] || { echo "Missing AWS_SECRET_ACCESS_KEY"; exit 1; }
+          [[ -n "${{ secrets.AWS_REGION }}" ]] || { echo "Missing AWS_REGION"; exit 1; }
+          [[ -n "${{ secrets.EC2_INSTANCE_ID }}" ]] || { echo "Missing EC2_INSTANCE_ID"; exit 1; }
+          echo "All required secrets are set"
+
+      - name: Verify AWS credentials (safe)
+        shell: bash
+        run: |
+          set -e
+          aws sts get-caller-identity
+          aws ec2 describe-instances --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" --region "${{ secrets.AWS_REGION }}" --query 'Reservations[].Instances[].InstanceId' --output text
+
       - name: Deploy on EC2 with SSM
         shell: bash
         run: |
