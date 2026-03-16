@@ -120,18 +120,14 @@ export class VariantService {
         product: new Types.ObjectId(productId),
       });
 
-      if (!variants) {
-        throw new Error('Variants not Found');
-      }
+      if (!variants) throw new Error('Variants not Found');
 
       for (const variant of variants) {
-        const imageUrls: string[] = await Promise.all(
+        variant.variantImage = await Promise.all(
           variant.variantImage.map((key: string) =>
             this.storageService.getPresignedSignedUrl(key),
           ),
         );
-
-        variant.variantImage = imageUrls;
       }
 
       return {
@@ -141,99 +137,63 @@ export class VariantService {
       };
     }
 
-    let variants: Variant[];
-    if (warehouseId) {
-      variants = await this.variantModel.aggregate([
-        {
-          $match: {
-            product: new Types.ObjectId(productId),
-          },
-        },
-        {
-          $lookup: {
-            from: 'variantstocks',
-            let: { variantId: '$_id' },
-            pipeline: [
-              {
-                $match: {
-                  $expr: {
-                    $and: [
-                      { $eq: ['$variantId', '$$variantId'] },
-                      {
-                        $eq: ['$warehouseId', new Types.ObjectId(warehouseId)],
-                      },
-                    ],
-                  },
+    const variants: Variant[] = await this.variantModel.aggregate([
+      {
+        $match: { product: new Types.ObjectId(productId) },
+      },
+      {
+        $lookup: {
+          from: 'variantstocks',
+          let: { variantId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$variantId', '$$variantId'] },
+                    ...(warehouseId
+                      ? [
+                          {
+                            $eq: [
+                              '$warehouseId',
+                              new Types.ObjectId(warehouseId),
+                            ],
+                          },
+                        ]
+                      : []),
+                  ],
                 },
               },
-            ],
-            as: 'stock',
-          },
+            },
+          ],
+          as: 'stockEntries',
         },
-        {
-          $unwind: '$stock',
+      },
+      // Sum all matching stock entries into a single `quantity` field.
+      // This eliminates duplicates whether warehouseId is provided or not.
+      {
+        $addFields: {
+          quantity: { $sum: '$stockEntries.quantity' },
         },
-        {
-          $match: {
-            'stock.quantity': { $gt: 0 },
-          },
-        },
-        {
-          $addFields: {
-            quantity: '$stock.quantity',
-          },
-        },
-        {
-          $project: {
-            stock: 0,
-          },
-        },
-      ]);
-    } else {
-      variants = await this.variantModel.aggregate([
-        {
-          $match: {
-            product: new Types.ObjectId(productId),
-          },
-        },
-        {
-          $lookup: {
-            from: 'variantstocks',
-            let: { variantId: '$_id' },
-            pipeline: [
-              {
-                $match: {
-                  $expr: {
-                    $and: [{ $eq: ['$variantId', '$$variantId'] }],
-                  },
-                },
-              },
-            ],
-            as: 'stock',
-          },
-        },
-        {
-          $unwind: '$stock',
-        },
-        {
-          $match: {
-            'stock.quantity': { $gt: 0 },
-          },
-        },
-        {
-          $addFields: {
-            quantity: '$stock.quantity',
-          },
-        },
-        {
-          $project: {
-            stock: 0,
-          },
-        },
-      ]);
+      },
+      {
+        $match: { quantity: { $gt: 0 } },
+      },
+      {
+        $project: { stockEntries: 0 },
+      },
+    ]);
+
+    for (const variant of variants) {
+      if (variant.variantImage?.length) {
+        variant.variantImage = await Promise.all(
+          variant.variantImage.map((key: string) =>
+            this.storageService.getPresignedSignedUrl(key),
+          ),
+        );
+      }
     }
 
-    console.log(variants);
     return {
       success: true,
       message: 'Variants retrieved based on product id successfully',
