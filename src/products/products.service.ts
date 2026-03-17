@@ -36,8 +36,14 @@ export class ProductsService {
 
     const filter: QueryFilter<ProductDocument> = { isArchived: false };
 
-    if (category) {
-      filter.category = category;
+    const categories = Array.isArray(category)
+      ? category
+      : category
+        ? [category]
+        : [];
+
+    if (categories.length) {
+      filter.category = { $in: categories };
     }
 
     if (search) {
