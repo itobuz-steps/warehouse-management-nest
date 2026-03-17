@@ -5,7 +5,7 @@ export enum FOLDER_PATH {
 }
 
 export enum FILE_FIELD {
-  productImage = 'productImage',
+  variantImage = 'variantImage',
   profileImage = 'profileImage',
 }
 
