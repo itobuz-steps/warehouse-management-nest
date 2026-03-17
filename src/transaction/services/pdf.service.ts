@@ -269,7 +269,6 @@ export class PdfService {
 
     const sourceWarehouse = transaction.sourceWarehouse as WarehouseDocument;
     const performedBy = transaction.performedBy;
-    console.log({ sourceWarehouse, performedBy });
 
     cursorY -= lineGap * 2;
 

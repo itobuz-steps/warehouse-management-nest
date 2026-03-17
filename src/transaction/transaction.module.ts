@@ -42,6 +42,7 @@ import {
 } from 'src/customer/entities/customer.entity';
 import { TransactionLogsModule } from 'src/transaction-logs/transaction-logs.module';
 import { Variant, VariantSchema } from 'src/variant/schemas/variant.schema';
+import { StorageModule } from 'src/storage/storage.module';
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { Variant, VariantSchema } from 'src/variant/schemas/variant.schema';
     NotificationModule,
     VariantStockModule,
     TransactionLogsModule,
+    StorageModule,
   ],
   controllers: [TransactionController],
   providers: [TransactionService, PdfService, NotificationService, SendEmail],

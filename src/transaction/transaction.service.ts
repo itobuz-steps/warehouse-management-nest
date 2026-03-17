@@ -13,7 +13,7 @@ import {
   WarehouseDocument,
 } from '../warehouse/schemas/warehouse.schema';
 import { USER_TYPES } from 'src/auth/userType';
-import { UserDocument } from 'src/auth/entities/auth.entity';
+import { User, UserDocument } from 'src/auth/entities/auth.entity';
 import { WarehouseTransactionsQueryDto } from './dto/query/warehouse-transactions.query.dto';
 import { GetTransactionsQueryDto } from './dto/query/get-transactions.query.dto';
 import type { ClientSession, QueryFilter } from 'mongoose';
@@ -42,6 +42,7 @@ import { Customer } from 'src/customer/entities/customer.entity';
 import { Variant } from 'src/variant/schemas/variant.schema';
 import { TRANSACTION_STATUS } from './constants/transactionStatus';
 import { ProductItemDto } from './dto/product-item.dto';
+import { StorageService } from 'src/storage/storage.service';
 
 @Injectable()
 export class TransactionService {
@@ -80,6 +81,8 @@ export class TransactionService {
     private readonly notificationTriggerService: NotificationTriggerService,
 
     private readonly logsService: TransactionLogsService,
+
+    private readonly s3Service: StorageService,
   ) {}
 
   async getTransactions(query: GetTransactionsQueryDto, user: UserDocument) {
@@ -120,11 +123,11 @@ export class TransactionService {
         .populate([
           {
             path: 'performedBy',
-            select: 'name email role',
+            select: 'name email role profileImageKey',
           },
           {
             path: 'supplier',
-            select: 'name email address',
+            select: 'name email address phoneNumber',
           },
           {
             path: 'customer',
@@ -132,11 +135,11 @@ export class TransactionService {
           },
           {
             path: 'sourceWarehouse',
-            select: 'name address',
+            select: 'name address description',
           },
           {
             path: 'destinationWarehouse',
-            select: 'name address',
+            select: 'name address description',
           },
           {
             path: 'products.product',
@@ -148,7 +151,7 @@ export class TransactionService {
           },
           {
             path: 'approvedBy',
-            select: 'name',
+            select: 'name profileImageKey',
           },
           {
             path: 'products.variants.batches.batch',
@@ -156,11 +159,11 @@ export class TransactionService {
             populate: [
               {
                 path: 'sourceWarehouse',
-                select: 'name address',
+                select: 'name address description',
               },
               {
                 path: 'destinationWarehouse',
-                select: 'name address',
+                select: 'name address description',
               },
             ],
           },
@@ -170,6 +173,26 @@ export class TransactionService {
         .limit(limit),
       this.transactionModel.countDocuments(match),
     ]);
+
+    for (const transaction of transactions) {
+      const user = transaction.performedBy as unknown as User;
+
+      if (user?.profileImageKey) {
+        user.profileImage = await this.s3Service.getPresignedSignedUrl(
+          user.profileImageKey,
+        );
+      }
+    }
+
+    for (const transaction of transactions) {
+      const user = transaction.approvedBy as unknown as User;
+
+      if (user?.profileImageKey) {
+        user.profileImage = await this.s3Service.getPresignedSignedUrl(
+          user.profileImageKey,
+        );
+      }
+    }
 
     return {
       success: true,
@@ -225,11 +248,11 @@ export class TransactionService {
         .populate([
           {
             path: 'performedBy',
-            select: 'name email role',
+            select: 'name email role profileImageKey',
           },
           {
             path: 'supplier',
-            select: 'name email address',
+            select: 'name email address phoneNumber',
           },
           {
             path: 'customer',
@@ -237,11 +260,11 @@ export class TransactionService {
           },
           {
             path: 'sourceWarehouse',
-            select: 'name address',
+            select: 'name address description',
           },
           {
             path: 'destinationWarehouse',
-            select: 'name address',
+            select: 'name address description',
           },
           {
             path: 'products.product',
@@ -253,7 +276,7 @@ export class TransactionService {
           },
           {
             path: 'approvedBy',
-            select: 'name',
+            select: 'name profileImageKey',
           },
           {
             path: 'products.variants.batches.batch',
@@ -261,11 +284,11 @@ export class TransactionService {
             populate: [
               {
                 path: 'sourceWarehouse',
-                select: 'name address',
+                select: 'name address description',
               },
               {
                 path: 'destinationWarehouse',
-                select: 'name address',
+                select: 'name address description',
               },
             ],
           },
@@ -275,6 +298,26 @@ export class TransactionService {
         .limit(limit),
       this.transactionModel.countDocuments(filter),
     ]);
+
+    for (const transaction of transactions) {
+      const user = transaction.performedBy as unknown as User;
+
+      if (user?.profileImageKey) {
+        user.profileImage = await this.s3Service.getPresignedSignedUrl(
+          user.profileImageKey,
+        );
+      }
+    }
+
+    for (const transaction of transactions) {
+      const user = transaction.approvedBy as unknown as User;
+
+      if (user?.profileImageKey) {
+        user.profileImage = await this.s3Service.getPresignedSignedUrl(
+          user.profileImageKey,
+        );
+      }
+    }
 
     return {
       success: true,
@@ -1324,7 +1367,6 @@ export class TransactionService {
       .populate('sourceWarehouse')
       .populate('performedBy')
       .lean<PopulatedTransactionForPdfGeneration>();
-    console.log(transaction);
 
     if (!transaction) {
       throw new NotFoundException('Transaction not found');
@@ -1437,6 +1479,54 @@ export class TransactionService {
       return {
         success: true,
         message: 'Transaction approved and stock updated',
+      };
+    } catch (err) {
+      await session.abortTransaction();
+      throw err;
+    } finally {
+      await session.endSession();
+    }
+  }
+
+  async rejectTransaction(transactionId: string, adminId: Types.ObjectId) {
+    const session = await this.connection.startSession();
+    session.startTransaction();
+
+    try {
+      const transaction = await this.transactionModel
+        .findById(transactionId)
+        .session(session);
+
+      if (!transaction) {
+        throw new NotFoundException('Transaction not found');
+      }
+
+      if (!transaction.requiresApproval) {
+        throw new BadRequestException('Transaction does not require approval');
+      }
+
+      if (transaction.approvalStatus === TRANSACTION_STATUS.REJECTED) {
+        throw new BadRequestException('Transaction already rejected');
+      }
+
+      if (transaction.approvalStatus === TRANSACTION_STATUS.APPROVED) {
+        throw new BadRequestException(
+          'Approved transaction cannot be rejected',
+        );
+      }
+
+      // ✅ Only update status
+      transaction.approvalStatus = TRANSACTION_STATUS.REJECTED;
+      transaction.approvedBy = adminId;
+      transaction.approvedAt = new Date();
+
+      await transaction.save({ session });
+
+      await session.commitTransaction();
+
+      return {
+        success: true,
+        message: 'Transaction rejected successfully',
       };
     } catch (err) {
       await session.abortTransaction();

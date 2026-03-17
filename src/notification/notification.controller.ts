@@ -47,7 +47,7 @@ export class NotificationController {
     return { success: true, message: 'All marked as seen' };
   }
 
-  @Patch('change-shipment-status/:id')
+  @Patch('approve-shipment/:id')
   async ship(@Req() req: RequestWithUserDocument, @Param() id: string) {
     await this.service.updateShipmentStatus(id, 'shipped', req.user);
     return { success: true, message: 'Shipment marked shipped' };
