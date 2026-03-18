@@ -27,11 +27,6 @@ import { USER_TYPES } from 'src/auth/userType';
 export class TransactionController {
   constructor(private readonly transactionService: TransactionService) {}
 
-  @Get('/pending/approvals')
-  getPendingApprovals() {
-    return this.transactionService.getPendingApprovals();
-  }
-
   @Get()
   getTransactions(
     @Query() query: GetTransactionsQueryDto,

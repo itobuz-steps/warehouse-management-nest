@@ -86,21 +86,26 @@ export class TransactionService {
   ) {}
 
   async getTransactions(query: GetTransactionsQueryDto, user: UserDocument) {
-    const { startDate, endDate, type, status, page = 1, limit = 10 } = query;
+    const {
+      startDate,
+      endDate,
+      type,
+      status,
+      approvalStatus,
+      page = 1,
+      limit = 10,
+    } = query;
 
-    const match: QueryFilter<Transaction> = {};
+    const scopeMatch: QueryFilter<Transaction> = {};
 
     if (startDate || endDate) {
-      match.createdAt = {
+      scopeMatch.createdAt = {
         ...(startDate && { $gte: new Date(startDate) }),
         ...(endDate && {
           $lte: new Date(new Date(endDate).setHours(23, 59, 59, 999)),
         }),
       };
     }
-
-    if (type && type !== 'ALL') match.type = type;
-    if (status && status !== 'ALL') match.shipment = status;
 
     if (user.role === USER_TYPES.MANAGER) {
       const warehouses = await this.warehouseModel
@@ -109,87 +114,108 @@ export class TransactionService {
 
       const ids = warehouses.map((w) => w._id);
 
-      match.$or = [
+      scopeMatch.$or = [
         { sourceWarehouse: { $in: ids } },
         { destinationWarehouse: { $in: ids } },
       ];
     }
 
+    const match: QueryFilter<Transaction> = { ...scopeMatch };
+
+    if (type && type !== 'ALL') match.type = type;
+    if (status && status !== 'ALL') match.shipment = status;
+    if (approvalStatus && approvalStatus !== 'ALL') {
+      match.approvalStatus = approvalStatus;
+    }
+
     const skip = (page - 1) * limit;
 
-    const [transactions, total] = await Promise.all([
-      this.transactionModel
-        .find(match)
-        .populate([
+    const [transactions, total, [filteredCounts], [approvalCounts]] =
+      await Promise.all([
+        this.transactionModel
+          .find(match)
+          .populate([
+            { path: 'performedBy', select: 'name email role profileImageKey' },
+            { path: 'supplier', select: 'name email address phoneNumber' },
+            { path: 'customer', select: 'name email address phoneNumber' },
+            { path: 'sourceWarehouse', select: 'name address description' },
+            {
+              path: 'destinationWarehouse',
+              select: 'name address description',
+            },
+            { path: 'products.product', select: 'name category' },
+            {
+              path: 'products.variants.variant',
+              select: 'sku attributes varinatImage',
+            },
+            { path: 'approvedBy', select: 'name profileImageKey' },
+            {
+              path: 'products.variants.batches.batch',
+              select: 'items sourceWarehouse destinationWarehouse createdAt',
+              populate: [
+                { path: 'sourceWarehouse', select: 'name address description' },
+                {
+                  path: 'destinationWarehouse',
+                  select: 'name address description',
+                },
+              ],
+            },
+          ])
+          .sort({ updatedAt: -1 })
+          .skip(skip)
+          .limit(limit),
+
+        this.transactionModel.countDocuments(match),
+
+        this.transactionModel.aggregate<{
+          types: { _id: string; count: number }[];
+          status: { _id: string; count: number }[];
+        }>([
+          { $match: match },
           {
-            path: 'performedBy',
-            select: 'name email role profileImageKey',
+            $facet: {
+              types: [
+                { $group: { _id: '$type', count: { $sum: 1 } } },
+                { $sort: { _id: 1 } },
+              ],
+              status: [
+                { $match: { shipment: { $exists: true, $ne: null } } },
+                { $group: { _id: '$shipment', count: { $sum: 1 } } },
+                { $sort: { _id: 1 } },
+              ],
+            },
           },
+        ]),
+
+        this.transactionModel.aggregate<{
+          approval: { _id: string; count: number }[];
+        }>([
+          { $match: scopeMatch },
           {
-            path: 'supplier',
-            select: 'name email address phoneNumber',
+            $facet: {
+              approval: [
+                { $group: { _id: '$approvalStatus', count: { $sum: 1 } } },
+                { $sort: { _id: 1 } },
+              ],
+            },
           },
-          {
-            path: 'customer',
-            select: 'name email address phoneNumber',
-          },
-          {
-            path: 'sourceWarehouse',
-            select: 'name address description',
-          },
-          {
-            path: 'destinationWarehouse',
-            select: 'name address description',
-          },
-          {
-            path: 'products.product',
-            select: 'name category',
-          },
-          {
-            path: 'products.variants.variant',
-            select: 'sku attributes varinatImage',
-          },
-          {
-            path: 'approvedBy',
-            select: 'name profileImageKey',
-          },
-          {
-            path: 'products.variants.batches.batch',
-            select: 'items sourceWarehouse destinationWarehouse createdAt',
-            populate: [
-              {
-                path: 'sourceWarehouse',
-                select: 'name address description',
-              },
-              {
-                path: 'destinationWarehouse',
-                select: 'name address description',
-              },
-            ],
-          },
-        ])
-        .sort({ updatedAt: -1 })
-        .skip(skip)
-        .limit(limit),
-      this.transactionModel.countDocuments(match),
-    ]);
+        ]),
+      ]);
 
     for (const transaction of transactions) {
-      const user = transaction.performedBy as unknown as User;
-
-      if (user?.profileImageKey) {
-        user.profileImage = await this.s3Service.getPresignedSignedUrl(
-          user.profileImageKey,
+      const performedBy = transaction.performedBy as unknown as User;
+      if (performedBy?.profileImageKey) {
+        performedBy.profileImage = await this.s3Service.getPresignedSignedUrl(
+          performedBy.profileImageKey,
         );
       }
     }
 
     for (const transaction of transactions) {
-      const user = transaction.approvedBy as unknown as User;
-
-      if (user?.profileImageKey) {
-        user.profileImage = await this.s3Service.getPresignedSignedUrl(
-          user.profileImageKey,
+      const approvedBy = transaction.approvedBy as unknown as User;
+      if (approvedBy?.profileImageKey) {
+        approvedBy.profileImage = await this.s3Service.getPresignedSignedUrl(
+          approvedBy.profileImageKey,
         );
       }
     }
@@ -199,6 +225,11 @@ export class TransactionService {
       message: 'Transactions retrieved successfully',
       data: {
         transactions,
+        counts: {
+          types: filteredCounts?.types ?? [],
+          status: filteredCounts?.status ?? [],
+          approval: approvalCounts?.approval ?? [],
+        },
         pagination: {
           total,
           page,
@@ -213,7 +244,15 @@ export class TransactionService {
     warehouseId: string,
     query: WarehouseTransactionsQueryDto,
   ) {
-    const { startDate, endDate, type, status, page = 1, limit = 10 } = query;
+    const {
+      startDate,
+      endDate,
+      type,
+      status,
+      approvalStatus,
+      page = 1,
+      limit = 10,
+    } = query;
 
     if (!isValidObjectId(warehouseId)) {
       return;
@@ -221,7 +260,7 @@ export class TransactionService {
 
     const warehouseObjectId = new Types.ObjectId(warehouseId);
 
-    const filter: QueryFilter<Transaction> = {
+    const scopeMatch: QueryFilter<Transaction> = {
       $or: [
         { sourceWarehouse: warehouseObjectId },
         { destinationWarehouse: warehouseObjectId },
@@ -229,7 +268,7 @@ export class TransactionService {
     };
 
     if (startDate || endDate) {
-      filter.createdAt = {
+      scopeMatch.createdAt = {
         ...(startDate && { $gte: new Date(startDate) }),
         ...(endDate && {
           $lte: new Date(new Date(endDate).setHours(23, 59, 59, 999)),
@@ -237,71 +276,110 @@ export class TransactionService {
       };
     }
 
+    const filter: QueryFilter<Transaction> = { ...scopeMatch };
+
     if (type && type !== 'ALL') filter.type = type;
     if (status && status !== 'ALL') filter.shipment = status;
+    if (approvalStatus && approvalStatus !== 'ALL')
+      filter.approvalStatus = approvalStatus;
 
     const skip = (page - 1) * limit;
 
-    const [transactions, total] = await Promise.all([
-      this.transactionModel
-        .find(filter)
-        .populate([
+    const [transactions, total, [filteredCounts], [approvalCounts]] =
+      await Promise.all([
+        this.transactionModel
+          .find(filter)
+          .populate([
+            {
+              path: 'performedBy',
+              select: 'name email role profileImageKey',
+            },
+            {
+              path: 'supplier',
+              select: 'name email address phoneNumber',
+            },
+            {
+              path: 'customer',
+              select: 'name email address phoneNumber',
+            },
+            {
+              path: 'sourceWarehouse',
+              select: 'name address description',
+            },
+            {
+              path: 'destinationWarehouse',
+              select: 'name address description',
+            },
+            {
+              path: 'products.product',
+              select: 'name category',
+            },
+            {
+              path: 'products.variants.variant',
+              select: 'sku attributes varinatImage',
+            },
+            {
+              path: 'approvedBy',
+              select: 'name profileImageKey',
+            },
+            {
+              path: 'products.variants.batches.batch',
+              select: 'items sourceWarehouse destinationWarehouse createdAt',
+              populate: [
+                {
+                  path: 'sourceWarehouse',
+                  select: 'name address description',
+                },
+                {
+                  path: 'destinationWarehouse',
+                  select: 'name address description',
+                },
+              ],
+            },
+          ])
+          .sort({ updatedAt: -1 })
+          .skip(skip)
+          .limit(limit),
+
+        this.transactionModel.countDocuments(filter),
+
+        this.transactionModel.aggregate<{
+          types: { _id: string; count: number }[];
+          status: { _id: string; count: number }[];
+        }>([
+          { $match: filter },
           {
-            path: 'performedBy',
-            select: 'name email role profileImageKey',
+            $facet: {
+              types: [
+                { $group: { _id: '$type', count: { $sum: 1 } } },
+                { $sort: { _id: 1 } },
+              ],
+              status: [
+                { $match: { shipment: { $exists: true, $ne: null } } },
+                { $group: { _id: '$shipment', count: { $sum: 1 } } },
+                { $sort: { _id: 1 } },
+              ],
+            },
           },
+        ]),
+
+        this.transactionModel.aggregate<{
+          approval: { _id: string; count: number }[];
+        }>([
+          { $match: scopeMatch },
           {
-            path: 'supplier',
-            select: 'name email address phoneNumber',
+            $facet: {
+              approval: [
+                { $group: { _id: '$approvalStatus', count: { $sum: 1 } } },
+                { $sort: { _id: 1 } },
+              ],
+            },
           },
-          {
-            path: 'customer',
-            select: 'name email address phoneNumber',
-          },
-          {
-            path: 'sourceWarehouse',
-            select: 'name address description',
-          },
-          {
-            path: 'destinationWarehouse',
-            select: 'name address description',
-          },
-          {
-            path: 'products.product',
-            select: 'name category',
-          },
-          {
-            path: 'products.variants.variant',
-            select: 'sku attributes varinatImage',
-          },
-          {
-            path: 'approvedBy',
-            select: 'name profileImageKey',
-          },
-          {
-            path: 'products.variants.batches.batch',
-            select: 'items sourceWarehouse destinationWarehouse createdAt',
-            populate: [
-              {
-                path: 'sourceWarehouse',
-                select: 'name address description',
-              },
-              {
-                path: 'destinationWarehouse',
-                select: 'name address description',
-              },
-            ],
-          },
-        ])
-        .sort({ updatedAt: -1 })
-        .skip(skip)
-        .limit(limit),
-      this.transactionModel.countDocuments(filter),
-    ]);
+        ]),
+      ]);
 
     for (const transaction of transactions) {
       const user = transaction.performedBy as unknown as User;
-
       if (user?.profileImageKey) {
         user.profileImage = await this.s3Service.getPresignedSignedUrl(
           user.profileImageKey,
@@ -311,7 +389,6 @@ export class TransactionService {
 
     for (const transaction of transactions) {
       const user = transaction.approvedBy as unknown as User;
-
       if (user?.profileImageKey) {
         user.profileImage = await this.s3Service.getPresignedSignedUrl(
           user.profileImageKey,
@@ -324,6 +401,11 @@ export class TransactionService {
       message: 'Warehouse transactions retrieved successfully',
       data: {
         transactions,
+        counts: {
+          types: filteredCounts?.types ?? [],
+          status: filteredCounts?.status ?? [],
+          approval: approvalCounts?.approval ?? [],
+        },
         pagination: {
           total,
           page,
@@ -333,68 +415,6 @@ export class TransactionService {
       },
     };
   }
-
-  async getPendingApprovals() {
-    const transactions = await this.transactionModel
-      .find({
-        requiresApproval: true,
-        approvalStatus: 'PENDING',
-      })
-      .populate([
-        {
-          path: 'performedBy',
-          select: 'name email',
-        },
-        {
-          path: 'supplier',
-          select: 'name',
-        },
-        {
-          path: 'customer',
-          select: 'name email',
-        },
-        {
-          path: 'sourceWarehouse',
-          select: 'name',
-        },
-        {
-          path: 'destinationWarehouse',
-          select: 'name',
-        },
-        {
-          path: 'products.product',
-          select: 'name',
-        },
-        {
-          path: 'products.variants.variant',
-          select: 'sku attributes',
-        },
-        {
-          path: 'products.variants.batches.batch',
-          select: 'items sourceWarehouse destinationWarehouse createdAt',
-          populate: [
-            {
-              path: 'sourceWarehouse',
-              select: 'name',
-            },
-            {
-              path: 'destinationWarehouse',
-              select: 'name',
-            },
-          ],
-        },
-      ])
-      .sort({ createdAt: -1 })
-      .lean();
-
-    return {
-      success: true,
-      message: 'All Pending Transactions',
-      data: transactions,
-    };
-  }
-
-  // Stock In
 
   async createStockIn(dto: StockInDto, user: UserDocument) {
     const session = await this.connection.startSession();
