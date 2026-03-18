@@ -835,33 +835,10 @@ export class DashboardService {
       { $sort: { label: 1 } },
     ]);
 
-    const map = dbData.reduce<Record<string, ProfitLossItem>>((acc, item) => {
-      acc[item.label] = item;
-      return acc;
-    }, {});
-
-    const final: ProfitLossItem[] = [];
-
-    for (let i = 0; i < totalDays; i++) {
-      const date = new Date(start);
-      date.setDate(start.getDate() + i);
-
-      const label = this.formatDateLocal(date);
-
-      final.push(
-        map[label] ?? {
-          label,
-          profit: 0,
-          loss: 0,
-          net: 0,
-        },
-      );
-    }
-
     return {
       success: true,
       message: 'Profit & Loss Analytics',
-      data: final,
+      data: dbData,
     };
   }
 

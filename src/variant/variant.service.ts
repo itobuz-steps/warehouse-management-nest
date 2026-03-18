@@ -9,6 +9,7 @@ import { LOG_ACTION } from 'src/transaction-logs/enums/log-action.enum';
 import { LOG_ENTITY_TYPE } from 'src/transaction-logs/enums/log-entity-type.enum';
 import { UserDocument } from 'src/auth/entities/auth.entity';
 import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
+import { UpdateVariantDto } from './dto/update-variant.dto';
 @Injectable()
 export class VariantService {
   constructor(
@@ -60,13 +61,26 @@ export class VariantService {
       dto.attributes,
       dto.price,
       dto.markup,
-      dto.productImage || [],
+      dto.variantImage || [],
       user,
     );
 
     return {
       success: true,
       message: 'Variant created successfully',
+      data,
+    };
+  }
+
+  async update(id: string, dto: UpdateVariantDto) {
+    const data = await this.variantModel.findByIdAndUpdate(
+      new Types.ObjectId(id),
+      dto,
+    );
+
+    return {
+      success: true,
+      message: 'Variant Updated successfully',
       data,
     };
   }
@@ -106,6 +120,16 @@ export class VariantService {
         product: new Types.ObjectId(productId),
       });
 
+      if (!variants) throw new Error('Variants not Found');
+
+      for (const variant of variants) {
+        variant.variantImage = await Promise.all(
+          variant.variantImage.map((key: string) =>
+            this.storageService.getPresignedSignedUrl(key),
+          ),
+        );
+      }
+
       return {
         success: true,
         message: 'Variants retrieved successfully',
@@ -113,11 +137,9 @@ export class VariantService {
       };
     }
 
-    const variants = await this.variantModel.aggregate([
+    const variants: Variant[] = await this.variantModel.aggregate([
       {
-        $match: {
-          product: new Types.ObjectId(productId),
-        },
+        $match: { product: new Types.ObjectId(productId) },
       },
       {
         $lookup: {
@@ -129,34 +151,45 @@ export class VariantService {
                 $expr: {
                   $and: [
                     { $eq: ['$variantId', '$$variantId'] },
-                    { $eq: ['$warehouseId', new Types.ObjectId(warehouseId)] },
+                    ...(warehouseId
+                      ? [
+                          {
+                            $eq: [
+                              '$warehouseId',
+                              new Types.ObjectId(warehouseId),
+                            ],
+                          },
+                        ]
+                      : []),
                   ],
                 },
               },
             },
           ],
-          as: 'stock',
+          as: 'stockEntries',
         },
       },
-      {
-        $unwind: '$stock',
-      },
-      {
-        $match: {
-          'stock.quantity': { $gt: 0 },
-        },
-      },
+      // Sum stock entries — variants with no entries get quantity: 0
       {
         $addFields: {
-          quantity: '$stock.quantity',
+          quantity: { $sum: '$stockEntries.quantity' },
         },
       },
+      // All variants are returned; quantity: 0 means no stock in that warehouse
       {
-        $project: {
-          stock: 0,
-        },
+        $project: { stockEntries: 0 },
       },
     ]);
+
+    for (const variant of variants) {
+      if (variant.variantImage?.length) {
+        variant.variantImage = await Promise.all(
+          variant.variantImage.map((key: string) =>
+            this.storageService.getPresignedSignedUrl(key),
+          ),
+        );
+      }
+    }
 
     return {
       success: true,

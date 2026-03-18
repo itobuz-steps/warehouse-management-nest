@@ -8,8 +8,15 @@ export class GetProductsQueryDto {
   search?: string;
 
   @IsOptional()
-  @IsString()
-  category?: string;
+  @IsString({ each: true })
+  @Transform(({ obj }: { obj: { category: string[] } }) => {
+    const raw = obj.category ?? obj['category[]'];
+
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'string') return [raw];
+    return [];
+  })
+  category?: string[];
 
   @IsOptional()
   @IsEnum(SORT_CATEGORY)

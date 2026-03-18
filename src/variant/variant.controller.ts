@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Param,
+  Put,
   Post,
   Query,
   Req,
@@ -18,6 +19,7 @@ import { FILE_FIELD, FILE_COUNT } from 'src/common/constants/file.constant';
 import { memoryStorage } from 'multer';
 import { StorageService } from 'src/storage/storage.service';
 import type { RequestWithUser } from 'src/profile/profile.controller';
+import { UpdateVariantDto } from './dto/update-variant.dto';
 @Controller('variant')
 @UseGuards(AuthGuard)
 export class VariantController {
@@ -28,7 +30,7 @@ export class VariantController {
 
   @Post()
   @UseInterceptors(
-    FilesInterceptor(FILE_FIELD.productImage, FILE_COUNT, {
+    FilesInterceptor(FILE_FIELD.variantImage, FILE_COUNT, {
       storage: memoryStorage(),
     }),
   )
@@ -48,10 +50,35 @@ export class VariantController {
     return await this.variantService.create(
       {
         ...dto,
-        productImage: imageKeys,
+        variantImage: imageKeys,
       },
       req.user,
     );
+  }
+
+  @Put('/:id')
+  @UseInterceptors(
+    FilesInterceptor(FILE_FIELD.variantImage, FILE_COUNT, {
+      storage: memoryStorage(),
+    }),
+  )
+  async update(
+    @Param('id') id: string,
+    @Body() dto: UpdateVariantDto,
+    @UploadedFiles() files: Express.Multer.File[],
+  ) {
+    const imageKeys: string[] = [];
+
+    if (files && files.length) {
+      const uploadedImages =
+        await this.storageService.uploadMultipleFiles(files);
+      imageKeys.push(...uploadedImages.map((img) => img.key));
+    }
+
+    return await this.variantService.update(id, {
+      ...dto,
+      variantImage: imageKeys,
+    });
   }
 
   @Get('/:id')
