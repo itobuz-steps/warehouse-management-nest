@@ -5,7 +5,7 @@ import {
   StreamableFile,
 } from '@nestjs/common';
 import { InjectModel, InjectConnection } from '@nestjs/mongoose';
-import { Model, Connection, Types } from 'mongoose';
+import { Model, Connection, Types, isValidObjectId } from 'mongoose';
 import { Transaction, TransactionDocument } from './schemas/transaction.schema';
 import { StockInDto } from './dto/stock-in.dto';
 import {
@@ -13,7 +13,7 @@ import {
   WarehouseDocument,
 } from '../warehouse/schemas/warehouse.schema';
 import { USER_TYPES } from 'src/auth/userType';
-import { UserDocument } from 'src/auth/entities/auth.entity';
+import { User, UserDocument } from 'src/auth/entities/auth.entity';
 import { WarehouseTransactionsQueryDto } from './dto/query/warehouse-transactions.query.dto';
 import { GetTransactionsQueryDto } from './dto/query/get-transactions.query.dto';
 import type { ClientSession, QueryFilter } from 'mongoose';
@@ -42,6 +42,7 @@ import { Customer } from 'src/customer/entities/customer.entity';
 import { Variant } from 'src/variant/schemas/variant.schema';
 import { TRANSACTION_STATUS } from './constants/transactionStatus';
 import { ProductItemDto } from './dto/product-item.dto';
+import { StorageService } from 'src/storage/storage.service';
 
 @Injectable()
 export class TransactionService {
@@ -80,24 +81,31 @@ export class TransactionService {
     private readonly notificationTriggerService: NotificationTriggerService,
 
     private readonly logsService: TransactionLogsService,
+
+    private readonly s3Service: StorageService,
   ) {}
 
   async getTransactions(query: GetTransactionsQueryDto, user: UserDocument) {
-    const { startDate, endDate, type, status, page = 1, limit = 10 } = query;
+    const {
+      startDate,
+      endDate,
+      type,
+      status,
+      approvalStatus,
+      page = 1,
+      limit = 10,
+    } = query;
 
-    const match: QueryFilter<Transaction> = {};
+    const scopeMatch: QueryFilter<Transaction> = {};
 
     if (startDate || endDate) {
-      match.createdAt = {
+      scopeMatch.createdAt = {
         ...(startDate && { $gte: new Date(startDate) }),
         ...(endDate && {
           $lte: new Date(new Date(endDate).setHours(23, 59, 59, 999)),
         }),
       };
     }
-
-    if (type && type !== 'ALL') match.type = type;
-    if (status && status !== 'ALL') match.shipment = status;
 
     if (user.role === USER_TYPES.MANAGER) {
       const warehouses = await this.warehouseModel
@@ -106,29 +114,122 @@ export class TransactionService {
 
       const ids = warehouses.map((w) => w._id);
 
-      match.$or = [
+      scopeMatch.$or = [
         { sourceWarehouse: { $in: ids } },
         { destinationWarehouse: { $in: ids } },
       ];
     }
 
+    const match: QueryFilter<Transaction> = { ...scopeMatch };
+
+    if (type && type !== 'ALL') match.type = type;
+    if (status && status !== 'ALL') match.shipment = status;
+    if (approvalStatus && approvalStatus !== 'ALL') {
+      match.approvalStatus = approvalStatus;
+    }
+
     const skip = (page - 1) * limit;
 
-    const [transactions, total] = await Promise.all([
-      this.transactionModel
-        .find(match)
-        .populate('products performedBy sourceWarehouse destinationWarehouse')
-        .sort({ updatedAt: -1 })
-        .skip(skip)
-        .limit(limit),
-      this.transactionModel.countDocuments(match),
-    ]);
+    const [transactions, total, [filteredCounts], [approvalCounts]] =
+      await Promise.all([
+        this.transactionModel
+          .find(match)
+          .populate([
+            { path: 'performedBy', select: 'name email role profileImageKey' },
+            { path: 'supplier', select: 'name email address phoneNumber' },
+            { path: 'customer', select: 'name email address phoneNumber' },
+            { path: 'sourceWarehouse', select: 'name address description' },
+            {
+              path: 'destinationWarehouse',
+              select: 'name address description',
+            },
+            { path: 'products.product', select: 'name category' },
+            {
+              path: 'products.variants.variant',
+              select: 'sku attributes varinatImage',
+            },
+            { path: 'approvedBy', select: 'name profileImageKey' },
+            {
+              path: 'products.variants.batches.batch',
+              select: 'items sourceWarehouse destinationWarehouse createdAt',
+              populate: [
+                { path: 'sourceWarehouse', select: 'name address description' },
+                {
+                  path: 'destinationWarehouse',
+                  select: 'name address description',
+                },
+              ],
+            },
+          ])
+          .sort({ updatedAt: -1 })
+          .skip(skip)
+          .limit(limit),
+
+        this.transactionModel.countDocuments(match),
+
+        this.transactionModel.aggregate<{
+          types: { _id: string; count: number }[];
+          status: { _id: string; count: number }[];
+        }>([
+          { $match: match },
+          {
+            $facet: {
+              types: [
+                { $group: { _id: '$type', count: { $sum: 1 } } },
+                { $sort: { _id: 1 } },
+              ],
+              status: [
+                { $match: { shipment: { $exists: true, $ne: null } } },
+                { $group: { _id: '$shipment', count: { $sum: 1 } } },
+                { $sort: { _id: 1 } },
+              ],
+            },
+          },
+        ]),
+
+        this.transactionModel.aggregate<{
+          approval: { _id: string; count: number }[];
+        }>([
+          { $match: scopeMatch },
+          {
+            $facet: {
+              approval: [
+                { $group: { _id: '$approvalStatus', count: { $sum: 1 } } },
+                { $sort: { _id: 1 } },
+              ],
+            },
+          },
+        ]),
+      ]);
+
+    for (const transaction of transactions) {
+      const performedBy = transaction.performedBy as unknown as User;
+      if (performedBy?.profileImageKey) {
+        performedBy.profileImage = await this.s3Service.getPresignedSignedUrl(
+          performedBy.profileImageKey,
+        );
+      }
+    }
+
+    for (const transaction of transactions) {
+      const approvedBy = transaction.approvedBy as unknown as User;
+      if (approvedBy?.profileImageKey) {
+        approvedBy.profileImage = await this.s3Service.getPresignedSignedUrl(
+          approvedBy.profileImageKey,
+        );
+      }
+    }
 
     return {
       success: true,
       message: 'Transactions retrieved successfully',
       data: {
         transactions,
+        counts: {
+          types: filteredCounts?.types ?? [],
+          status: filteredCounts?.status ?? [],
+          approval: approvalCounts?.approval ?? [],
+        },
         pagination: {
           total,
           page,
@@ -143,11 +244,23 @@ export class TransactionService {
     warehouseId: string,
     query: WarehouseTransactionsQueryDto,
   ) {
-    const { startDate, endDate, type, status, page = 1, limit = 10 } = query;
+    const {
+      startDate,
+      endDate,
+      type,
+      status,
+      approvalStatus,
+      page = 1,
+      limit = 10,
+    } = query;
+
+    if (!isValidObjectId(warehouseId)) {
+      return;
+    }
 
     const warehouseObjectId = new Types.ObjectId(warehouseId);
 
-    const filter: QueryFilter<Transaction> = {
+    const scopeMatch: QueryFilter<Transaction> = {
       $or: [
         { sourceWarehouse: warehouseObjectId },
         { destinationWarehouse: warehouseObjectId },
@@ -155,7 +268,7 @@ export class TransactionService {
     };
 
     if (startDate || endDate) {
-      filter.createdAt = {
+      scopeMatch.createdAt = {
         ...(startDate && { $gte: new Date(startDate) }),
         ...(endDate && {
           $lte: new Date(new Date(endDate).setHours(23, 59, 59, 999)),
@@ -163,26 +276,136 @@ export class TransactionService {
       };
     }
 
+    const filter: QueryFilter<Transaction> = { ...scopeMatch };
+
     if (type && type !== 'ALL') filter.type = type;
     if (status && status !== 'ALL') filter.shipment = status;
+    if (approvalStatus && approvalStatus !== 'ALL')
+      filter.approvalStatus = approvalStatus;
 
     const skip = (page - 1) * limit;
 
-    const [transactions, total] = await Promise.all([
-      this.transactionModel
-        .find(filter)
-        .populate('products performedBy sourceWarehouse destinationWarehouse')
-        .sort({ updatedAt: -1 })
-        .skip(skip)
-        .limit(limit),
-      this.transactionModel.countDocuments(filter),
-    ]);
+    const [transactions, total, [filteredCounts], [approvalCounts]] =
+      await Promise.all([
+        this.transactionModel
+          .find(filter)
+          .populate([
+            {
+              path: 'performedBy',
+              select: 'name email role profileImageKey',
+            },
+            {
+              path: 'supplier',
+              select: 'name email address phoneNumber',
+            },
+            {
+              path: 'customer',
+              select: 'name email address phoneNumber',
+            },
+            {
+              path: 'sourceWarehouse',
+              select: 'name address description',
+            },
+            {
+              path: 'destinationWarehouse',
+              select: 'name address description',
+            },
+            {
+              path: 'products.product',
+              select: 'name category',
+            },
+            {
+              path: 'products.variants.variant',
+              select: 'sku attributes varinatImage',
+            },
+            {
+              path: 'approvedBy',
+              select: 'name profileImageKey',
+            },
+            {
+              path: 'products.variants.batches.batch',
+              select: 'items sourceWarehouse destinationWarehouse createdAt',
+              populate: [
+                {
+                  path: 'sourceWarehouse',
+                  select: 'name address description',
+                },
+                {
+                  path: 'destinationWarehouse',
+                  select: 'name address description',
+                },
+              ],
+            },
+          ])
+          .sort({ updatedAt: -1 })
+          .skip(skip)
+          .limit(limit),
+
+        this.transactionModel.countDocuments(filter),
+
+        this.transactionModel.aggregate<{
+          types: { _id: string; count: number }[];
+          status: { _id: string; count: number }[];
+        }>([
+          { $match: filter },
+          {
+            $facet: {
+              types: [
+                { $group: { _id: '$type', count: { $sum: 1 } } },
+                { $sort: { _id: 1 } },
+              ],
+              status: [
+                { $match: { shipment: { $exists: true, $ne: null } } },
+                { $group: { _id: '$shipment', count: { $sum: 1 } } },
+                { $sort: { _id: 1 } },
+              ],
+            },
+          },
+        ]),
+
+        this.transactionModel.aggregate<{
+          approval: { _id: string; count: number }[];
+        }>([
+          { $match: scopeMatch },
+          {
+            $facet: {
+              approval: [
+                { $group: { _id: '$approvalStatus', count: { $sum: 1 } } },
+                { $sort: { _id: 1 } },
+              ],
+            },
+          },
+        ]),
+      ]);
+
+    for (const transaction of transactions) {
+      const user = transaction.performedBy as unknown as User;
+      if (user?.profileImageKey) {
+        user.profileImage = await this.s3Service.getPresignedSignedUrl(
+          user.profileImageKey,
+        );
+      }
+    }
+
+    for (const transaction of transactions) {
+      const user = transaction.approvedBy as unknown as User;
+      if (user?.profileImageKey) {
+        user.profileImage = await this.s3Service.getPresignedSignedUrl(
+          user.profileImageKey,
+        );
+      }
+    }
 
     return {
       success: true,
       message: 'Warehouse transactions retrieved successfully',
       data: {
         transactions,
+        counts: {
+          types: filteredCounts?.types ?? [],
+          status: filteredCounts?.status ?? [],
+          approval: approvalCounts?.approval ?? [],
+        },
         pagination: {
           total,
           page,
@@ -192,8 +415,6 @@ export class TransactionService {
       },
     };
   }
-
-  // Stock In
 
   async createStockIn(dto: StockInDto, user: UserDocument) {
     const session = await this.connection.startSession();
@@ -1166,7 +1387,6 @@ export class TransactionService {
       .populate('sourceWarehouse')
       .populate('performedBy')
       .lean<PopulatedTransactionForPdfGeneration>();
-    console.log(transaction);
 
     if (!transaction) {
       throw new NotFoundException('Transaction not found');
@@ -1279,6 +1499,54 @@ export class TransactionService {
       return {
         success: true,
         message: 'Transaction approved and stock updated',
+      };
+    } catch (err) {
+      await session.abortTransaction();
+      throw err;
+    } finally {
+      await session.endSession();
+    }
+  }
+
+  async rejectTransaction(transactionId: string, adminId: Types.ObjectId) {
+    const session = await this.connection.startSession();
+    session.startTransaction();
+
+    try {
+      const transaction = await this.transactionModel
+        .findById(transactionId)
+        .session(session);
+
+      if (!transaction) {
+        throw new NotFoundException('Transaction not found');
+      }
+
+      if (!transaction.requiresApproval) {
+        throw new BadRequestException('Transaction does not require approval');
+      }
+
+      if (transaction.approvalStatus === TRANSACTION_STATUS.REJECTED) {
+        throw new BadRequestException('Transaction already rejected');
+      }
+
+      if (transaction.approvalStatus === TRANSACTION_STATUS.APPROVED) {
+        throw new BadRequestException(
+          'Approved transaction cannot be rejected',
+        );
+      }
+
+      // ✅ Only update status
+      transaction.approvalStatus = TRANSACTION_STATUS.REJECTED;
+      transaction.approvedBy = adminId;
+      transaction.approvedAt = new Date();
+
+      await transaction.save({ session });
+
+      await session.commitTransaction();
+
+      return {
+        success: true,
+        message: 'Transaction rejected successfully',
       };
     } catch (err) {
       await session.abortTransaction();

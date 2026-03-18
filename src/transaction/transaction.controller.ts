@@ -81,6 +81,15 @@ export class TransactionController {
     return this.transactionService.approveTransaction(id, req.user._id);
   }
 
+  @Post('reject/:id')
+  @Roles(USER_TYPES.ADMIN)
+  rejectTransaction(
+    @Param('id') id: string,
+    @Req() req: RequestWithUserDocument,
+  ) {
+    return this.transactionService.rejectTransaction(id, req.user._id);
+  }
+
   @Get('generate-invoice/:id')
   generateInvoice(@Param('id') id: string) {
     return this.transactionService.generateInvoice(id);
