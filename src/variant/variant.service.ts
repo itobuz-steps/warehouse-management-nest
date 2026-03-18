@@ -169,16 +169,13 @@ export class VariantService {
           as: 'stockEntries',
         },
       },
-      // Sum all matching stock entries into a single `quantity` field.
-      // This eliminates duplicates whether warehouseId is provided or not.
+      // Sum stock entries — variants with no entries get quantity: 0
       {
         $addFields: {
           quantity: { $sum: '$stockEntries.quantity' },
         },
       },
-      {
-        $match: { quantity: { $gt: 0 } },
-      },
+      // All variants are returned; quantity: 0 means no stock in that warehouse
       {
         $project: { stockEntries: 0 },
       },

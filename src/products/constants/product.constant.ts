@@ -16,6 +16,11 @@ export enum SORT_CATEGORY {
   CATEGORY_ASC = 'category_asc',
   CATEGORY_DESC = 'category_desc',
   LATEST = 'latest',
+  OLDEST = 'oldest',
   QUANTITY_ASC = 'quantity_asc',
   QUANTITY_DESC = 'quantity_desc',
+  COST_ASC = 'cost_asc',
+  COST_DESC = 'cost_desc',
+  RETAIL_ASC = 'retail_asc',
+  RETAIL_DESC = 'retail_desc',
 }
