@@ -42,12 +42,7 @@ export class ProductsController {
   ) {}
 
   @Get()
-  async getProducts(
-    @Query() queryDto: GetProductsQueryDto,
-    @Req() req: Request,
-  ) {
-    console.log(req.query);
-    console.log(queryDto);
+  async getProducts(@Query() queryDto: GetProductsQueryDto) {
     const data = await this.productsService.getProducts(queryDto);
 
     return {

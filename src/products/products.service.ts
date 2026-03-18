@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, QueryFilter, Types } from 'mongoose';
+import { Model, PipelineStage, QueryFilter, Types } from 'mongoose';
 import { Product, ProductDocument } from './entities/product.entity';
 import { GetProductsQueryDto } from './dto/get-product-query.dto';
 import { updateProductDto } from './dto/update-product.dto';
@@ -34,7 +34,9 @@ export class ProductsService {
   async getProducts(queryDto: GetProductsQueryDto) {
     const { search, category, sort, page = '1', limit = '10' } = queryDto;
 
-    const filter: QueryFilter<ProductDocument> = { isArchived: false };
+    const filter: QueryFilter<ProductDocument> = {
+      isArchived: false,
+    };
 
     const categories = Array.isArray(category)
       ? category
@@ -50,29 +52,114 @@ export class ProductsService {
       filter.name = { $regex: search, $options: 'i' };
     }
 
-    let query = this.productModel.find(filter).populate('createdBy');
-
-    if (sort) {
-      if (sort === SORT_CATEGORY.NAME_ASC) {
-        query = query.sort({ name: 1 });
-      } else if (sort === SORT_CATEGORY.NAME_DESC) {
-        query = query.sort({ name: -1 });
-      } else if (sort === SORT_CATEGORY.CATEGORY_ASC) {
-        query = query.sort({ category: 1 });
-      } else {
-        query = query.sort({ createdAt: -1 });
-      }
-    } else {
-      query = query.sort({ createdAt: -1 });
-    }
-
     const pageNumber = Math.max(parseInt(page, 10), 1);
     const limitNumber = Math.max(parseInt(limit, 10), 1);
     const skip = (pageNumber - 1) * limitNumber;
 
+    const pipeline: PipelineStage[] = [
+      { $match: filter },
+
+      {
+        $lookup: {
+          from: 'variants',
+          let: { productId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ['$product', '$$productId'] },
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                minPrice: { $min: '$price' },
+                minRetailPrice: {
+                  $min: {
+                    $multiply: [
+                      '$price',
+                      { $add: [{ $divide: ['$markup', 100] }, 1] },
+                    ],
+                  },
+                },
+              },
+            },
+          ],
+          as: 'priceData',
+        },
+      },
+
+      {
+        $addFields: {
+          minPrice: {
+            $ifNull: [{ $arrayElemAt: ['$priceData.minPrice', 0] }, null],
+          },
+          minRetailPrice: {
+            $ifNull: [{ $arrayElemAt: ['$priceData.minRetailPrice', 0] }, null],
+          },
+        },
+      },
+    ];
+
+    let sortStage: Record<string, 1 | -1> = { createdAt: -1 };
+
+    switch (sort) {
+      case SORT_CATEGORY.LATEST:
+        sortStage = { createdAt: -1 };
+        break;
+
+      case SORT_CATEGORY.OLDEST:
+        sortStage = { createdAt: 1 };
+        break;
+
+      case SORT_CATEGORY.COST_ASC:
+        sortStage = { minPrice: 1 };
+        break;
+
+      case SORT_CATEGORY.COST_DESC:
+        sortStage = { minPrice: -1 };
+        break;
+
+      case SORT_CATEGORY.RETAIL_ASC:
+        sortStage = { minRetailPrice: 1 };
+        break;
+
+      case SORT_CATEGORY.RETAIL_DESC:
+        sortStage = { minRetailPrice: -1 };
+        break;
+
+      case SORT_CATEGORY.NAME_ASC:
+        sortStage = { name: 1 };
+        break;
+
+      case SORT_CATEGORY.NAME_DESC:
+        sortStage = { name: -1 };
+        break;
+
+      case SORT_CATEGORY.CATEGORY_ASC:
+        sortStage = { category: 1 };
+        break;
+
+      default:
+        sortStage = { createdAt: -1 };
+    }
+
+    pipeline.push({ $sort: sortStage });
+
+    pipeline.push(
+      { $skip: skip },
+      { $limit: limitNumber },
+      {
+        $project: {
+          priceData: 0,
+          minPrice: 0,
+          minRetailPrice: 0,
+        },
+      },
+    );
+
     const [products, totalCount] = await Promise.all([
-      query.skip(skip).limit(limitNumber).exec(),
-      this.productModel.countDocuments(filter).exec(),
+      this.productModel.aggregate<ProductDocument>(pipeline),
+      this.productModel.countDocuments(filter),
     ]);
 
     const totalPages = Math.ceil(totalCount / limitNumber);
