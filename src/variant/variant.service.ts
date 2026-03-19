@@ -122,14 +122,6 @@ export class VariantService {
 
       if (!variants) throw new Error('Variants not Found');
 
-      for (const variant of variants) {
-        variant.variantImage = await Promise.all(
-          variant.variantImage.map((key: string) =>
-            this.storageService.getPresignedSignedUrl(key),
-          ),
-        );
-      }
-
       return {
         success: true,
         message: 'Variants retrieved successfully',
@@ -180,16 +172,6 @@ export class VariantService {
         $project: { stockEntries: 0 },
       },
     ]);
-
-    for (const variant of variants) {
-      if (variant.variantImage?.length) {
-        variant.variantImage = await Promise.all(
-          variant.variantImage.map((key: string) =>
-            this.storageService.getPresignedSignedUrl(key),
-          ),
-        );
-      }
-    }
 
     return {
       success: true,

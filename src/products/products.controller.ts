@@ -41,6 +41,14 @@ export class ProductsController {
     private readonly storageService: StorageService,
   ) {}
 
+  @Get(':id')
+  async getProduct(@Param('id') id: string) {
+    return {
+      success: true,
+      data: await this.productsService.findOne(id),
+    };
+  }
+
   @Get()
   async getProducts(@Query() queryDto: GetProductsQueryDto) {
     const data = await this.productsService.getProducts(queryDto);
