@@ -41,6 +41,16 @@ export class ProductsController {
     private readonly storageService: StorageService,
   ) {}
 
+  @Get('/warehouse-products')
+  async getProductsForWarehouse(@Query() query: GetWarehouseProductsQueryDto) {
+    const data = await this.productsService.getProductsForWarehouse(query);
+
+    return {
+      success: true,
+      data,
+    };
+  }
+
   @Get(':id')
   async getProduct(@Param('id') id: string) {
     return {
@@ -52,16 +62,6 @@ export class ProductsController {
   @Get()
   async getProducts(@Query() queryDto: GetProductsQueryDto) {
     const data = await this.productsService.getProducts(queryDto);
-
-    return {
-      success: true,
-      data,
-    };
-  }
-
-  @Get('/warehouse-products')
-  async getProductsForWarehouse(@Query() query: GetWarehouseProductsQueryDto) {
-    const data = await this.productsService.getProductsForWarehouse(query);
 
     return {
       success: true,

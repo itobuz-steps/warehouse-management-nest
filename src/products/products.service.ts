@@ -34,7 +34,7 @@ export class ProductsService {
   async getProducts(queryDto: GetProductsQueryDto) {
     const { search, category, sort, page = '1', limit = '10' } = queryDto;
 
-    const filter: QueryFilter<ProductDocument> = {
+    const baseFilter: QueryFilter<ProductDocument> = {
       isArchived: false,
     };
 
@@ -45,11 +45,7 @@ export class ProductsService {
         : [];
 
     if (categories.length) {
-      filter.category = { $in: categories };
-    }
-
-    if (search) {
-      filter.name = { $regex: search, $options: 'i' };
+      baseFilter.category = { $in: categories };
     }
 
     const pageNumber = Math.max(parseInt(page, 10), 1);
@@ -57,48 +53,48 @@ export class ProductsService {
     const skip = (pageNumber - 1) * limitNumber;
 
     const pipeline: PipelineStage[] = [
-      { $match: filter },
+      { $match: baseFilter },
 
       {
         $lookup: {
           from: 'variants',
-          let: { productId: '$_id' },
-          pipeline: [
-            {
-              $match: {
-                $expr: { $eq: ['$product', '$$productId'] },
-              },
-            },
-            {
-              $group: {
-                _id: null,
-                minPrice: { $min: '$price' },
-                minRetailPrice: {
-                  $min: {
-                    $multiply: [
-                      '$price',
-                      { $add: [{ $divide: ['$markup', 100] }, 1] },
-                    ],
-                  },
-                },
-              },
-            },
-          ],
-          as: 'priceData',
-        },
-      },
-
-      {
-        $addFields: {
-          minPrice: {
-            $ifNull: [{ $arrayElemAt: ['$priceData.minPrice', 0] }, null],
-          },
-          minRetailPrice: {
-            $ifNull: [{ $arrayElemAt: ['$priceData.minRetailPrice', 0] }, null],
-          },
+          localField: '_id',
+          foreignField: 'product',
+          as: 'variants',
         },
       },
     ];
+
+    if (search) {
+      pipeline.push({
+        $match: {
+          $or: [
+            { name: { $regex: search, $options: 'i' } },
+            { 'variants.sku': { $regex: search, $options: 'i' } },
+          ],
+        },
+      });
+    }
+
+    pipeline.push({
+      $addFields: {
+        minPrice: { $min: '$variants.price' },
+        minRetailPrice: {
+          $min: {
+            $map: {
+              input: '$variants',
+              as: 'v',
+              in: {
+                $multiply: [
+                  '$$v.price',
+                  { $add: [{ $divide: ['$$v.markup', 100] }, 1] },
+                ],
+              },
+            },
+          },
+        },
+      },
+    });
 
     let sortStage: Record<string, 1 | -1> = { createdAt: -1 };
 
@@ -145,23 +141,51 @@ export class ProductsService {
 
     pipeline.push({ $sort: sortStage });
 
+    // pagination
     pipeline.push(
       { $skip: skip },
       { $limit: limitNumber },
       {
         $project: {
-          priceData: 0,
+          variants: 0,
           minPrice: 0,
           minRetailPrice: 0,
         },
       },
     );
 
-    const [products, totalCount] = await Promise.all([
+    // count pipeline (must mirror search logic)
+    const countPipeline: PipelineStage[] = [
+      { $match: baseFilter },
+      {
+        $lookup: {
+          from: 'variants',
+          localField: '_id',
+          foreignField: 'product',
+          as: 'variants',
+        },
+      },
+    ];
+
+    if (search) {
+      countPipeline.push({
+        $match: {
+          $or: [
+            { name: { $regex: search, $options: 'i' } },
+            { 'variants.sku': { $regex: search, $options: 'i' } },
+          ],
+        },
+      });
+    }
+
+    countPipeline.push({ $count: 'total' });
+
+    const [products, countResult] = await Promise.all([
       this.productModel.aggregate<ProductDocument>(pipeline),
-      this.productModel.countDocuments(filter),
+      this.productModel.aggregate<{ total: number }>(countPipeline),
     ]);
 
+    const totalCount = countResult[0]?.total ?? 0;
     const totalPages = Math.ceil(totalCount / limitNumber);
 
     return {
