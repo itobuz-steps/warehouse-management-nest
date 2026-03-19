@@ -10,13 +10,14 @@ import { LOG_ACTION } from 'src/transaction-logs/enums/log-action.enum';
 import { LOG_ENTITY_TYPE } from 'src/transaction-logs/enums/log-entity-type.enum';
 import { Transaction } from 'src/transaction/schemas/transaction.schema';
 import { TRANSACTION_TYPES } from 'src/transaction/constants/transactionConstants';
-import { SHIPMENT_TYPES } from 'src/transaction/constants/shipmentConstants';
+// import { SHIPMENT_TYPES } from 'src/transaction/constants/shipmentConstants';
 
 @Injectable()
 export class CustomerService {
   constructor(
     @InjectModel(Customer.name) private customerModel: Model<Customer>,
-    @InjectModel(Transaction.name) private transactionModel: Model<Transaction>,
+    @InjectModel(Transaction.name)
+    private transactionModel: Model<Transaction>,
     private readonly logsService: TransactionLogsService,
   ) {}
 
@@ -174,8 +175,8 @@ export class CustomerService {
     };
   }
 
-  async getTopCustomersByOrderValue(limit = 5) {
-    const results = await this.transactionModel.aggregate<{
+  private async getTopCustomersByOrderValue(limit = 5) {
+    return this.transactionModel.aggregate<{
       _id: string;
       totalOrderValue: number;
       totalOrders: number;
@@ -185,7 +186,6 @@ export class CustomerService {
       {
         $match: {
           type: TRANSACTION_TYPES.OUT,
-          shipment: SHIPMENT_TYPES.SHIPPED,
           customer: { $exists: true, $ne: null },
         },
       },
@@ -217,11 +217,9 @@ export class CustomerService {
         },
       },
     ]);
-
-    return results;
   }
 
-  async getNewCustomerGrowth(months = 6) {
+  private async getNewCustomerGrowth(months = 6) {
     const from = new Date();
     from.setMonth(from.getMonth() - months + 1);
     from.setDate(1);
@@ -267,8 +265,8 @@ export class CustomerService {
     return filled;
   }
 
-  async getAvgOrderValuePerCustomer(limit = 5) {
-    const results = await this.transactionModel.aggregate<{
+  private async getAvgOrderValuePerCustomer(limit = 4) {
+    return this.transactionModel.aggregate<{
       _id: string;
       avgOrderValue: number;
       totalOrders: number;
@@ -278,7 +276,6 @@ export class CustomerService {
       {
         $match: {
           type: TRANSACTION_TYPES.OUT,
-          shipment: SHIPMENT_TYPES.SHIPPED,
           customer: { $exists: true, $ne: null },
         },
       },
@@ -290,8 +287,11 @@ export class CustomerService {
         },
       },
       {
+        // Coalesce null (empty group) to 0 and round to nearest integer
         $addFields: {
-          avgOrderValue: { $round: ['$avgOrderValue', 0] },
+          avgOrderValue: {
+            $round: [{ $ifNull: ['$avgOrderValue', 0] }, 0],
+          },
         },
       },
       { $sort: { avgOrderValue: -1 } },
@@ -315,7 +315,5 @@ export class CustomerService {
         },
       },
     ]);
-
-    return results;
   }
 }
