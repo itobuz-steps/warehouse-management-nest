@@ -10,7 +10,6 @@ import { LOG_ACTION } from 'src/transaction-logs/enums/log-action.enum';
 import { LOG_ENTITY_TYPE } from 'src/transaction-logs/enums/log-entity-type.enum';
 import { Transaction } from 'src/transaction/schemas/transaction.schema';
 import { TRANSACTION_TYPES } from 'src/transaction/constants/transactionConstants';
-// import { SHIPMENT_TYPES } from 'src/transaction/constants/shipmentConstants';
 
 @Injectable()
 export class CustomerService {

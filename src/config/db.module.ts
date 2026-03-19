@@ -8,7 +8,7 @@ import { Connection, ConnectionStates } from 'mongoose';
     MongooseModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        dbName: 'seeded_db',
+        dbName: 'new_seeded_db',
         uri: config.get<string>('DB_URI'),
       }),
     }),
