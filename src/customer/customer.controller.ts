@@ -74,4 +74,14 @@ export class CustomerController {
       data: await this.customerService.remove(id, req.user),
     };
   }
+
+  @Get('analytics')
+  getAnalytics() {
+    return this.customerService.getAnalytics();
+  }
+
+  @Get('status-counts')
+  getStatusCounts() {
+    return this.customerService.getStatusCounts();
+  }
 }
