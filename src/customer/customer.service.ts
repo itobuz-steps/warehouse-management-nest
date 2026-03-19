@@ -8,11 +8,15 @@ import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.se
 import { UserDocument } from 'src/auth/entities/auth.entity';
 import { LOG_ACTION } from 'src/transaction-logs/enums/log-action.enum';
 import { LOG_ENTITY_TYPE } from 'src/transaction-logs/enums/log-entity-type.enum';
+import { Transaction } from 'src/transaction/schemas/transaction.schema';
+import { TRANSACTION_TYPES } from 'src/transaction/constants/transactionConstants';
 
 @Injectable()
 export class CustomerService {
   constructor(
     @InjectModel(Customer.name) private customerModel: Model<Customer>,
+    @InjectModel(Transaction.name)
+    private transactionModel: Model<Transaction>,
     private readonly logsService: TransactionLogsService,
   ) {}
 
@@ -134,5 +138,181 @@ export class CustomerService {
     });
 
     return deletedCustomer;
+  }
+
+  async getAnalytics() {
+    const [statusCounts, topCustomers, growth, avgOrderValue] =
+      await Promise.all([
+        this.getStatusCounts(),
+        this.getTopCustomersByOrderValue(),
+        this.getNewCustomerGrowth(),
+        this.getAvgOrderValuePerCustomer(),
+      ]);
+
+    return {
+      success: true,
+      message: 'Customer analytics retrieved successfully',
+      data: {
+        statusCounts,
+        topCustomers,
+        growth,
+        avgOrderValue,
+      },
+    };
+  }
+
+  async getStatusCounts() {
+    const [total, active] = await Promise.all([
+      this.customerModel.countDocuments(),
+      this.customerModel.countDocuments({ isActive: true }),
+    ]);
+
+    return {
+      total,
+      active,
+      inactive: total - active,
+    };
+  }
+
+  private async getTopCustomersByOrderValue(limit = 5) {
+    return this.transactionModel.aggregate<{
+      _id: string;
+      totalOrderValue: number;
+      totalOrders: number;
+      name: string;
+      email: string;
+    }>([
+      {
+        $match: {
+          type: TRANSACTION_TYPES.OUT,
+          customer: { $exists: true, $ne: null },
+        },
+      },
+      {
+        $group: {
+          _id: '$customer',
+          totalOrderValue: { $sum: '$totalAmount' },
+          totalOrders: { $sum: 1 },
+        },
+      },
+      { $sort: { totalOrderValue: -1 } },
+      { $limit: limit },
+      {
+        $lookup: {
+          from: 'customers',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'customerInfo',
+        },
+      },
+      { $unwind: '$customerInfo' },
+      {
+        $project: {
+          _id: 1,
+          totalOrderValue: 1,
+          totalOrders: 1,
+          name: '$customerInfo.name',
+          email: '$customerInfo.email',
+        },
+      },
+    ]);
+  }
+
+  private async getNewCustomerGrowth(months = 6) {
+    const from = new Date();
+    from.setMonth(from.getMonth() - months + 1);
+    from.setDate(1);
+    from.setHours(0, 0, 0, 0);
+
+    const results = await this.customerModel.aggregate<{
+      year: number;
+      month: number;
+      count: number;
+    }>([
+      { $match: { createdAt: { $gte: from } } },
+      {
+        $group: {
+          _id: {
+            year: { $year: '$createdAt' },
+            month: { $month: '$createdAt' },
+          },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { '_id.year': 1, '_id.month': 1 } },
+      {
+        $project: {
+          _id: 0,
+          year: '$_id.year',
+          month: '$_id.month',
+          count: 1,
+        },
+      },
+    ]);
+
+    // Fill any missing months with 0 so the chart has a continuous axis
+    const filled: { year: number; month: number; count: number }[] = [];
+    for (let i = months - 1; i >= 0; i--) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      const year = d.getFullYear();
+      const month = d.getMonth() + 1;
+      const found = results.find((r) => r.year === year && r.month === month);
+      filled.push({ year, month, count: found?.count ?? 0 });
+    }
+
+    return filled;
+  }
+
+  private async getAvgOrderValuePerCustomer(limit = 4) {
+    return this.transactionModel.aggregate<{
+      _id: string;
+      avgOrderValue: number;
+      totalOrders: number;
+      name: string;
+      email: string;
+    }>([
+      {
+        $match: {
+          type: TRANSACTION_TYPES.OUT,
+          customer: { $exists: true, $ne: null },
+        },
+      },
+      {
+        $group: {
+          _id: '$customer',
+          avgOrderValue: { $avg: '$totalAmount' },
+          totalOrders: { $sum: 1 },
+        },
+      },
+      {
+        // Coalesce null (empty group) to 0 and round to nearest integer
+        $addFields: {
+          avgOrderValue: {
+            $round: [{ $ifNull: ['$avgOrderValue', 0] }, 0],
+          },
+        },
+      },
+      { $sort: { avgOrderValue: -1 } },
+      { $limit: limit },
+      {
+        $lookup: {
+          from: 'customers',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'customerInfo',
+        },
+      },
+      { $unwind: '$customerInfo' },
+      {
+        $project: {
+          _id: 1,
+          avgOrderValue: 1,
+          totalOrders: 1,
+          name: '$customerInfo.name',
+          email: '$customerInfo.email',
+        },
+      },
+    ]);
   }
 }
