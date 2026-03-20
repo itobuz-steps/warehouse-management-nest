@@ -141,7 +141,6 @@ export class ProductsService {
 
     pipeline.push({ $sort: sortStage });
 
-    // pagination
     pipeline.push(
       { $skip: skip },
       { $limit: limitNumber },
@@ -154,7 +153,6 @@ export class ProductsService {
       },
     );
 
-    // count pipeline (must mirror search logic)
     const countPipeline: PipelineStage[] = [
       { $match: baseFilter },
       {
