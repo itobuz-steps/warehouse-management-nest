@@ -14,14 +14,17 @@ import { SupplierService } from './supplier.service';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { AuthGuard } from 'src/common/guard/auth.guard';
-import { Roles } from 'src/common/guard/roles.decorator';
-import { USER_TYPES } from 'src/auth/userType';
 import type { RequestWithUser } from 'src/profile/profile.controller';
 
 @UseGuards(AuthGuard)
 @Controller('supplier')
 export class SupplierController {
   constructor(private readonly supplierService: SupplierService) {}
+
+  @Get('/analytics')
+  getAnalytics() {
+    return this.supplierService.getAnalytics();
+  }
 
   @Post()
   async addSupplier(
@@ -37,7 +40,6 @@ export class SupplierController {
     };
   }
 
-  @Roles(USER_TYPES.ADMIN)
   @Put(':id')
   async updateSupplier(
     @Param('id') id: string,
@@ -57,7 +59,6 @@ export class SupplierController {
     };
   }
 
-  @Roles(USER_TYPES.ADMIN)
   @Delete(':id')
   async removeSupplier(@Param('id') id: string, @Req() req: RequestWithUser) {
     await this.supplierService.delete(id, req.user);
@@ -69,14 +70,17 @@ export class SupplierController {
   }
 
   @Get()
-  async getAllSupplier(@Query('search') search?: string) {
-    const res = await this.supplierService.getAll(search);
-
-    return {
-      success: true,
-      message: 'Obtained Supplier Data Successfully',
-      data: res,
-    };
+  async getAll(
+    @Query('search') search?: string,
+    @Query('page') page = '1',
+    @Query('limit') limit = '5',
+  ) {
+    const result = await this.supplierService.getAll(
+      search,
+      Number(page),
+      Number(limit),
+    );
+    return { success: true, message: 'Suppliers Data fetched', data: result };
   }
 
   @Get(':id')
