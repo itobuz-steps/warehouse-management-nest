@@ -1,7 +1,7 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { AuthGuard } from 'src/common/guard/auth.guard';
-import { ApiBearerAuth } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { GetManagersDto } from './dto/get-manager.dto';
 
 @Controller('admin')
@@ -18,5 +18,23 @@ export class AdminController {
   @Get('get-all-managers')
   getAllManagers(@Query() query: GetManagersDto) {
     return this.adminService.getAllManagers(query);
+  }
+
+  @Get('analytics')
+  @ApiQuery({ name: 'managerId', required: false, type: String })
+  getManagerAnalytics(@Query('managerId') managerId?: string) {
+    return this.adminService.getManagerTransactionStats(managerId);
+  }
+
+  @Get('manager-trend')
+  @ApiQuery({
+    name: 'period',
+    required: false,
+    enum: ['7', '30'],
+    description: 'Last 7 days or 30 days',
+  })
+  getManagerTrend(@Query('period') period?: string) {
+    const days = period === '30' ? 30 : 7;
+    return this.adminService.getManagerAddedTrend(days);
   }
 }
