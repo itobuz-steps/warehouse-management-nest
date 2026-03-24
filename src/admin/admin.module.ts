@@ -8,12 +8,17 @@ import {
 } from 'src/warehouse/schemas/warehouse.schema';
 import { User, UserSchema } from 'src/auth/entities/auth.entity';
 import { StorageModule } from 'src/storage/storage.module';
+import {
+  Transaction,
+  TransactionSchema,
+} from 'src/transaction/schemas/transaction.schema';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: Warehouse.name, schema: WarehouseSchema },
       { name: User.name, schema: UserSchema },
+      { name: Transaction.name, schema: TransactionSchema },
     ]),
     StorageModule,
   ],
