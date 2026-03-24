@@ -70,16 +70,23 @@ export class SupplierController {
   }
 
   @Get()
-  async getAll(
+  async getAll(@Query('search') search?: string) {
+    const result = await this.supplierService.getAll(search);
+    return { success: true, message: 'Suppliers Data fetched', data: result };
+  }
+
+  @Get('paginated')
+  async getAllPaginated(
     @Query('search') search?: string,
-    @Query('page') page = '1',
-    @Query('limit') limit = '5',
+    @Query('page') page = 1,
+    @Query('limit') limit = 10,
   ) {
-    const result = await this.supplierService.getAll(
+    const result = await this.supplierService.getAllPaginated(
       search,
       Number(page),
       Number(limit),
     );
+
     return { success: true, message: 'Suppliers Data fetched', data: result };
   }
 

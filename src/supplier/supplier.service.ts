@@ -134,7 +134,27 @@ export class SupplierService {
     return deletedSupplier;
   }
 
-  async getAll(search?: string, page = 1, limit = 5) {
+  async getAll(search?: string) {
+    const filter: QueryFilter<SupplierDocument> = {};
+
+    if (search) {
+      filter.$or = [
+        { email: { $regex: search, $options: 'i' } },
+        { name: { $regex: search, $options: 'i' } },
+        { phoneNumber: { $regex: search, $options: 'i' } },
+        { address: { $regex: search, $options: 'i' } },
+        {
+          suppliedProduct: {
+            $elemMatch: { $regex: search, $options: 'i' },
+          },
+        },
+      ];
+    }
+
+    return this.supplierModel.find(filter, { __v: 0 }).sort({ isActive: -1 });
+  }
+
+  async getAllPaginated(search?: string, page = 1, limit = 10) {
     const filter: QueryFilter<SupplierDocument> = {};
 
     if (search) {
@@ -152,6 +172,7 @@ export class SupplierService {
     }
 
     const skip = (page - 1) * limit;
+
     const total = await this.supplierModel.countDocuments(filter);
 
     const data = await this.supplierModel
