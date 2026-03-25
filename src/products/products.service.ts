@@ -70,6 +70,7 @@ export class ProductsService {
         $match: {
           $or: [
             { name: { $regex: search, $options: 'i' } },
+            { brand: { $regex: search, $options: 'i' } },
             { 'variants.sku': { $regex: search, $options: 'i' } },
           ],
         },

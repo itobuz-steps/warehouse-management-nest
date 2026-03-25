@@ -123,11 +123,8 @@ export class ProductsController {
 
   @Delete(':id')
   @Roles(USER_TYPES.ADMIN)
-  async deleteProduct(
-    @Param() params: updateProductDto,
-    @Req() req: RequestWithUser,
-  ) {
-    await this.productsService.remove(params.id, req.user);
+  async deleteProduct(@Param('id') id: string, @Req() req: RequestWithUser) {
+    await this.productsService.remove(id, req.user);
 
     return {
       success: true,
@@ -136,11 +133,8 @@ export class ProductsController {
   }
 
   @Patch(':id')
-  async restoreProduct(
-    @Param() params: updateProductDto,
-    @Req() req: RequestWithUser,
-  ) {
-    await this.productsService.restore(params.id, req.user);
+  async restoreProduct(@Param('id') id: string, @Req() req: RequestWithUser) {
+    await this.productsService.restore(id, req.user);
 
     return {
       success: true,
