@@ -22,5 +22,8 @@ export type WarehouseUpdateLog = {
 
 export type WarehouseDeleteLog = {
   name: string;
+  description?: string;
+  address: string;
   active: boolean;
+  maxTransactionPriceLimit: number;
 };
