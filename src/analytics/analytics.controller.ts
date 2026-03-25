@@ -91,4 +91,53 @@ export class AnalyticsController {
 
     return this.analyticsService.getWarehouseProductStock(warehouseId);
   }
+
+  @Get('top-selling')
+  getTopSellingProducts(
+    @Query('limit') limit?: number,
+    @Query('warehouseId') warehouseId?: string,
+  ) {
+    return this.analyticsService.getTopSellingProducts(limit, warehouseId);
+  }
+
+  @Get('top-selling/variants')
+  getTopSellingVariants(
+    @Query('productId') productId: string,
+    @Query('warehouseId') warehouseId?: string,
+  ) {
+    return this.analyticsService.getTopSellingVariants(productId, warehouseId);
+  }
+
+  @Get('top-stock')
+  getTopStockProducts(
+    @Query('order') order: 'asc' | 'desc' = 'desc',
+    @Query('limit') limit?: number,
+    @Query('warehouseId') warehouseId?: string,
+  ) {
+    return this.analyticsService.getTopStockProducts(order, limit, warehouseId);
+  }
+
+  @Get('top-stock/variants')
+  getTopStockVariants(
+    @Query('productId') productId: string,
+    @Query('warehouseId') warehouseId?: string,
+  ) {
+    return this.analyticsService.getTopStockVariants(productId, warehouseId);
+  }
+
+  @Get('batches/top-volume')
+  getTopBatchesByVolume(
+    @Query('limit') limit?: number,
+    @Query('warehouseId') warehouseId?: string,
+  ) {
+    return this.analyticsService.getTopBatchesByVolume(limit, warehouseId);
+  }
+
+  @Get('batches/top-consumed')
+  getTopConsumedBatches(
+    @Query('limit') limit?: number,
+    @Query('warehouseId') warehouseId?: string,
+  ) {
+    return this.analyticsService.getTopConsumedBatches(limit, warehouseId);
+  }
 }

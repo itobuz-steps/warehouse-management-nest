@@ -21,6 +21,7 @@ import {
   VariantStock,
   VariantStockSchema,
 } from 'src/variant-stock/schemas/variant-stock.schema';
+import { Batch, BatchSchema } from 'src/batch/schemas/batch.schema';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import {
       { name: Quantity.name, schema: QuantitySchema },
       { name: User.name, schema: UserSchema },
       { name: VariantStock.name, schema: VariantStockSchema },
+      { name: Batch.name, schema: BatchSchema },
     ]),
   ],
   controllers: [AnalyticsController],
