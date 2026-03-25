@@ -68,7 +68,7 @@ export class NotificationHelper {
       .select('_id email preferences')
       .lean();
 
-    const pushUsers = freshUsers.filter((user) => !!user.preferences?.push);
+    const pushUsers = freshUsers.filter((user) => user.preferences.push);
 
     const pushUserIds = pushUsers.map((u) =>
       u._id instanceof Types.ObjectId ? u._id.toHexString() : String(u._id),

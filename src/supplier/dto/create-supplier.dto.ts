@@ -6,7 +6,8 @@ import {
   IsBoolean,
   IsArray,
   IsIn,
-  IsPhoneNumber,
+  Matches,
+  Length,
 } from 'class-validator';
 
 import { PRODUCT_CATEGORY_TYPES } from 'src/products/constants/product.constant';
@@ -25,7 +26,8 @@ export class CreateSupplierDto {
   address?: string;
 
   @IsOptional()
-  @IsPhoneNumber()
+  @Matches(/^[0-9]+$/, { message: 'Phone number must contain only digits' })
+  @Length(10, 10, { message: 'Phone number must be exactly 10 digits' })
   phoneNumber?: string;
 
   @IsArray()

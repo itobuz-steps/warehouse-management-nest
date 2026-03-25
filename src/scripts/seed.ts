@@ -416,7 +416,7 @@ async function seed(): Promise<void> {
     UserModel.deleteMany({}),
   ]);
 
-  const passwordHash = await bcrypt.hash('Password@123', 10);
+  const passwordHash = await bcrypt.hash('Shaswata@12', 10);
 
   const adminId = new Types.ObjectId();
   const managerIds = Array.from({ length: 5 }, () => new Types.ObjectId());
@@ -440,7 +440,7 @@ async function seed(): Promise<void> {
     ...managerIds.map((id, index) => ({
       _id: id,
       name: [
-        'Priya Mehta',
+        'Shaswata Biswas',
         'Rahul Verma',
         'Sneha Iyer',
         'Karan Patel',

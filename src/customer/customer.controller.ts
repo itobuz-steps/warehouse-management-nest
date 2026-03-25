@@ -23,6 +23,16 @@ import type { RequestWithUser } from 'src/profile/profile.controller';
 export class CustomerController {
   constructor(private readonly customerService: CustomerService) {}
 
+  @Get('analytics')
+  getAnalytics() {
+    return this.customerService.getAnalytics();
+  }
+
+  @Get('status-counts')
+  getStatusCounts() {
+    return this.customerService.getStatusCounts();
+  }
+
   @Post()
   async create(
     @Body() createCustomerDto: CreateCustomerDto,
