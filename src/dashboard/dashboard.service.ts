@@ -1,4 +1,3 @@
-// src/dashboard/dashboard.service.ts
 import { Injectable, HttpException, BadRequestException } from '@nestjs/common';
 import mongoose, { Model, QueryFilter, Types } from 'mongoose';
 import { Quantity } from 'src/quantity/entities/quantity.entity';
