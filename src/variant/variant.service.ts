@@ -73,14 +73,27 @@ export class VariantService {
   }
 
   async update(id: string, dto: UpdateVariantDto) {
+    const updatePayload: Partial<UpdateVariantDto> = { ...dto };
+
+    if (dto.variantImage?.length) {
+      const existing = await this.variantModel.findById(new Types.ObjectId(id));
+      updatePayload.variantImage = [
+        ...(existing?.variantImage ?? []),
+        ...dto.variantImage,
+      ];
+    } else {
+      delete updatePayload.variantImage;
+    }
+
     const data = await this.variantModel.findByIdAndUpdate(
       new Types.ObjectId(id),
-      dto,
+      updatePayload,
+      { new: true },
     );
 
     return {
       success: true,
-      message: 'Variant Updated successfully',
+      message: 'Variant updated successfully',
       data,
     };
   }
