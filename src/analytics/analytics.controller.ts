@@ -94,10 +94,15 @@ export class AnalyticsController {
 
   @Get('top-selling')
   getTopSellingProducts(
+    @Query('order') order: 'asc' | 'desc' = 'desc',
     @Query('limit') limit?: number,
     @Query('warehouseId') warehouseId?: string,
   ) {
-    return this.analyticsService.getTopSellingProducts(limit, warehouseId);
+    return this.analyticsService.getTopSellingProducts(
+      order,
+      limit,
+      warehouseId,
+    );
   }
 
   @Get('top-selling/variants')
@@ -127,10 +132,15 @@ export class AnalyticsController {
 
   @Get('batches/top-volume')
   getTopBatchesByVolume(
+    @Query('order') order: 'asc' | 'desc' = 'desc',
     @Query('limit') limit?: number,
     @Query('warehouseId') warehouseId?: string,
   ) {
-    return this.analyticsService.getTopBatchesByVolume(limit, warehouseId);
+    return this.analyticsService.getTopBatchesByVolume(
+      order,
+      limit,
+      warehouseId,
+    );
   }
 
   @Get('batches/top-consumed')

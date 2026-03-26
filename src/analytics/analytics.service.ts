@@ -409,7 +409,11 @@ export class AnalyticsService {
     ]);
   }
 
-  async getTopSellingProducts(limit = 10, warehouseId?: string) {
+  async getTopSellingProducts(
+    order: 'asc' | 'desc' = 'desc',
+    limit = 10,
+    warehouseId?: string,
+  ) {
     const match: Record<string, string | Types.ObjectId> = { type: 'OUT' };
     if (warehouseId) {
       match.sourceWarehouse = new Types.ObjectId(warehouseId);
@@ -437,7 +441,7 @@ export class AnalyticsService {
         },
       },
       { $unwind: '$product' },
-      { $sort: { totalSold: -1 } },
+      { $sort: { totalSold: order === 'asc' ? 1 : -1 } },
       { $limit: limit },
       {
         $project: {
@@ -485,7 +489,7 @@ export class AnalyticsService {
         $project: {
           _id: 0,
           variantId: '$_id',
-          variantName: '$variant.name',
+          variantName: '$variant.sku',
           totalSold: 1,
         },
       },
@@ -562,14 +566,18 @@ export class AnalyticsService {
         $project: {
           _id: 0,
           variantId: '$_id',
-          variantName: '$variant.name',
+          variantName: '$variant.sku',
           totalStock: 1,
         },
       },
     ]);
   }
 
-  async getTopBatchesByVolume(limit = 10, warehouseId?: string) {
+  async getTopBatchesByVolume(
+    order: 'asc' | 'desc' = 'desc',
+    limit = 10,
+    warehouseId?: string,
+  ) {
     const match: Record<string, Types.ObjectId> = {};
     if (warehouseId) {
       match.destinationWarehouse = new Types.ObjectId(warehouseId);
@@ -587,7 +595,7 @@ export class AnalyticsService {
           itemCount: { $sum: 1 },
         },
       },
-      { $sort: { totalQuantity: -1 } },
+      { $sort: { totalQuantity: order === 'asc' ? 1 : -1 } },
       { $limit: limit },
       {
         $lookup: {
