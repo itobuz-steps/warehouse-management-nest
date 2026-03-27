@@ -67,17 +67,23 @@ export class VariantController {
     @Body() dto: UpdateVariantDto,
     @UploadedFiles() files: Express.Multer.File[],
   ) {
-    const imageKeys: string[] = [];
+    const imageUrls: string[] = [];
 
     if (files && files.length) {
       const uploadedImages =
         await this.storageService.uploadMultipleFiles(files);
-      imageKeys.push(...uploadedImages.map((img) => img.key));
+
+      const urls = await Promise.all(
+        uploadedImages.map((img) =>
+          this.storageService.getPresignedSignedUrl(img.key),
+        ),
+      );
+      imageUrls.push(...urls);
     }
 
-    return await this.variantService.update(id, {
+    return this.variantService.update(id, {
       ...dto,
-      variantImage: imageKeys,
+      ...(imageUrls.length && { variantImage: imageUrls }),
     });
   }
 
