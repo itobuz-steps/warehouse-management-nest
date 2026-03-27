@@ -5,12 +5,12 @@ import { LOG_ENTITY_TYPE } from '../enums/log-entity-type.enum';
 
 export class GetLogsDto {
   @IsOptional()
-  @IsEnum(LOG_ACTION)
-  action?: LOG_ACTION;
+  @IsEnum(LOG_ACTION, { each: true })
+  action?: LOG_ACTION[];
 
   @IsOptional()
-  @IsEnum(LOG_ENTITY_TYPE)
-  entityType?: LOG_ENTITY_TYPE;
+  @IsEnum(LOG_ENTITY_TYPE, { each: true })
+  entityType?: LOG_ENTITY_TYPE[];
 
   @IsOptional()
   @IsString()
