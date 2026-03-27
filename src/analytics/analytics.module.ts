@@ -17,16 +17,22 @@ import {
 import { MongooseModule } from '@nestjs/mongoose';
 import { ExcelService } from 'src/helper/excelGenerator';
 import { User, UserSchema } from 'src/auth/entities/auth.entity';
+import {
+  VariantStock,
+  VariantStockSchema,
+} from 'src/variant-stock/schemas/variant-stock.schema';
+import { Batch, BatchSchema } from 'src/batch/schemas/batch.schema';
 
 @Module({
   imports: [
-    // This connects your schemas to this specific module
     MongooseModule.forFeature([
       { name: Transaction.name, schema: TransactionSchema },
       { name: Product.name, schema: ProductSchema },
       { name: Warehouse.name, schema: WarehouseSchema },
       { name: Quantity.name, schema: QuantitySchema },
       { name: User.name, schema: UserSchema },
+      { name: VariantStock.name, schema: VariantStockSchema },
+      { name: Batch.name, schema: BatchSchema },
     ]),
   ],
   controllers: [AnalyticsController],

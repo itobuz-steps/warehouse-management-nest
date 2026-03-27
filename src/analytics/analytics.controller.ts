@@ -5,6 +5,8 @@ import type { Response } from 'express';
 import { TwoProductQuery } from './dto/tow-product-query.dto';
 import { AuthGuard } from 'src/common/guard/auth.guard';
 import { ApiBearerAuth } from '@nestjs/swagger';
+import { ProductsByStockQueryDto } from './dto/products-stock-query.dto';
+import { GetWarehouseProductStockQueryDto } from './dto/warehouse-product-stock.dto';
 @UseGuards(AuthGuard)
 @ApiBearerAuth()
 @Controller('analytics')
@@ -22,6 +24,7 @@ export class AnalyticsController {
       data: result,
     };
   }
+
   @Get('product-comparison-history')
   async getComparisonHistory(@Query() query: TwoProductQuery) {
     const result =
@@ -64,5 +67,87 @@ export class AnalyticsController {
     });
 
     return res.status(200).send(buffer);
+  }
+
+  @Get('products/stock')
+  async getProductsByStock(@Query() query: ProductsByStockQueryDto) {
+    const { order = 'desc', limit, warehouseId } = query;
+
+    return this.analyticsService.getProductsByStock(order, limit, warehouseId);
+  }
+
+  @Get('variants/stock')
+  async getVariantsByStock(@Query() query: ProductsByStockQueryDto) {
+    const { order = 'desc', limit, warehouseId } = query;
+
+    return this.analyticsService.getVariantsByStock(order, limit, warehouseId);
+  }
+
+  @Get('warehouse/products')
+  async getWarehouseProductStock(
+    @Query() query: GetWarehouseProductStockQueryDto,
+  ) {
+    const { warehouseId } = query;
+
+    return this.analyticsService.getWarehouseProductStock(warehouseId);
+  }
+
+  @Get('top-selling')
+  getTopSellingProducts(
+    @Query('order') order: 'asc' | 'desc' = 'desc',
+    @Query('limit') limit?: number,
+    @Query('warehouseId') warehouseId?: string,
+  ) {
+    return this.analyticsService.getTopSellingProducts(
+      order,
+      limit,
+      warehouseId,
+    );
+  }
+
+  @Get('top-selling/variants')
+  getTopSellingVariants(
+    @Query('productId') productId: string,
+    @Query('warehouseId') warehouseId?: string,
+  ) {
+    return this.analyticsService.getTopSellingVariants(productId, warehouseId);
+  }
+
+  @Get('top-stock')
+  getTopStockProducts(
+    @Query('order') order: 'asc' | 'desc' = 'desc',
+    @Query('limit') limit?: number,
+    @Query('warehouseId') warehouseId?: string,
+  ) {
+    return this.analyticsService.getTopStockProducts(order, limit, warehouseId);
+  }
+
+  @Get('top-stock/variants')
+  getTopStockVariants(
+    @Query('productId') productId: string,
+    @Query('warehouseId') warehouseId?: string,
+  ) {
+    return this.analyticsService.getTopStockVariants(productId, warehouseId);
+  }
+
+  @Get('batches/top-volume')
+  getTopBatchesByVolume(
+    @Query('order') order: 'asc' | 'desc' = 'desc',
+    @Query('limit') limit?: number,
+    @Query('warehouseId') warehouseId?: string,
+  ) {
+    return this.analyticsService.getTopBatchesByVolume(
+      order,
+      limit,
+      warehouseId,
+    );
+  }
+
+  @Get('batches/top-consumed')
+  getTopConsumedBatches(
+    @Query('limit') limit?: number,
+    @Query('warehouseId') warehouseId?: string,
+  ) {
+    return this.analyticsService.getTopConsumedBatches(limit, warehouseId);
   }
 }
