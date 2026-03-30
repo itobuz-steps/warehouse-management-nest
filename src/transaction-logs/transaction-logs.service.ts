@@ -100,11 +100,11 @@ export class TransactionLogsService {
     const match: PipelineStage.Match['$match'] = {};
 
     if (action?.length) {
-      match.action = { $in: action }; // ✅ multiple actions
+      match.action = { $in: action };
     }
 
     if (entityType?.length) {
-      match.entityType = { $in: entityType }; // ✅ multiple entity types
+      match.entityType = { $in: entityType };
     }
 
     if (userId) {
