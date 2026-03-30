@@ -24,7 +24,7 @@ export class TransactionLog {
   @Prop({
     _id: false,
     type: {
-      userId: { type: Types.ObjectId, required: true },
+      userId: { type: Types.ObjectId, ref: 'User', required: true },
     },
     required: true,
   })

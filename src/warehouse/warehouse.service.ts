@@ -303,7 +303,10 @@ export class WarehouseService {
       performedBy: user,
       metadata: {
         name: warehouse.name,
-        active: warehouse.active,
+        description: warehouse.description,
+        active: !warehouse.active,
+        address: warehouse.address,
+        maxTransactionPriceLimit: warehouse.maxTransactionPriceLimit,
       },
     });
 

@@ -6,12 +6,14 @@ import {
   TransactionLog,
   TransactionLogSchema,
 } from './entities/transaction-log.entity';
+import { StorageModule } from 'src/storage/storage.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: TransactionLog.name, schema: TransactionLogSchema },
     ]),
+    StorageModule,
   ],
   controllers: [TransactionLogsController],
   providers: [TransactionLogsService],
