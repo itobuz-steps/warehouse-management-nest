@@ -1,10 +1,9 @@
 import {
   Controller,
   Get,
-  Param,
-  Patch,
   Post,
   Put,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -12,7 +11,7 @@ import { NotificationService } from './notification.service';
 import { AuthGuard } from 'src/common/guard/auth.guard';
 import { Request } from 'express';
 import { SubscribeDto } from './dto/subscribe.dto';
-import type { RequestWithUserDocument } from 'src/transaction/types/types';
+import { NotificationQueryDto } from './dto/notificationQuery.dto';
 
 export type RequestWithUser = Request & {
   userId: string;
@@ -33,29 +32,17 @@ export class NotificationController {
     };
   }
 
-  @Get(':offset')
-  async getNotifications(
+  @Get()
+  async getNotificationsWithQuery(
     @Req() req: RequestWithUser,
-    @Param('offset') offset: string,
+    @Query() notificationQueryDto: NotificationQueryDto,
   ) {
-    return this.service.getNotifications(req.userId, parseInt(offset || '0'));
+    return this.service.getNotifications(req.userId, notificationQueryDto);
   }
 
   @Put('mark-all-seen')
   async markSeen(@Req() req: RequestWithUser) {
     await this.service.markAllAsSeen(req.userId);
     return { success: true, message: 'All marked as seen' };
-  }
-
-  @Patch('approve-shipment/:id')
-  async ship(@Req() req: RequestWithUserDocument, @Param() id: string) {
-    await this.service.updateShipmentStatus(id, 'shipped', req.user);
-    return { success: true, message: 'Shipment marked shipped' };
-  }
-
-  @Patch('cancel-shipment/:id')
-  async cancel(@Req() req: RequestWithUserDocument, @Param() id: string) {
-    await this.service.updateShipmentStatus(id, 'cancelled', req.user);
-    return { success: true, message: 'Shipment cancelled' };
   }
 }
