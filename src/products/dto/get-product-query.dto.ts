@@ -1,4 +1,10 @@
-import { IsOptional, IsString, IsEnum, IsNumberString } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsEnum,
+  IsNumberString,
+  IsMongoId,
+} from 'class-validator';
 import { SORT_CATEGORY } from '../constants/product.constant';
 import { Transform } from 'class-transformer';
 
@@ -6,6 +12,10 @@ export class GetProductsQueryDto {
   @IsOptional()
   @IsString()
   search?: string;
+
+  @IsOptional()
+  @IsMongoId({ message: 'The provided ID is not a valid MongoDB ObjectId' })
+  warehouseId?: string;
 
   @IsOptional()
   @IsString({ each: true })

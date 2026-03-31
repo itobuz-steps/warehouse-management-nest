@@ -32,7 +32,14 @@ export class ProductsService {
   ) {}
 
   async getProducts(queryDto: GetProductsQueryDto) {
-    const { search, category, sort, page = '1', limit = '10' } = queryDto;
+    const {
+      search,
+      category,
+      sort,
+      page = '1',
+      limit = '10',
+      warehouseId,
+    } = queryDto;
 
     const baseFilter: QueryFilter<ProductDocument> = {
       isArchived: false,
@@ -54,6 +61,25 @@ export class ProductsService {
 
     const pipeline: PipelineStage[] = [
       { $match: baseFilter },
+
+      {
+        $lookup: {
+          from: 'variantstocks',
+          localField: '_id',
+          foreignField: 'productId',
+          as: 'stocks',
+        },
+      },
+
+      ...(warehouseId
+        ? [
+            {
+              $match: {
+                'stocks.warehouseId': new Types.ObjectId(warehouseId),
+              },
+            },
+          ]
+        : []),
 
       {
         $lookup: {
@@ -148,6 +174,7 @@ export class ProductsService {
       {
         $project: {
           variants: 0,
+          stocks: 0,
           minPrice: 0,
           minRetailPrice: 0,
         },
