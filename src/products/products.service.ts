@@ -39,10 +39,11 @@ export class ProductsService {
       page = '1',
       limit = '10',
       warehouseId,
+      isArchived,
     } = queryDto;
 
     const baseFilter: QueryFilter<ProductDocument> = {
-      isArchived: false,
+      isArchived: isArchived ? isArchived : false,
     };
 
     const categories = Array.isArray(category)
