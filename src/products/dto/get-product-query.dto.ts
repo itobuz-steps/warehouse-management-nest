@@ -4,6 +4,7 @@ import {
   IsEnum,
   IsNumberString,
   IsMongoId,
+  IsBoolean,
 } from 'class-validator';
 import { SORT_CATEGORY } from '../constants/product.constant';
 import { Transform } from 'class-transformer';
@@ -41,4 +42,8 @@ export class GetProductsQueryDto {
   @IsNumberString()
   @Transform(({ value }) => (value as string) || '10')
   limit?: string = '10';
+
+  @IsOptional()
+  @IsBoolean()
+  isArchived?: boolean;
 }

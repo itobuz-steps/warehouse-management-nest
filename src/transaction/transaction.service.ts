@@ -559,6 +559,7 @@ export class TransactionService {
         await this.variantStockModel.findOneAndUpdate(
           {
             variantId,
+            productId: new Types.ObjectId(product.productId),
             warehouseId,
           },
           { $inc: { quantity: variant.quantity } },
@@ -1047,6 +1048,7 @@ export class TransactionService {
         await this.variantStockModel.findOneAndUpdate(
           {
             variantId,
+            productId: new Types.ObjectId(product.productId),
             warehouseId: destinationWarehouseId,
           },
           {

@@ -39,10 +39,11 @@ export class ProductsService {
       page = '1',
       limit = '10',
       warehouseId,
+      isArchived,
     } = queryDto;
 
     const baseFilter: QueryFilter<ProductDocument> = {
-      isArchived: false,
+      isArchived: isArchived ? isArchived : false,
     };
 
     const categories = Array.isArray(category)
@@ -59,9 +60,7 @@ export class ProductsService {
     const limitNumber = Math.max(parseInt(limit, 10), 1);
     const skip = (pageNumber - 1) * limitNumber;
 
-    const pipeline: PipelineStage[] = [
-      { $match: baseFilter },
-
+    const warehouseStages: PipelineStage[] = [
       {
         $lookup: {
           from: 'variantstocks',
@@ -70,7 +69,6 @@ export class ProductsService {
           as: 'stocks',
         },
       },
-
       ...(warehouseId
         ? [
             {
@@ -80,48 +78,28 @@ export class ProductsService {
             },
           ]
         : []),
-
-      {
-        $lookup: {
-          from: 'variants',
-          localField: '_id',
-          foreignField: 'product',
-          as: 'variants',
-        },
-      },
     ];
 
-    if (search) {
-      pipeline.push({
-        $match: {
-          $or: [
-            { name: { $regex: search, $options: 'i' } },
-            { brand: { $regex: search, $options: 'i' } },
-            { 'variants.sku': { $regex: search, $options: 'i' } },
-          ],
-        },
-      });
-    }
-
-    pipeline.push({
-      $addFields: {
-        minPrice: { $min: '$variants.price' },
-        minRetailPrice: {
-          $min: {
-            $map: {
-              input: '$variants',
-              as: 'v',
-              in: {
-                $multiply: [
-                  '$$v.price',
-                  { $add: [{ $divide: ['$$v.markup', 100] }, 1] },
-                ],
-              },
-            },
-          },
-        },
+    const variantLookup: PipelineStage = {
+      $lookup: {
+        from: 'variants',
+        localField: '_id',
+        foreignField: 'product',
+        as: 'variants',
       },
-    });
+    };
+
+    const searchMatch: PipelineStage | null = search
+      ? {
+          $match: {
+            $or: [
+              { name: { $regex: search, $options: 'i' } },
+              { brand: { $regex: search, $options: 'i' } },
+              { 'variants.sku': { $regex: search, $options: 'i' } },
+            ],
+          },
+        }
+      : null;
 
     let sortStage: Record<string, 1 | -1> = { createdAt: -1 };
 
@@ -166,9 +144,31 @@ export class ProductsService {
         sortStage = { createdAt: -1 };
     }
 
-    pipeline.push({ $sort: sortStage });
-
-    pipeline.push(
+    const pipeline: PipelineStage[] = [
+      { $match: baseFilter },
+      ...warehouseStages,
+      variantLookup,
+      ...(searchMatch ? [searchMatch] : []),
+      {
+        $addFields: {
+          minPrice: { $min: '$variants.price' },
+          minRetailPrice: {
+            $min: {
+              $map: {
+                input: '$variants',
+                as: 'v',
+                in: {
+                  $multiply: [
+                    '$$v.price',
+                    { $add: [{ $divide: ['$$v.markup', 100] }, 1] },
+                  ],
+                },
+              },
+            },
+          },
+        },
+      },
+      { $sort: sortStage },
       { $skip: skip },
       { $limit: limitNumber },
       {
@@ -179,32 +179,15 @@ export class ProductsService {
           minRetailPrice: 0,
         },
       },
-    );
+    ];
 
     const countPipeline: PipelineStage[] = [
       { $match: baseFilter },
-      {
-        $lookup: {
-          from: 'variants',
-          localField: '_id',
-          foreignField: 'product',
-          as: 'variants',
-        },
-      },
+      ...warehouseStages,
+      variantLookup,
+      ...(searchMatch ? [searchMatch] : []),
+      { $count: 'total' },
     ];
-
-    if (search) {
-      countPipeline.push({
-        $match: {
-          $or: [
-            { name: { $regex: search, $options: 'i' } },
-            { 'variants.sku': { $regex: search, $options: 'i' } },
-          ],
-        },
-      });
-    }
-
-    countPipeline.push({ $count: 'total' });
 
     const [products, countResult] = await Promise.all([
       this.productModel.aggregate<ProductDocument>(pipeline),
