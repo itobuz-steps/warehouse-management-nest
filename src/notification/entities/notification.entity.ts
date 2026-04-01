@@ -25,6 +25,9 @@ export class Notification {
   @Prop({ type: Types.ObjectId, ref: 'Product' })
   relatedProduct?: Types.ObjectId;
 
+  @Prop({ type: Types.ObjectId, ref: 'Variant' })
+  relatedVariant?: Types.ObjectId;
+
   @Prop({ type: Types.ObjectId, ref: 'Warehouse' })
   warehouse?: Types.ObjectId;
 
