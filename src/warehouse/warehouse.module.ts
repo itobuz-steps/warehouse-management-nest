@@ -9,6 +9,7 @@ import {
   QuantitySchema,
 } from 'src/quantity/entities/quantity.entity';
 import { TransactionLogsModule } from 'src/transaction-logs/transaction-logs.module';
+import { StorageService } from 'src/storage/storage.service';
 
 @Module({
   imports: [
@@ -20,7 +21,7 @@ import { TransactionLogsModule } from 'src/transaction-logs/transaction-logs.mod
     TransactionLogsModule,
   ],
   controllers: [WarehouseController],
-  providers: [WarehouseService],
+  providers: [WarehouseService, StorageService],
   exports: [WarehouseService],
 })
 export class WarehouseModule {}

@@ -5,3 +5,8 @@ export enum NOTIFICATION_TYPES {
   STOCK_TRANSFER = 'stockTransfer',
   STOCK_ADJUSTMENT = 'stockAdjustment',
 }
+
+export type ProfileImageResult = {
+  performedByImageKey?: string;
+  performedByImage?: string;
+};

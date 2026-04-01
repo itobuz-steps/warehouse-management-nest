@@ -15,6 +15,8 @@ import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.se
 import { LOG_ACTION } from 'src/transaction-logs/enums/log-action.enum';
 import { LOG_ENTITY_TYPE } from 'src/transaction-logs/enums/log-entity-type.enum';
 import { User, UserDocument } from 'src/auth/entities/auth.entity';
+import { StorageService } from 'src/storage/storage.service';
+import { PopulatedManager } from './types/userType';
 
 @Injectable()
 export class WarehouseService {
@@ -29,37 +31,45 @@ export class WarehouseService {
     private readonly userModel: Model<User>,
 
     private readonly logService: TransactionLogsService,
+
+    private readonly storageService: StorageService,
   ) {}
 
   async getWarehouses(user: UserDocument) {
-    if (user.role === USER_TYPES.MANAGER) {
-      const warehouses = await this.warehouseModel
-        .find({
-          managerIds: user._id,
-          active: true,
-        })
-        .populate('managerIds', 'name email role');
-
-      return {
-        success: true,
-        message: 'Assigned Warehouses',
-        data: warehouses,
-      };
+    if (user.role !== USER_TYPES.MANAGER && user.role !== USER_TYPES.ADMIN) {
+      throw new ForbiddenException('User role not allowed to fetch warehouses');
     }
 
-    if (user.role === USER_TYPES.ADMIN) {
-      const warehouses = await this.warehouseModel
-        .find({ active: true })
-        .populate('managerIds', 'name email role');
+    const filter =
+      user.role === USER_TYPES.MANAGER
+        ? { managerIds: user._id, active: true }
+        : { active: true };
 
-      return {
-        success: true,
-        message: 'All Warehouses',
-        data: warehouses,
-      };
+    const warehouses = await this.warehouseModel
+      .find(filter)
+      .populate<{
+        managerIds: PopulatedManager[];
+      }>('managerIds', 'name email role profileImageKey')
+      .lean();
+
+    for (const warehouse of warehouses) {
+      for (const manager of warehouse.managerIds) {
+        manager.profileImage = manager.profileImageKey
+          ? await this.storageService.getPresignedSignedUrl(
+              manager.profileImageKey,
+            )
+          : undefined;
+      }
     }
 
-    throw new ForbiddenException('User role not allowed to fetch warehouses');
+    return {
+      success: true,
+      message:
+        user.role === USER_TYPES.MANAGER
+          ? 'Assigned Warehouses'
+          : 'All Warehouses',
+      data: warehouses,
+    };
   }
 
   async getWarehouseById(warehouseId: string, user: UserDocument) {

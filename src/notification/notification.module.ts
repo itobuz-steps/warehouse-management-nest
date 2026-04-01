@@ -38,6 +38,7 @@ import {
   CustomerSchema,
 } from 'src/customer/entities/customer.entity';
 import { TransactionLogsModule } from 'src/transaction-logs/transaction-logs.module';
+import { StorageService } from 'src/storage/storage.service';
 
 @Module({
   imports: [
@@ -62,6 +63,7 @@ import { TransactionLogsModule } from 'src/transaction-logs/transaction-logs.mod
     NotificationTriggerService,
     SendEmail,
     PdfService,
+    StorageService,
   ],
   exports: [NotificationTriggerService],
 })
