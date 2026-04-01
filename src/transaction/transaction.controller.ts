@@ -35,6 +35,11 @@ export class TransactionController {
     return this.transactionService.getTransactions(query, req.user);
   }
 
+  @Get('single/:id')
+  getTransactionById(@Param('id') id: string) {
+    return this.transactionService.getTransactionById(id);
+  }
+
   @Get('/:warehouseId')
   getWarehouseTransactions(
     @Param('warehouseId') warehouseId: string,

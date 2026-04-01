@@ -18,7 +18,8 @@ export interface NotificationPayload {
   title: string;
   message: string;
 
-  relatedProduct?: Types.ObjectId;
+  relatedProduct?: Types.ObjectId | string;
+  relatedVariant?: Types.ObjectId | string;
 
   product: Product;
   warehouse: WarehouseDocument;
@@ -81,6 +82,7 @@ export class NotificationHelper {
       title: payload.title,
       message: payload.message,
       relatedProduct: payload.relatedProduct,
+      relatedVariant: payload.relatedVariant,
       warehouse: payload.warehouseId,
       transactionId: payload.transactionId,
       transactionPerformedBy: payload.transactionPerformedBy,
