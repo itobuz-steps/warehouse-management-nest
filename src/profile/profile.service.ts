@@ -27,6 +27,14 @@ export class ProfileService {
       throw new NotFoundException('Please select an image');
     }
 
+    if (user.profileImageKey) {
+      try {
+        await this.storageService.deleteFile(user.profileImageKey);
+      } catch (err) {
+        console.warn('Failed to delete old profile image', err);
+      }
+    }
+
     const uploadResult = await this.storageService.uploadSingleFile(file);
 
     user.profileImageKey = uploadResult.key;

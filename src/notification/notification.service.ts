@@ -8,6 +8,8 @@ import {
 } from './entities/subscription.entity';
 import { SubscribeDto } from './dto/subscribe.dto';
 import { NotificationQueryDto } from './dto/notificationQuery.dto';
+import { StorageService } from 'src/storage/storage.service';
+import { ProfileImageResult } from './notificationTypes';
 
 @Injectable()
 export class NotificationService {
@@ -17,6 +19,8 @@ export class NotificationService {
 
     @InjectModel(Subscription.name)
     private subscriptionModel: Model<SubscriptionDocument>,
+
+    private readonly storageService: StorageService,
   ) {}
 
   async subscribe(
@@ -82,19 +86,31 @@ export class NotificationService {
         },
       },
       {
-        $unwind: { path: '$reportedByUser', preserveNullAndEmptyArrays: true },
+        $unwind: {
+          path: '$reportedByUser',
+          preserveNullAndEmptyArrays: true,
+        },
       },
 
       {
         $addFields: {
           performedByName: '$user.name',
-          performedByImage: '$user.profileImage',
+          performedByImageKey: '$user.profileImageKey',
           reportedByName: '$reportedByUser.name',
         },
       },
 
       { $unset: ['user', 'reportedByUser'] },
     ]);
+
+    for (const notification of notifications as ProfileImageResult[]) {
+      notification.performedByImage = notification.performedByImageKey
+        ? await this.storageService.getPresignedSignedUrl(
+            notification.performedByImageKey,
+          )
+        : undefined;
+      delete notification.performedByImageKey;
+    }
 
     const unseenCount = await this.notificationModel.countDocuments({
       userIds: { $in: [userIdObject] },
