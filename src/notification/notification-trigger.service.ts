@@ -14,6 +14,11 @@ import {
   Transaction,
   TransactionDocument,
 } from 'src/transaction/schemas/transaction.schema';
+import {
+  VariantStock,
+  VariantStockDocument,
+} from 'src/variant-stock/schemas/variant-stock.schema';
+import { Variant, VariantDocument } from 'src/variant/schemas/variant.schema';
 
 @Injectable()
 export class NotificationTriggerService {
@@ -27,32 +32,54 @@ export class NotificationTriggerService {
 
     @InjectModel(Transaction.name)
     private transactionModel: Model<TransactionDocument>,
+
+    @InjectModel(VariantStock.name)
+    private variantStockModel: Model<VariantStockDocument>,
+
+    @InjectModel(Variant.name)
+    private readonly variantModel: Model<VariantDocument>,
   ) {}
 
   async notifyLowStock(
     productId: string,
-    warehouseId: string,
-    performedBy: string,
+    variantId: string,
+    warehouseId: Types.ObjectId,
+    performedBy: Types.ObjectId,
   ) {
-    const product: Product = (await this.productModel.findById(
-      productId,
-    )) as Product;
-    const warehouse: WarehouseDocument = (await this.warehouseModel.findById(
-      warehouseId,
-    )) as WarehouseDocument;
+    const LOW_STOCK_THRESHOLD = 50;
+
+    const variantStock = await this.variantStockModel.findOne({
+      variantId: new Types.ObjectId(variantId),
+      warehouseId: new Types.ObjectId(warehouseId),
+    });
+
+    if (!variantStock || variantStock.quantity > LOW_STOCK_THRESHOLD) {
+      return;
+    }
+
+    const product = await this.productModel.findById(productId);
+    const warehouse = await this.warehouseModel.findById(warehouseId);
+    const variant = await this.variantModel.findById(variantId);
+
+    if (!product || !warehouse || !variant) {
+      return;
+    }
 
     const users = await this.userModel.find({
-      $or: [{ role: 'admin' }, { _id: { $in: warehouse?.managerIds || [] } }],
+      $or: [{ role: 'admin' }, { _id: { $in: warehouse.managerIds || [] } }],
     });
 
     await this.helper.notify({
       users,
       type: NOTIFICATION_TYPES.LOW_STOCK,
       title: 'Low Stock Alert',
-      message: `${product.name} is running low in ${warehouse.name}`,
+      message: `${product.name} (${variant.sku}) is running low in ${warehouse.name}, only ${variantStock.quantity} unit(s) remaining.`,
+      relatedProduct: productId,
+      relatedVariant: variantId,
       product,
       warehouse,
-      transactionPerformedBy: new mongoose.Types.ObjectId(performedBy),
+      warehouseId,
+      transactionPerformedBy: performedBy,
     });
   }
 

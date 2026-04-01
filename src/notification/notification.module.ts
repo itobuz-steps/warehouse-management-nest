@@ -38,6 +38,12 @@ import {
   CustomerSchema,
 } from 'src/customer/entities/customer.entity';
 import { TransactionLogsModule } from 'src/transaction-logs/transaction-logs.module';
+import { StorageService } from 'src/storage/storage.service';
+import {
+  VariantStock,
+  VariantStockSchema,
+} from 'src/variant-stock/schemas/variant-stock.schema';
+import { Variant, VariantSchema } from 'src/variant/schemas/variant.schema';
 
 @Module({
   imports: [
@@ -52,6 +58,8 @@ import { TransactionLogsModule } from 'src/transaction-logs/transaction-logs.mod
       { name: Warehouse.name, schema: WarehouseSchema },
       { name: Supplier.name, schema: SupplierSchema },
       { name: Customer.name, schema: CustomerSchema },
+      { name: VariantStock.name, schema: VariantStockSchema },
+      { name: Variant.name, schema: VariantSchema },
     ]),
     TransactionLogsModule,
   ],
@@ -62,6 +70,7 @@ import { TransactionLogsModule } from 'src/transaction-logs/transaction-logs.mod
     NotificationTriggerService,
     SendEmail,
     PdfService,
+    StorageService,
   ],
   exports: [NotificationTriggerService],
 })

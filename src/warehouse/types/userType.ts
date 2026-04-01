@@ -17,6 +17,15 @@ export type User = {
   warehouseId?: string | null;
 };
 
+export type PopulatedManager = {
+  _id: string;
+  name: string;
+  email: string;
+  role: string;
+  profileImageKey?: string;
+  profileImage?: string;
+};
+
 export type RequestWithUser = Request & {
   user: User;
 };

@@ -240,6 +240,53 @@ export class TransactionService {
     };
   }
 
+  async getTransactionById(id: string) {
+    const transaction = await this.transactionModel.findById(id).populate([
+      { path: 'performedBy', select: 'name email role profileImageKey' },
+      { path: 'supplier', select: 'name email address phoneNumber' },
+      { path: 'customer', select: 'name email address phoneNumber' },
+      { path: 'sourceWarehouse', select: 'name address description' },
+      { path: 'destinationWarehouse', select: 'name address description' },
+      { path: 'products.product', select: 'name category' },
+      {
+        path: 'products.variants.variant',
+        select: 'sku attributes variantImage',
+      },
+      { path: 'approvedBy', select: 'name profileImageKey' },
+      {
+        path: 'products.variants.batches.batch',
+        select: 'items sourceWarehouse destinationWarehouse createdAt',
+        populate: [
+          { path: 'sourceWarehouse', select: 'name address description' },
+          { path: 'destinationWarehouse', select: 'name address description' },
+        ],
+      },
+    ]);
+
+    if (!transaction) {
+      throw new NotFoundException('Transaction not found');
+    }
+
+    const performedBy = transaction.performedBy as unknown as User;
+    if (performedBy?.profileImageKey) {
+      performedBy.profileImage = await this.s3Service.getPresignedSignedUrl(
+        performedBy.profileImageKey,
+      );
+    }
+
+    const approvedBy = transaction.approvedBy as unknown as User;
+    if (approvedBy?.profileImageKey) {
+      approvedBy.profileImage = await this.s3Service.getPresignedSignedUrl(
+        approvedBy.profileImageKey,
+      );
+    }
+
+    return {
+      success: true,
+      data: transaction,
+    };
+  }
+
   async getWarehouseTransactions(
     warehouseId: string,
     query: WarehouseTransactionsQueryDto,
@@ -819,6 +866,14 @@ export class TransactionService {
             user._id,
           ),
         );
+        notificationPromises.push(
+          this.notificationTriggerService.notifyLowStock(
+            product.productId,
+            variant.variantId,
+            warehouse._id,
+            user._id,
+          ),
+        );
       }
     }
 
@@ -1085,6 +1140,14 @@ export class TransactionService {
             user._id.toHexString(),
           ),
         );
+        notificationPromises.push(
+          this.notificationTriggerService.notifyLowStock(
+            product.productId,
+            variant.variantId,
+            sourceWarehouse._id,
+            user._id,
+          ),
+        );
       }
     }
 
@@ -1330,6 +1393,15 @@ export class TransactionService {
             variant.quantity,
             NOTIFICATION_TYPES.STOCK_ADJUSTMENT,
             user._id.toHexString(),
+          ),
+        );
+
+        notificationPromises.push(
+          this.notificationTriggerService.notifyLowStock(
+            product.productId,
+            variant.variantId,
+            warehouse._id,
+            user._id,
           ),
         );
       }
