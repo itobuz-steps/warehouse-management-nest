@@ -39,12 +39,12 @@ export type ShipmentStatusChangeLog = {
     previousStatus: string;
     newStatus: string;
   };
-  warehouse?: {
-    warehouseId: string;
-    name: string;
+  warehouse: {
+    warehouseId?: string;
+    name?: string;
   };
   customer?: {
-    customerId: string;
+    customerId?: string;
     name: string;
     email?: string;
   };

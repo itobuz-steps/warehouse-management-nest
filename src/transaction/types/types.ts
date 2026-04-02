@@ -40,7 +40,7 @@ export type PopulatedTransactionForPdfGeneration = Omit<
       variant: VariantDocument;
       quantity: number;
       batches?: {
-        batch: BatchRef;
+        batch: string;
         quantity: number;
       }[];
     }[];
@@ -52,6 +52,8 @@ export type PopulatedTransactionForPdfGeneration = Omit<
   destinationWarehouse?: WarehouseDocument | null;
 
   customer?: CustomerDocument | null;
+
+  supplier?: SupplierDocument | null;
 
   approvedBy?: UserDocument | null;
   approvedAt?: Date | null;
@@ -65,17 +67,10 @@ export type FlattenedItem = {
   price: number;
   total: number;
 
-  batch?: string | null;
-  supplier?: string | null;
-};
-
-type ObjectIdLike = {
-  toHexString(): string;
-};
-
-export type BatchRef = {
-  _id: string | ObjectIdLike;
-  code?: string;
+  batches: {
+    label: string;
+    quantity: number;
+  }[];
 };
 
 export type LogProduct = Array<{

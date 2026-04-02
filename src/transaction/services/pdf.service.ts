@@ -7,474 +7,661 @@ import { Fontkit } from 'pdf-lib/cjs/types/fontkit';
 
 import { WarehouseDocument } from '../../warehouse/schemas/warehouse.schema';
 import {
-  FlattenedItem,
   PopulatedTransactionForPdfGeneration,
   PopulatedVariant,
 } from '../types/types';
 
-import { drawImage, writeLine, writeText, drawBadge } from '../utils/pdf.utils';
+import { writeText, drawBadge } from '../utils/pdf.utils';
 
 import { urlsConstant } from '../constants/urlPathConstants';
+import { CustomerDocument } from 'src/customer/entities/customer.entity';
+import { SupplierDocument } from 'src/supplier/entities/supplier.entity';
+import { TRANSACTION_TYPES } from '../constants/transactionConstants';
 
 @Injectable()
 export class PdfService {
   async generateTransactionPdf(
     transaction: PopulatedTransactionForPdfGeneration,
   ): Promise<Uint8Array> {
-    /** ---------------- DOCUMENT SETUP ---------------- */
-
     const pdfDoc = await PDFDocument.create();
     pdfDoc.registerFontkit(fontkit as unknown as Fontkit);
 
     const rootPath = process.cwd();
 
-    const [imageBytes, regularFontBytes, boldFontBytes] = await Promise.all([
-      fs.readFile(path.join(rootPath, urlsConstant.warehouseImage)),
+    const [regularFontBytes, boldFontBytes] = await Promise.all([
       fs.readFile(path.join(rootPath, urlsConstant.regularFontPath)),
       fs.readFile(path.join(rootPath, urlsConstant.boldFontPath)),
     ]);
 
-    const pngImage = await pdfDoc.embedPng(imageBytes);
-    const font = await pdfDoc.embedFont(regularFontBytes);
-    const boldFont = await pdfDoc.embedFont(boldFontBytes);
+    const regular = await pdfDoc.embedFont(regularFontBytes);
+    const bold = await pdfDoc.embedFont(boldFontBytes);
 
-    let page = pdfDoc.addPage(PageSizes.A4);
-    let { width, height } = page.getSize();
-
-    /** ---------------- DESIGN TOKENS ---------------- */
-
-    const INDIGO = rgb(0.31, 0.27, 0.9);
-    const INDIGO_LIGHT = rgb(0.9, 0.9, 1);
-    const TEXT_PRIMARY = rgb(0.15, 0.15, 0.2);
-    const TEXT_SECONDARY = rgb(0.45, 0.45, 0.5);
-    const BORDER = rgb(0.85, 0.85, 0.9);
-
-    const SPACING = {
-      xs: 6,
-      sm: 10,
-      md: 18,
-      lg: 28,
-      xl: 40,
+    const C = {
+      panelBg: rgb(0.99, 0.99, 0.99),
+      border: rgb(0.87, 0.88, 0.9),
+      title: rgb(0.12, 0.13, 0.15),
+      subtitle: rgb(0.47, 0.5, 0.55),
+      text: rgb(0.16, 0.17, 0.19),
+      muted: rgb(0.45, 0.47, 0.52),
+      accent: rgb(0.44, 0.56, 0.62),
+      headBg: rgb(0.92, 0.93, 0.95),
+      badgeBg: rgb(0.91, 0.93, 0.94),
+      badgeText: rgb(0.24, 0.3, 0.35),
+      rowAlt: rgb(0.96, 0.97, 0.98),
     };
 
-    const margin = 40;
-    const tableWidth = width - margin * 2;
-    // const tableStartX = margin;
-    const tableEndX = width - margin;
-    const bottomLimit = 80;
+    // ─── Layout constants ───────────────────────────────────────────────────
+    const PAGE_W = PageSizes.A4[0];
+    const PAGE_H = PageSizes.A4[1];
 
-    let cursorY = height - 40;
+    // No outer margin — card fills the full page
 
-    /** ---------------- HELPERS ---------------- */
+    // const left = 0;
+    const panelW = PAGE_W;
+    // const panelRight = PAGE_W;
 
-    const drawHeader = () => {
-      drawImage(page, pngImage, margin, height - 60, 90, 40);
+    const money = (n: number) =>
+      '$' +
+      (n || 0).toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
 
-      writeText(
-        page,
-        'INVOICE',
-        width - margin,
-        height - 40,
-        20,
-        boldFont,
-        INDIGO,
-        undefined,
-        'right',
-      );
-
-      writeText(
-        page,
-        `Txn ID: ${transaction._id.toString()}`,
-        width - margin,
-        height - 60,
-        10,
-        font,
-        TEXT_SECONDARY,
-        undefined,
-        'right',
-      );
-
-      writeText(
-        page,
-        new Date(transaction.createdAt).toLocaleString(),
-        width - margin,
-        height - 75,
-        10,
-        font,
-        TEXT_SECONDARY,
-        undefined,
-        'right',
-      );
+    const formatDate = (d?: Date | string) => {
+      if (!d) return '-';
+      return new Date(d).toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      });
     };
 
-    const drawSectionTitle = (title: string) => {
-      cursorY -= SPACING.lg;
+    const uppercase = (v?: string) => (v ? v.toUpperCase() : 'N/A');
 
-      writeText(
-        page,
-        title.toUpperCase(),
-        margin,
-        cursorY,
-        11,
-        boldFont,
-        INDIGO,
-      );
+    let counterparty: CustomerDocument | SupplierDocument | null;
 
-      cursorY -= SPACING.xs;
+    if (transaction.type === TRANSACTION_TYPES.IN)
+      counterparty = transaction.supplier ?? null;
+    else if (transaction.type === TRANSACTION_TYPES.OUT)
+      counterparty = transaction.customer ?? null;
+    else counterparty = null;
 
-      writeLine(
-        page,
-        { x: margin, y: cursorY },
-        { x: tableEndX, y: cursorY },
-        0.5,
-        BORDER,
-      );
+    // ─── Build row data ─────────────────────────────────────────────────────
+    type BatchEntry = { batch: string; quantity: number };
 
-      cursorY -= SPACING.md;
+    type Row = {
+      product: string;
+      attributes: string; // shown below product name
+      category: string;
+      sku: string;
+      batches: BatchEntry[]; // one line per batch in the BATCH column
+      totalQty: number;
     };
 
-    const ensurePage = () => {
-      if (cursorY < bottomLimit) {
-        page = pdfDoc.addPage(PageSizes.A4);
-        ({ width, height } = page.getSize());
-        cursorY = height - 60;
-        drawHeader();
-      }
-    };
+    const rows: Row[] = [];
+    let computedTotal = 0;
+    let totalUnits = 0;
 
-    /** ---------------- HEADER ---------------- */
+    for (const productEntry of transaction.products ?? []) {
+      const productDoc = productEntry.product as unknown as {
+        name?: string;
+        category?: string;
+      };
 
-    drawHeader();
-
-    /** ---------------- TRANSACTION ---------------- */
-
-    drawSectionTitle('Transaction');
-
-    writeText(page, 'Type', margin, cursorY, 10, font, TEXT_SECONDARY);
-    writeText(page, transaction.type, margin + 120, cursorY, 10, boldFont);
-
-    drawBadge(
-      page,
-      transaction.approvalStatus,
-      margin + 250,
-      cursorY,
-      boldFont,
-      9,
-      INDIGO_LIGHT,
-      INDIGO,
-    );
-
-    cursorY -= SPACING.md;
-
-    writeText(
-      page,
-      'Requires Approval',
-      margin,
-      cursorY,
-      10,
-      font,
-      TEXT_SECONDARY,
-    );
-    writeText(
-      page,
-      transaction.requiresApproval ? 'Yes' : 'No',
-      margin + 120,
-      cursorY,
-      10,
-      boldFont,
-    );
-
-    if (transaction.notes) {
-      cursorY -= SPACING.md;
-      writeText(page, 'Notes', margin, cursorY, 10, font, TEXT_SECONDARY);
-      writeText(
-        page,
-        transaction.notes,
-        margin + 120,
-        cursorY,
-        10,
-        font,
-        TEXT_PRIMARY,
-        tableWidth - 120,
-      );
-    }
-
-    /** ---------------- PARTIES ---------------- */
-
-    drawSectionTitle('Parties');
-
-    const sourceWarehouse = transaction.sourceWarehouse as WarehouseDocument;
-    const destinationWarehouse =
-      transaction.destinationWarehouse as WarehouseDocument;
-
-    writeText(page, 'Source', margin, cursorY, 10, font);
-    writeText(
-      page,
-      sourceWarehouse?.name ?? '-',
-      margin + 120,
-      cursorY,
-      10,
-      boldFont,
-    );
-
-    cursorY -= SPACING.sm;
-
-    writeText(page, 'Destination', margin, cursorY, 10, font);
-    writeText(
-      page,
-      destinationWarehouse?.name ?? '-',
-      margin + 120,
-      cursorY,
-      10,
-      boldFont,
-    );
-
-    cursorY -= SPACING.sm;
-
-    writeText(page, 'Performed By', margin, cursorY, 10, font);
-    writeText(
-      page,
-      transaction.performedBy?.name ?? '-',
-      margin + 120,
-      cursorY,
-      10,
-      boldFont,
-    );
-
-    /** ---------------- FLATTEN ITEMS ---------------- */
-
-    const flattened: FlattenedItem[] = [];
-
-    for (const product of transaction.products ?? []) {
-      for (const variantEntry of product.variants ?? []) {
+      for (const variantEntry of productEntry.variants ?? []) {
         const variant = variantEntry.variant as PopulatedVariant;
         if (!variant) continue;
 
-        const markup = variant.markup ?? 0;
         const basePrice = variant.price ?? 0;
-        const price = basePrice + (basePrice * markup) / 100;
-        const batchObj = variantEntry.batches?.[0]?.batch;
+        const markup = variant.markup ?? 0;
+        const finalPrice = basePrice + (basePrice * markup) / 100;
+        const qty = variantEntry.quantity ?? 0;
 
-        let batch: string | null = null;
+        computedTotal += finalPrice * qty;
+        totalUnits += qty;
 
-        if (batchObj) {
-          if (typeof batchObj.code === 'string') {
-            batch = batchObj.code;
-          } else if (typeof batchObj._id === 'string') {
-            batch = batchObj._id;
-          } else {
-            batch = batchObj._id.toHexString();
-          }
+        const attrs = Object.entries(variant.attributes ?? {})
+          .map(([k, v]) => `${k}: ${String(v)}`)
+          .join(', ');
+
+        const rawBatches = variantEntry.batches as
+          | { batch: string; quantity: number }[]
+          | undefined;
+
+        let batches: BatchEntry[];
+
+        if (rawBatches && Boolean(rawBatches.length)) {
+          batches = rawBatches.map((b) => {
+            const batchName =
+              typeof b.batch === 'string' ? b.batch : (b.batch ?? '-');
+            return { batch: batchName, quantity: b.quantity };
+          });
+        } else {
+          // No batch info — show a single dash entry
+          batches = [{ batch: '-', quantity: qty }];
         }
 
-        flattened.push({
-          sku: variant.sku,
-          attributes: Object.entries(variant.attributes ?? {})
-            .map(([k, v]) => `${k}:${v}`)
-            .join(', '),
-          quantity: variantEntry.quantity,
-          price,
-          total: price * variantEntry.quantity,
-          batch,
+        rows.push({
+          product: productDoc?.name ?? '-',
+          attributes: attrs || '-',
+          category: productDoc?.category ?? '-',
+          sku: variant.sku ?? '-',
+          batches,
+          totalQty: qty,
         });
       }
     }
 
-    /** ---------------- TABLE ---------------- */
+    const grandTotal = transaction.totalAmount ?? computedTotal;
+    const sourceWarehouse = transaction.sourceWarehouse as WarehouseDocument;
+    const preparedBy = transaction.performedBy?.name ?? '-';
+    const warehouseName = sourceWarehouse?.name ?? '-';
 
-    drawSectionTitle('Items');
+    // ─── Dimensions ─────────────────────────────────────────────────────────
+    const cardGap = 6;
+    const cardCols = 3;
+    const cardW = (panelW - cardGap * (cardCols - 1) - 20) / 3;
+    const cardH = 36;
 
-    const colSkuX = margin;
-    const colQtyX = width - margin - 200;
-    const colUnitX = width - margin - 120;
-    const colTotalX = width - margin;
+    // Header block height (accent bar + title + subtitle + padding)
+    const HEADER_BLOCK_H = 60;
+    // Meta-cards block: 2 rows × cardH + gaps + padding
+    let META_BLOCK_H: number;
 
-    // header background
-    page.drawRectangle({
-      x: margin,
-      y: cursorY - 10,
-      width: tableWidth,
-      height: 18,
-      color: INDIGO_LIGHT,
+    if (
+      transaction.type === TRANSACTION_TYPES.IN ||
+      transaction.type === TRANSACTION_TYPES.OUT
+    ) {
+      META_BLOCK_H = 3 * cardH + cardGap + 16 + 12;
+    } else {
+      META_BLOCK_H = 2 * cardH + cardGap + 16 + 12;
+    }
+
+    // Table header
+    const TABLE_HEADER_H = 20;
+    // Per-row base height (single batch)
+    const BASE_ROW_H = 28; // enough for product name + attributes line
+    const BATCH_LINE_H = 13; // extra height per additional batch line
+    // Summary + reason + footer
+    const SUMMARY_ROW_H = 24;
+    const SUMMARY_H = 3 * SUMMARY_ROW_H;
+    const REASON_BOX_H = 48;
+    const FOOTER_H = 24;
+    const FIXED_BOTTOM_H = SUMMARY_H + 8 + REASON_BOX_H + 14 + FOOTER_H + 10;
+
+    // Available height for table rows on first page
+    const firstPageUsedTop = HEADER_BLOCK_H + META_BLOCK_H + TABLE_HEADER_H;
+    const firstPageAvailable = PAGE_H - firstPageUsedTop - FIXED_BOTTOM_H;
+
+    // Continuation pages: table header only at top
+    const contPageUsedTop = 40 + TABLE_HEADER_H; // small top margin + header
+    const contPageAvailable = PAGE_H - contPageUsedTop - FIXED_BOTTOM_H;
+
+    // Pre-compute row heights
+    const rowHeights = rows.map((r) => {
+      const extraLines = Math.max(0, r.batches.length - 1);
+      return BASE_ROW_H + extraLines * BATCH_LINE_H;
     });
 
-    writeText(page, 'SKU', colSkuX, cursorY, 10, boldFont);
-    writeText(
-      page,
-      'Qty',
-      colQtyX,
-      cursorY,
-      10,
-      boldFont,
-      undefined,
-      undefined,
-      'right',
-    );
-    writeText(
-      page,
-      'Unit',
-      colUnitX,
-      cursorY,
-      10,
-      boldFont,
-      undefined,
-      undefined,
-      'right',
-    );
-    writeText(
-      page,
-      'Total',
-      colTotalX,
-      cursorY,
-      10,
-      boldFont,
-      undefined,
-      undefined,
-      'right',
-    );
+    // ─── Pagination: group rows into pages ──────────────────────────────────
+    type PageGroup = { startIdx: number; endIdx: number };
+    const pages: PageGroup[] = [];
 
-    cursorY -= SPACING.md;
+    let cursor = 0;
+    let isFirst = true;
 
-    let grandTotal = 0;
+    while (cursor < rows.length) {
+      const available = isFirst ? firstPageAvailable : contPageAvailable;
+      let used = 0;
+      const start = cursor;
 
-    for (const item of flattened) {
-      ensurePage();
+      while (cursor < rows.length && used + rowHeights[cursor] <= available) {
+        used += rowHeights[cursor];
+        cursor++;
+      }
 
-      writeText(page, item.sku, colSkuX, cursorY, 10, boldFont);
+      // If no rows fit at all (row taller than available), force at least one
+      if (cursor === start) {
+        cursor++;
+      }
 
+      pages.push({ startIdx: start, endIdx: cursor });
+      isFirst = false;
+    }
+
+    // If no rows exist, still create one page
+    if (!pages.length) {
+      pages.push({ startIdx: 0, endIdx: 0 });
+    }
+
+    // ─── Column X positions (inside 10px inner padding) ─────────────────────
+    const tableX = 10;
+    const tableW = panelW - 20;
+
+    const colProduct = tableX + 6; // Product + attributes below
+    const colBatch = tableX + 160; // Batch column (new)
+    const colCategory = tableX + 330; // Category
+    const colSku = tableX + 430; // SKU
+    const colQty = tableX + tableW - 8; // Quantity (right-aligned)
+
+    // Column widths for clipping
+    const wProduct = 148;
+    const wBatch = 164;
+    const wCategory = 94;
+    const wSku = 88;
+
+    // ─── Helper: draw a full-page panel (white card, accent top bar) ─────────
+    const drawPagePanel = (page: ReturnType<typeof pdfDoc.addPage>) => {
+      const sz = page.getSize();
+      page.drawRectangle({
+        x: 0,
+        y: 0,
+        width: sz.width,
+        height: sz.height,
+        color: C.panelBg,
+      });
+      // Accent top bar
+      page.drawRectangle({
+        x: 0,
+        y: sz.height - 2,
+        width: sz.width,
+        height: 2,
+        color: C.accent,
+      });
+      // Light border around whole page
+      page.drawRectangle({
+        x: 0,
+        y: 0,
+        width: sz.width,
+        height: sz.height,
+        borderColor: C.border,
+        borderWidth: 0.6,
+      });
+    };
+
+    // ─── Helper: draw table column headers ───────────────────────────────────
+    const drawTableHeader = (
+      page: ReturnType<typeof pdfDoc.addPage>,
+      y: number,
+    ) => {
+      page.drawRectangle({
+        x: tableX,
+        y: y - TABLE_HEADER_H,
+        width: tableW,
+        height: TABLE_HEADER_H,
+        color: C.headBg,
+        borderColor: C.border,
+        borderWidth: 0.6,
+      });
+
+      writeText(page, 'PRODUCT', colProduct, y - 13, 9, bold, C.muted);
+      writeText(page, 'BATCH', colBatch, y - 13, 9, bold, C.muted);
+      writeText(page, 'CATEGORY', colCategory, y - 13, 9, bold, C.muted);
+      writeText(page, 'SKU', colSku, y - 13, 9, bold, C.muted);
       writeText(
         page,
-        `${item.quantity}`,
-        colQtyX,
-        cursorY,
-        10,
-        font,
-        TEXT_PRIMARY,
-        undefined,
-        'right',
-      );
-
-      writeText(
-        page,
-        `₹${item.price.toFixed(2)}`,
-        colUnitX,
-        cursorY,
-        10,
-        font,
-        TEXT_PRIMARY,
-        undefined,
-        'right',
-      );
-
-      writeText(
-        page,
-        `₹${item.total.toFixed(2)}`,
-        colTotalX,
-        cursorY,
-        10,
-        boldFont,
-        TEXT_PRIMARY,
-        undefined,
-        'right',
-      );
-
-      cursorY -= 12;
-
-      writeText(
-        page,
-        `Attr: ${item.attributes}`,
-        colSkuX,
-        cursorY,
+        'QUANTITY',
+        colQty,
+        y - 13,
         9,
-        font,
-        TEXT_SECONDARY,
-        250,
+        bold,
+        C.muted,
+        undefined,
+        'right',
       );
+    };
 
-      if (item.batch) {
+    // ─── Helper: draw meta-info cards ────────────────────────────────────────
+    const drawMetaCards = (
+      page: ReturnType<typeof pdfDoc.addPage>,
+      topY: number,
+    ) => {
+      const drawCard = (
+        px: number,
+        pyTop: number,
+        label: string,
+        value: string,
+      ) => {
+        page.drawRectangle({
+          x: px,
+          y: pyTop - cardH,
+          width: cardW,
+          height: cardH,
+          color: C.panelBg,
+          borderColor: C.border,
+          borderWidth: 0.6,
+        });
+        writeText(page, label, px + 8, pyTop - 12, 8, bold, C.subtitle);
         writeText(
           page,
-          `Batch: ${item.batch.toString()}`,
-          colUnitX,
-          cursorY,
+          value || '-',
+          px + 8,
+          pyTop - 25,
+          9.5,
+          regular,
+          C.text,
+          cardW - 14,
+        );
+      };
+
+      const c1 = 10;
+      const c2 = c1 + cardW + cardGap;
+      const c3 = c2 + cardW + cardGap;
+
+      drawCard(c1, topY, 'INVOICE NO.', String(transaction._id));
+      drawCard(c2, topY, 'TYPE', String(transaction.type || '-'));
+      drawCard(c3, topY, 'CREATED AT', formatDate(transaction.createdAt));
+
+      drawCard(c1, topY - (cardH + cardGap), 'PERFORMED BY', preparedBy);
+      drawCard(c2, topY - (cardH + cardGap), 'WAREHOUSE', warehouseName);
+      drawCard(
+        c3,
+        topY - (cardH + cardGap),
+        'SHIPMENT STATUS',
+        transaction.shipment ? transaction.shipment : '-',
+      );
+
+      if (
+        (transaction.type === TRANSACTION_TYPES.IN ||
+          transaction.type === TRANSACTION_TYPES.OUT) &&
+        counterparty
+      ) {
+        drawCard(
+          c1,
+          topY - (cardH + cardGap) - (cardH + cardGap),
+          'COUNTERPARTY NAME',
+          counterparty.name ?? '-',
+        );
+
+        drawCard(
+          c2,
+          topY - (cardH + cardGap) - (cardH + cardGap),
+          'COUNTERPARTY CONTACT',
+          counterparty.email,
+        );
+
+        drawCard(
+          c3,
+          topY - (cardH + cardGap) - (cardH + cardGap),
+          'COUNTERPARTY',
+          counterparty.address ?? '-',
+        );
+      }
+    };
+
+    // ─── Helper: draw summary + reason + footer ───────────────────────────────
+    const drawBottomSection = (
+      page: ReturnType<typeof pdfDoc.addPage>,
+      topY: number,
+    ) => {
+      const summaryW = 210;
+      const summaryX = panelW - 10 - summaryW;
+
+      page.drawRectangle({
+        x: summaryX,
+        y: topY - SUMMARY_H,
+        width: summaryW,
+        height: SUMMARY_H,
+        color: C.panelBg,
+        borderColor: C.border,
+        borderWidth: 0.6,
+      });
+
+      const s1y = topY - 8;
+      const s2y = s1y - SUMMARY_ROW_H;
+      const s3y = s2y - SUMMARY_ROW_H;
+
+      writeText(
+        page,
+        'Shipment Status',
+        summaryX + 8,
+        s1y - 9,
+        9,
+        regular,
+        C.text,
+      );
+      writeText(
+        page,
+        uppercase((transaction.shipment as unknown as string) || 'PENDING'),
+        summaryX + summaryW - 8,
+        s1y - 9,
+        9,
+        bold,
+        C.text,
+        undefined,
+        'right',
+      );
+
+      writeText(page, 'Total Units', summaryX + 8, s2y - 9, 9, regular, C.text);
+      writeText(
+        page,
+        String(totalUnits),
+        summaryX + summaryW - 8,
+        s2y - 9,
+        9,
+        bold,
+        C.text,
+        undefined,
+        'right',
+      );
+
+      page.drawRectangle({
+        x: summaryX,
+        y: s3y - SUMMARY_ROW_H + 1,
+        width: summaryW,
+        height: SUMMARY_ROW_H - 1,
+        color: C.headBg,
+      });
+
+      writeText(page, 'Total Amount', summaryX + 8, s3y - 15, 10, bold, C.text);
+      writeText(
+        page,
+        money(grandTotal),
+        summaryX + summaryW - 8,
+        s3y - 15,
+        10,
+        bold,
+        C.text,
+        undefined,
+        'right',
+      );
+
+      // Reason / Notes box
+      const reasonTopY = topY - SUMMARY_H - 20;
+      page.drawRectangle({
+        x: tableX,
+        y: reasonTopY - REASON_BOX_H,
+        width: tableW,
+        height: REASON_BOX_H,
+        color: C.panelBg,
+        borderColor: C.border,
+        borderWidth: 0.6,
+      });
+      writeText(
+        page,
+        'Reason: -',
+        tableX + 8,
+        reasonTopY - 14,
+        9.2,
+        bold,
+        C.text,
+      );
+      writeText(page, 'Notes:', tableX + 8, reasonTopY - 30, 9.2, bold, C.text);
+
+      // Footer
+      const footerY = 14;
+      const footerText = 'Printed on ' + formatDate(new Date());
+      writeText(
+        page,
+        'Printed on ' + formatDate(new Date()),
+        18 * footerText.length,
+        footerY,
+        8.7,
+        regular,
+        C.subtitle,
+        undefined,
+        'right',
+      );
+    };
+
+    // ─── Render each page ────────────────────────────────────────────────────
+    pages.forEach((group, pageIdx) => {
+      const page = pdfDoc.addPage(PageSizes.A4);
+      const H = page.getSize().height;
+
+      drawPagePanel(page);
+
+      let cursorY = H; // tracks current Y from top downward
+
+      // ── First page: header + meta cards ──
+      if (pageIdx === 0) {
+        // Accent top bar already drawn; header text starts just below it
+        const headerY = H - 26;
+
+        // Title aligned to left edge (left + 10 for minimal inner pad)
+        writeText(
+          page,
+          'Transaction Invoice',
+          10,
+          headerY,
+          32 / 2.4,
+          bold,
+          C.title,
+        );
+        // Subtitle — slightly larger than before
+        writeText(
+          page,
+          'WAREHOUSE MANAGEMENT',
+          10,
+          headerY - 18,
+          6,
+          bold,
+          C.subtitle,
+        );
+
+        drawBadge(
+          page,
+          uppercase(transaction.approvalStatus),
+          panelW - 70,
+          headerY + 2,
+          bold,
+          8,
+          C.badgeBg,
+          C.badgeText,
+        );
+
+        const metaTopY = H - HEADER_BLOCK_H;
+        drawMetaCards(page, metaTopY);
+
+        cursorY = metaTopY - META_BLOCK_H + 4;
+      } else {
+        // Continuation page: small top margin
+        cursorY = H - 40;
+      }
+
+      // ── Table header ──
+      drawTableHeader(page, cursorY);
+      cursorY -= TABLE_HEADER_H;
+
+      // ── Table rows ──
+      const { startIdx, endIdx } = group;
+      const isLastPage = pageIdx === pages.length - 1;
+
+      for (let i = startIdx; i < endIdx; i++) {
+        const r = rows[i];
+        const rh = rowHeights[i];
+        const rowTop = cursorY;
+        const globalIdx = i; // for alternating color
+
+        // Row background
+        page.drawRectangle({
+          x: tableX,
+          y: rowTop - rh,
+          width: tableW,
+          height: rh,
+          color: globalIdx % 2 === 0 ? C.panelBg : C.rowAlt,
+          borderColor: C.border,
+          borderWidth: 0.4,
+        });
+
+        // Product name (vertically centred in top half of row)
+        const productNameY = rowTop - 12;
+        writeText(
+          page,
+          r.product,
+          colProduct,
+          productNameY,
           9,
-          font,
-          TEXT_SECONDARY,
+          bold,
+          C.text,
+          wProduct,
+        );
+
+        // Attributes line below product name
+        writeText(
+          page,
+          r.attributes,
+          colProduct,
+          productNameY - 11,
+          7.5,
+          regular,
+          C.muted,
+          wProduct,
+        );
+
+        // Category & SKU — vertically centred
+        const midY = rowTop - rh / 2 - 4;
+        writeText(
+          page,
+          r.category,
+          colCategory,
+          midY,
+          9,
+          regular,
+          C.text,
+          wCategory,
+        );
+        writeText(page, r.sku, colSku, midY, 9, regular, C.text, wSku);
+
+        // Total quantity (right-aligned, centred)
+        writeText(
+          page,
+          String(r.totalQty),
+          colQty,
+          midY,
+          9.5,
+          bold,
+          C.text,
           undefined,
           'right',
         );
+
+        // Batch lines — each on its own line
+        r.batches.forEach((b, bi) => {
+          const batchLineY = rowTop - 12 - bi * BATCH_LINE_H;
+          const batchLabel = `${b.batch}(${b.quantity})`;
+          writeText(
+            page,
+            batchLabel,
+            colBatch,
+            batchLineY,
+            8.5,
+            regular,
+            C.text,
+            wBatch,
+          );
+        });
+
+        cursorY -= rh;
       }
 
-      cursorY -= SPACING.md;
-
-      grandTotal += item.total;
-    }
-
-    /** ---------------- TOTAL ---------------- */
-
-    cursorY -= SPACING.lg;
-
-    writeLine(
-      page,
-      { x: width - 200, y: cursorY },
-      { x: width - margin, y: cursorY },
-      1,
-      BORDER,
-    );
-
-    cursorY -= SPACING.md;
-
-    writeText(
-      page,
-      'Total Amount',
-      width - 200,
-      cursorY,
-      11,
-      font,
-      TEXT_SECONDARY,
-    );
-
-    writeText(
-      page,
-      `₹${(transaction.totalAmount ?? grandTotal).toFixed(2)}`,
-      width - margin,
-      cursorY,
-      14,
-      boldFont,
-      INDIGO,
-      undefined,
-      'right',
-    );
-
-    /** ---------------- APPROVAL ---------------- */
-
-    if (transaction.requiresApproval) {
-      drawSectionTitle('Approval');
-
-      writeText(page, 'Approved By', margin, cursorY, 10, font);
-      writeText(
-        page,
-        transaction.approvedBy?.name ?? '-',
-        margin + 120,
-        cursorY,
-        10,
-        boldFont,
-      );
-
-      cursorY -= SPACING.sm;
-
-      writeText(page, 'Approved At', margin, cursorY, 10, font);
-      writeText(
-        page,
-        transaction?.approvedAt?.toLocaleString() ?? '-',
-        margin + 120,
-        cursorY,
-        10,
-        boldFont,
-      );
-    }
-
-    /** ---------------- OUTPUT ---------------- */
+      // ── Bottom section only on the last page ──
+      if (isLastPage) {
+        drawBottomSection(page, cursorY - 8);
+      }
+    });
 
     return pdfDoc.save();
   }
