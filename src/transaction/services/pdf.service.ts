@@ -544,7 +544,7 @@ export class PdfService {
         drawBadge(
           page,
           uppercase(transaction.approvalStatus),
-          panelW - 70,
+          panelW - 60,
           headerY + 2,
           bold,
           8,
