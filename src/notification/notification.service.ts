@@ -136,4 +136,26 @@ export class NotificationService {
 
     return result;
   }
+
+  async updateShipmentNotifications(
+    transactionId: Types.ObjectId,
+    status: 'shipped' | 'cancelled',
+    reportedBy: Types.ObjectId,
+    message: string,
+  ) {
+    const isShipped = status === 'shipped';
+
+    await this.notificationModel.updateMany(
+      { transactionId },
+      {
+        title: isShipped
+          ? 'Pending Shipment Alert: Shipped'
+          : 'Pending Shipment Alert: Cancelled',
+        message,
+        reportedBy,
+        isShipped,
+        isCancelled: !isShipped,
+      },
+    );
+  }
 }

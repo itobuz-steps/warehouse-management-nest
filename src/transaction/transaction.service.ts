@@ -43,6 +43,9 @@ import { Variant } from 'src/variant/schemas/variant.schema';
 import { TRANSACTION_STATUS } from './constants/transactionStatus';
 import { ProductItemDto } from './dto/product-item.dto';
 import { StorageService } from 'src/storage/storage.service';
+import SendEmail from 'src/utils/SendEmail';
+
+type ShipmentUpdateStatus = 'shipped' | 'cancelled';
 
 @Injectable()
 export class TransactionService {
@@ -83,6 +86,8 @@ export class TransactionService {
     private readonly logsService: TransactionLogsService,
 
     private readonly s3Service: StorageService,
+
+    private readonly sendEmail: SendEmail,
   ) {}
 
   async getTransactions(query: GetTransactionsQueryDto, user: UserDocument) {
@@ -1449,6 +1454,311 @@ export class TransactionService {
         };
       }),
     );
+  }
+
+  async updateShipmentStatus(
+    transactionId: string,
+    status: ShipmentUpdateStatus,
+    reporter: UserDocument,
+  ) {
+    const session = await this.connection.startSession();
+    session.startTransaction();
+    let isCommitted = false;
+
+    try {
+      const transaction = await this.getTransactionForShipmentUpdate(
+        transactionId,
+        session,
+      );
+
+      this.validateShipmentUpdate(transaction, status);
+
+      const previousStatus =
+        (transaction.shipment as SHIPMENT_TYPES) ?? SHIPMENT_TYPES.PENDING;
+      const newStatus = this.toShipmentEnum(status);
+
+      if (status === 'cancelled') {
+        await this.revertShipmentStock(
+          transaction,
+          transaction.sourceWarehouse as Types.ObjectId,
+          session,
+        );
+      }
+
+      transaction.shipment = newStatus;
+      await transaction.save({ session });
+
+      await session.commitTransaction();
+      isCommitted = true;
+
+      const shipmentMessage = this.buildShipmentMessage(transaction, status);
+
+      void this.notificationService.updateShipmentNotifications(
+        transaction._id,
+        status,
+        reporter._id,
+        shipmentMessage,
+      );
+
+      void this.sendShipmentStatusEmail(transaction._id, status);
+
+      await this.logsService.createLog({
+        action:
+          status === 'shipped'
+            ? LOG_ACTION.SHIPMENT_SHIPPED
+            : LOG_ACTION.SHIPMENT_CANCELLED,
+        entityType: LOG_ENTITY_TYPE.TRANSACTION,
+        entityId: transaction._id.toString(),
+        performedBy: reporter,
+        metadata: this.buildShipmentLogMetadata(
+          transaction,
+          previousStatus,
+          newStatus,
+        ),
+      });
+
+      return {
+        success: true,
+        message:
+          status === 'shipped'
+            ? 'Shipment marked shipped'
+            : 'Shipment cancelled and stock reverted successfully',
+      };
+    } catch (err) {
+      if (!isCommitted) {
+        await session.abortTransaction();
+      }
+      throw err;
+    } finally {
+      await session.endSession();
+    }
+  }
+
+  private async getTransactionForShipmentUpdate(
+    transactionId: string,
+    session: ClientSession,
+  ) {
+    if (!isValidObjectId(transactionId)) {
+      throw new BadRequestException('Invalid transaction id');
+    }
+
+    const transaction = await this.transactionModel
+      .findById(transactionId)
+      .populate('products.product', 'name')
+      .populate('products.variants.variant', 'sku')
+      .populate('sourceWarehouse', 'name')
+      .populate('customer', 'name email')
+      .session(session);
+
+    if (!transaction) {
+      throw new NotFoundException('Transaction not found');
+    }
+
+    return transaction;
+  }
+
+  private validateShipmentUpdate(
+    transaction: TransactionDocument,
+    status: ShipmentUpdateStatus,
+  ) {
+    const currentShipment = transaction.shipment as SHIPMENT_TYPES | undefined;
+
+    if (transaction.type !== TRANSACTION_TYPES.OUT) {
+      throw new BadRequestException(
+        'Shipment status can only be updated for stock-out transactions',
+      );
+    }
+
+    if (!transaction.sourceWarehouse) {
+      throw new BadRequestException('Source warehouse not found for shipment');
+    }
+
+    if (transaction.approvalStatus !== TRANSACTION_STATUS.APPROVED) {
+      throw new BadRequestException(
+        'Only approved transactions can update shipment status',
+      );
+    }
+
+    if (!currentShipment) {
+      throw new BadRequestException('Shipment status not initialized');
+    }
+
+    if (currentShipment === SHIPMENT_TYPES.SHIPPED) {
+      throw new BadRequestException('Shipment is already marked as shipped');
+    }
+
+    if (currentShipment === SHIPMENT_TYPES.CANCELLED) {
+      throw new BadRequestException('Shipment is already cancelled');
+    }
+
+    if (status === 'cancelled' && currentShipment !== SHIPMENT_TYPES.PENDING) {
+      throw new BadRequestException('Only pending shipments can be cancelled');
+    }
+  }
+
+  private async revertShipmentStock(
+    transaction: TransactionDocument,
+    warehouseId: Types.ObjectId,
+    session: ClientSession,
+  ) {
+    for (const product of transaction.products) {
+      for (const variantEntry of product.variants) {
+        await this.variantStockModel.findOneAndUpdate(
+          {
+            warehouseId: warehouseId._id,
+            variantId: variantEntry.variant._id,
+          },
+          { $inc: { quantity: variantEntry.quantity } },
+          { upsert: true, session },
+        );
+
+        if (!variantEntry.batches.length) {
+          continue;
+        }
+
+        for (const batchEntry of variantEntry.batches) {
+          const result = await this.batchModel.updateOne(
+            {
+              _id: batchEntry.batch,
+              'items.variant': variantEntry.variant._id,
+            },
+            {
+              $inc: { 'items.$.remainingQuantity': batchEntry.quantity },
+            },
+            { session },
+          );
+
+          if (!result.modifiedCount) {
+            throw new NotFoundException(
+              `Batch ${batchEntry.batch.toString()} not found during cancellation`,
+            );
+          }
+        }
+      }
+    }
+  }
+
+  private buildShipmentMessage(
+    transaction: TransactionDocument,
+    status: ShipmentUpdateStatus,
+  ) {
+    const totalQuantity = transaction.products.reduce(
+      (sum, product) =>
+        sum +
+        product.variants.reduce(
+          (variantSum, variantEntry) => variantSum + variantEntry.quantity,
+          0,
+        ),
+      0,
+    );
+
+    const variantNames = transaction.products
+      .flatMap((product) => product.variants)
+      .map((variantEntry) => {
+        const variant = variantEntry.variant as unknown as { sku?: string };
+        return variant.sku;
+      })
+      .filter((sku): sku is string => Boolean(sku))
+      .join(', ');
+
+    const warehouse = transaction.sourceWarehouse as unknown as {
+      name?: string;
+    };
+
+    const readableVariants = variantNames || 'selected variants';
+
+    return status === 'shipped'
+      ? `Shipment done for ${readableVariants} from ${warehouse?.name ?? 'warehouse'} of Quantity: ${totalQuantity}.`
+      : `Shipment cancelled for ${readableVariants} from ${warehouse?.name ?? 'warehouse'} of Quantity: ${totalQuantity}.`;
+  }
+
+  private buildShipmentLogMetadata(
+    transaction: TransactionDocument,
+    previousStatus: SHIPMENT_TYPES,
+    newStatus: SHIPMENT_TYPES,
+  ) {
+    const warehouse = transaction.sourceWarehouse as unknown as {
+      _id?: Types.ObjectId;
+      name?: string;
+    };
+
+    const customer = transaction.customer as unknown as {
+      _id?: Types.ObjectId;
+      name?: string;
+      email?: string;
+    };
+
+    return {
+      shipment: {
+        previousStatus,
+        newStatus,
+      },
+      warehouse: warehouse?._id
+        ? {
+            warehouseId: warehouse._id.toString(),
+            name: warehouse.name ?? '',
+          }
+        : undefined,
+      customer: customer?._id
+        ? {
+            customerId: customer._id.toString(),
+            name: customer.name ?? '',
+            email: customer.email,
+          }
+        : undefined,
+      products: transaction.products.flatMap((product) =>
+        product.variants.map((variantEntry) => {
+          const productDoc = product.product as unknown as {
+            _id?: Types.ObjectId;
+            name?: string;
+          };
+
+          const variantDoc = variantEntry.variant as unknown as {
+            _id?: Types.ObjectId;
+            sku?: string;
+          };
+
+          return {
+            productId: productDoc?._id?.toString() ?? '',
+            productName: productDoc?.name ?? '',
+            variantId: variantDoc?._id?.toString() ?? '',
+            sku: variantDoc?.sku ?? '',
+            quantity: variantEntry.quantity,
+          };
+        }),
+      ),
+    };
+  }
+
+  private async sendShipmentStatusEmail(
+    transactionId: Types.ObjectId,
+    status: ShipmentUpdateStatus,
+  ) {
+    const transaction = await this.transactionModel
+      .findById(transactionId)
+      .populate({ path: 'products.variants.variant' })
+      .populate('products.product')
+      .populate('sourceWarehouse')
+      .populate('performedBy')
+      .populate('customer')
+      .lean<PopulatedTransactionForPdfGeneration>();
+
+    if (!transaction?.customer?.email) {
+      return;
+    }
+
+    if (status === 'shipped') {
+      await this.sendEmail.sendProductShippedEmailToCustomer(transaction);
+      return;
+    }
+
+    await this.sendEmail.sendProductCancelEmailToCustomer(transaction);
+  }
+
+  private toShipmentEnum(status: ShipmentUpdateStatus): SHIPMENT_TYPES {
+    return status === 'shipped'
+      ? SHIPMENT_TYPES.SHIPPED
+      : SHIPMENT_TYPES.CANCELLED;
   }
 
   async generateInvoice(id: string) {
