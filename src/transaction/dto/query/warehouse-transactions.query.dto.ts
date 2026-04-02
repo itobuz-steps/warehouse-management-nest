@@ -1,6 +1,19 @@
-import { IsOptional, IsIn, IsDateString, IsInt, Min } from 'class-validator';
+import {
+  IsOptional,
+  IsIn,
+  IsDateString,
+  IsInt,
+  Min,
+  IsString,
+  IsNumber,
+  IsEnum,
+} from 'class-validator';
 import { Type } from 'class-transformer';
-import { TRANSACTION_TYPES } from 'src/transaction/constants/transactionConstants';
+import {
+  SortBy,
+  SortOrder,
+  TRANSACTION_TYPES,
+} from 'src/transaction/constants/transactionConstants';
 import { SHIPMENT_TYPES } from 'src/transaction/constants/shipmentConstants';
 import { TRANSACTION_STATUS } from 'src/transaction/constants/transactionStatus';
 export class WarehouseTransactionsQueryDto {
@@ -23,6 +36,30 @@ export class WarehouseTransactionsQueryDto {
   @IsOptional()
   @IsDateString()
   endDate?: string;
+
+  @IsOptional()
+  @IsString()
+  reportId?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  minAmount?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  maxAmount?: number;
+
+  @IsOptional()
+  @IsEnum(SortBy)
+  sortBy?: SortBy;
+
+  @IsOptional()
+  @IsEnum(SortOrder)
+  sortOrder?: SortOrder;
 
   @IsOptional()
   @Type(() => Number)
