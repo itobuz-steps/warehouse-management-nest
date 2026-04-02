@@ -43,10 +43,6 @@ export class GetTransactionsQueryDto {
   reportId?: string;
 
   @IsOptional()
-  @IsString()
-  performedBy?: string;
-
-  @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(0)

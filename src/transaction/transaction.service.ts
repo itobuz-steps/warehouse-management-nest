@@ -339,6 +339,11 @@ export class TransactionService {
       type,
       status,
       approvalStatus,
+      reportId,
+      minAmount,
+      maxAmount,
+      sortBy,
+      sortOrder,
       page = 1,
       limit = 10,
     } = query;
@@ -367,10 +372,44 @@ export class TransactionService {
 
     const filter: QueryFilter<Transaction> = { ...scopeMatch };
 
-    if (type && type !== 'ALL') filter.type = type;
-    if (status && status !== 'ALL') filter.shipment = status;
-    if (approvalStatus && approvalStatus !== 'ALL')
+    if (type && type !== 'ALL') {
+      filter.type = type;
+    }
+
+    if (status && status !== 'ALL') {
+      filter.shipment = status;
+    }
+
+    if (approvalStatus && approvalStatus !== 'ALL') {
       filter.approvalStatus = approvalStatus;
+    }
+
+    if (reportId?.trim()) {
+      const trimmed = reportId.trim();
+      filter.$expr = {
+        $regexMatch: {
+          input: { $toString: '$_id' },
+          regex: trimmed,
+          options: 'i',
+        },
+      };
+    }
+
+    if (minAmount !== undefined || maxAmount !== undefined) {
+      filter.totalAmount = {
+        ...(minAmount !== undefined && { $gte: minAmount }),
+        ...(maxAmount !== undefined && { $lte: maxAmount }),
+      };
+    }
+
+    const sortField =
+      sortBy === SortBy.AMOUNT
+        ? 'totalAmount'
+        : sortBy === SortBy.DATE
+          ? 'createdAt'
+          : 'updatedAt';
+
+    const sortDir = sortOrder === SortOrder.ASC ? 1 : -1;
 
     const skip = (page - 1) * limit;
 
@@ -426,7 +465,7 @@ export class TransactionService {
               ],
             },
           ])
-          .sort({ updatedAt: -1 })
+          .sort({ [sortField]: sortDir })
           .skip(skip)
           .limit(limit),
 
