@@ -23,7 +23,11 @@ import {
   LogProduct,
   PopulatedTransactionForPdfGeneration,
 } from './types/types';
-import { TRANSACTION_TYPES } from './constants/transactionConstants';
+import {
+  SortBy,
+  SortOrder,
+  TRANSACTION_TYPES,
+} from './constants/transactionConstants';
 import { StockOutDto } from './dto/stock-out.dto';
 import { Product } from 'src/products/entities/product.entity';
 import { SHIPMENT_TYPES } from './constants/shipmentConstants';
@@ -92,6 +96,11 @@ export class TransactionService {
       type,
       status,
       approvalStatus,
+      reportId,
+      minAmount,
+      maxAmount,
+      sortBy,
+      sortOrder,
       page = 1,
       limit = 10,
     } = query;
@@ -122,11 +131,44 @@ export class TransactionService {
 
     const match: QueryFilter<Transaction> = { ...scopeMatch };
 
-    if (type && type !== 'ALL') match.type = type;
-    if (status && status !== 'ALL') match.shipment = status;
+    if (type && type !== 'ALL') {
+      match.type = type;
+    }
+
+    if (status && status !== 'ALL') {
+      match.shipment = status;
+    }
+
     if (approvalStatus && approvalStatus !== 'ALL') {
       match.approvalStatus = approvalStatus;
     }
+
+    if (reportId?.trim()) {
+      const trimmed = reportId.trim();
+      match.$expr = {
+        $regexMatch: {
+          input: { $toString: '$_id' },
+          regex: trimmed,
+          options: 'i',
+        },
+      };
+    }
+
+    if (minAmount !== undefined || maxAmount !== undefined) {
+      match.totalAmount = {
+        ...(minAmount !== undefined && { $gte: minAmount }),
+        ...(maxAmount !== undefined && { $lte: maxAmount }),
+      };
+    }
+
+    const sortField =
+      sortBy === SortBy.AMOUNT
+        ? 'totalAmount'
+        : sortBy === SortBy.DATE
+          ? 'createdAt'
+          : 'updatedAt';
+
+    const sortDir = sortOrder === SortOrder.ASC ? 1 : -1;
 
     const skip = (page - 1) * limit;
 
@@ -161,7 +203,7 @@ export class TransactionService {
               ],
             },
           ])
-          .sort({ updatedAt: -1 })
+          .sort({ [sortField]: sortDir })
           .skip(skip)
           .limit(limit),
 

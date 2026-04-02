@@ -4,3 +4,13 @@ export enum TRANSACTION_TYPES {
   ADJUSTMENT = 'ADJUSTMENT',
   TRANSFER = 'TRANSFER',
 }
+
+export enum SortBy {
+  DATE = 'date',
+  AMOUNT = 'amount',
+}
+
+export enum SortOrder {
+  ASC = 'asc',
+  DESC = 'desc',
+}
