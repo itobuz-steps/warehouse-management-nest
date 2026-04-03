@@ -63,6 +63,43 @@ export class CustomerService {
     return await this.customerModel.find(filter).sort({ createdAt: -1 }).exec();
   }
 
+  async findAllPaginated(
+    query?: string,
+    page = 1,
+    limit = 10,
+    isActive?: string,
+  ) {
+    const filter: QueryFilter<CustomerDocument> = {};
+
+    if (isActive !== undefined) {
+      filter.isActive = isActive === 'true';
+    }
+
+    if (query) {
+      filter.$or = [
+        { email: { $regex: query, $options: 'i' } },
+        { name: { $regex: query, $options: 'i' } },
+        { address: { $regex: query, $options: 'i' } },
+      ];
+    }
+
+    const skip = (page - 1) * limit;
+    const total = await this.customerModel.countDocuments(filter);
+    const data = await this.customerModel
+      .find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .exec();
+
+    return {
+      data,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
   async findOne(id: string) {
     return await this.customerModel.findOne({ _id: id, isActive: true }).exec();
   }

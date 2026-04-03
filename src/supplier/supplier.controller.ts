@@ -80,11 +80,13 @@ export class SupplierController {
     @Query('search') search?: string,
     @Query('page') page = 1,
     @Query('limit') limit = 10,
+    @Query('isActive') isActive?: string,
   ) {
     const result = await this.supplierService.getAllPaginated(
       search,
       Number(page),
       Number(limit),
+      isActive,
     );
 
     return { success: true, message: 'Suppliers Data fetched', data: result };

@@ -154,8 +154,17 @@ export class SupplierService {
     return this.supplierModel.find(filter, { __v: 0 }).sort({ isActive: -1 });
   }
 
-  async getAllPaginated(search?: string, page = 1, limit = 10) {
+  async getAllPaginated(
+    search?: string,
+    page = 1,
+    limit = 10,
+    isActive?: string,
+  ) {
     const filter: QueryFilter<SupplierDocument> = {};
+
+    if (isActive !== undefined) {
+      filter.isActive = isActive === 'true';
+    }
 
     if (search) {
       filter.$or = [
