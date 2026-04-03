@@ -54,6 +54,25 @@ export class CustomerController {
     };
   }
 
+  @Get('paginated')
+  async findAllPaginated(
+    @Query('search') search?: string,
+    @Query('page') page = 1,
+    @Query('limit') limit = 10,
+    @Query('isActive') isActive?: string,
+  ) {
+    return {
+      message: 'All customers retrieved successfully',
+      success: true,
+      data: await this.customerService.findAllPaginated(
+        search,
+        Number(page),
+        Number(limit),
+        isActive,
+      ),
+    };
+  }
+
   @Get(':id')
   async findOne(@Param('id') id: string) {
     return {
