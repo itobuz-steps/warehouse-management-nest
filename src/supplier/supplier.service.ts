@@ -162,7 +162,7 @@ export class SupplierService {
   ) {
     const filter: QueryFilter<SupplierDocument> = {};
 
-    if (isActive !== undefined) {
+    if (isActive) {
       filter.isActive = isActive === 'true';
     }
 
