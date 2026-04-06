@@ -9,33 +9,31 @@ export function writeText(
   font: PDFFont,
   color = rgb(0, 0, 0),
   maxWidth?: number,
-  align: 'left' | 'right' = 'left',
+  align: 'left' | 'right' | 'center' = 'left',
 ) {
   let finalText = text;
 
-  // Handle max width truncation
   if (maxWidth) {
     const textWidth = font.widthOfTextAtSize(text, size);
-
     if (textWidth > maxWidth) {
       let truncated = text;
-
       while (
-        truncated.length > 0 &&
-        font.widthOfTextAtSize(truncated + '…', size) > maxWidth
+        Boolean(truncated.length) &&
+        font.widthOfTextAtSize(truncated + '...', size) > maxWidth
       ) {
         truncated = truncated.slice(0, -1);
       }
-
-      finalText = truncated + '…';
+      finalText = truncated + '...';
     }
   }
 
-  // Handle right alignment
   let drawX = x;
   if (align === 'right') {
     const textWidth = font.widthOfTextAtSize(finalText, size);
     drawX = x - textWidth;
+  } else if (align === 'center') {
+    const textWidth = font.widthOfTextAtSize(finalText, size);
+    drawX = x - textWidth / 2;
   }
 
   page.drawText(finalText, {
@@ -79,16 +77,16 @@ export function drawBadge(
   bgColor: Color,
   textColor: Color,
 ) {
-  const paddingX = 6;
-  const paddingY = 3;
-
+  const paddingX = 8;
+  const paddingY = 4;
   const textWidth = font.widthOfTextAtSize(text, fontSize);
+  const badgeW = textWidth + paddingX * 2;
 
   page.drawRectangle({
     x: x - paddingX,
     y: y - paddingY,
-    width: textWidth + paddingX * 2,
-    height: fontSize + paddingY,
+    width: badgeW,
+    height: fontSize + paddingY * 2,
     color: bgColor,
   });
 
