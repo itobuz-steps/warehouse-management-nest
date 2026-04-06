@@ -27,6 +27,13 @@ type BatchProductItem = {
 
 type VariantDamageMap = Map<string, number>;
 
+type FindAllBatchesQuery = {
+  search?: string;
+  destinationWarehouse?: string;
+  page?: number;
+  limit?: number;
+};
+
 @Injectable()
 export class BatchService {
   constructor(
@@ -89,18 +96,66 @@ export class BatchService {
     };
   }
 
-  async findAll() {
-    return {
-      success: true,
-      message: 'Batches retrieved successfully',
-      data: await this.batchModel
-        .find()
+  async findAll(query: FindAllBatchesQuery = {}) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+    const skip = (page - 1) * limit;
+
+    const filter = this.buildFindAllFilter(query);
+
+    const [batches, total] = await Promise.all([
+      this.batchModel
+        .find(filter)
         .populate('sourceWarehouse')
         .populate('destinationWarehouse')
         .populate('items.variant')
-        .sort({ createdAt: -1 }),
-      // .lean(); // will implement later if needed for performance optimization
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      this.batchModel.countDocuments(filter),
+    ]);
+
+    return {
+      success: true,
+      message: 'Batches retrieved successfully',
+      data: batches,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
     };
+  }
+
+  private buildFindAllFilter(
+    query: FindAllBatchesQuery,
+  ): Record<string, unknown> {
+    const filter: Record<string, unknown> = {};
+
+    if (query.destinationWarehouse) {
+      filter.destinationWarehouse = new Types.ObjectId(
+        query.destinationWarehouse,
+      );
+    }
+
+    const search = query.search?.trim();
+    if (search) {
+      const escapedSearch = this.escapeRegex(search);
+      filter.$expr = {
+        $regexMatch: {
+          input: { $toString: '$_id' },
+          regex: escapedSearch,
+          options: 'i',
+        },
+      };
+    }
+
+    return filter;
+  }
+
+  private escapeRegex(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
   async findOne(id: string) {

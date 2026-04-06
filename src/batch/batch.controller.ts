@@ -5,12 +5,14 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
 import { BatchService } from './batch.service';
 import { CreateBatchDto } from './dto/create-batch.dto';
 import { MarkBatchDamagedDto } from './dto/mark-batch-damaged.dto';
+import { GetBatchesQueryDto } from './dto/get-batches-query.dto';
 import { AuthGuard } from 'src/common/guard/auth.guard';
 import type { RequestWithUser } from 'src/profile/profile.controller';
 
@@ -25,8 +27,8 @@ export class BatchController {
   }
 
   @Get()
-  findAll() {
-    return this.batchService.findAll();
+  findAll(@Query() query: GetBatchesQueryDto) {
+    return this.batchService.findAll(query);
   }
 
   @Get(':id')
