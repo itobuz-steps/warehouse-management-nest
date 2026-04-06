@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Body,
   Query,
   Param,
@@ -93,6 +94,24 @@ export class TransactionController {
     @Req() req: RequestWithUserDocument,
   ) {
     return this.transactionService.rejectTransaction(id, req.user._id);
+  }
+
+  @Patch('approve-shipment/:id')
+  ship(@Req() req: RequestWithUserDocument, @Param('id') id: string) {
+    return this.transactionService.updateShipmentStatus(
+      id,
+      'shipped',
+      req.user,
+    );
+  }
+
+  @Patch('cancel-shipment/:id')
+  cancel(@Req() req: RequestWithUserDocument, @Param('id') id: string) {
+    return this.transactionService.updateShipmentStatus(
+      id,
+      'cancelled',
+      req.user,
+    );
   }
 
   @Get('generate-invoice/:id')
