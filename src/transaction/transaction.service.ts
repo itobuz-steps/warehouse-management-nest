@@ -1850,6 +1850,7 @@ export class TransactionService {
       })
       .populate('products.product')
       .populate('sourceWarehouse')
+      .populate('destinationWarehouse')
       .populate('performedBy')
       .populate('customer')
       .populate('supplier')

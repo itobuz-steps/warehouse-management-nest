@@ -156,8 +156,18 @@ export class PdfService {
 
     const grandTotal = transaction.totalAmount ?? computedTotal;
     const sourceWarehouse = transaction.sourceWarehouse as WarehouseDocument;
+    const destinationWarehouse =
+      transaction.destinationWarehouse as WarehouseDocument;
     const preparedBy = transaction.performedBy?.name ?? '-';
-    const warehouseName = sourceWarehouse?.name ?? '-';
+    let warehouseName: string;
+
+    if (sourceWarehouse?.name) {
+      warehouseName = sourceWarehouse.name;
+    } else if (destinationWarehouse?.name) {
+      warehouseName = destinationWarehouse.name;
+    } else {
+      warehouseName = '-';
+    }
 
     // ─── Dimensions ─────────────────────────────────────────────────────────
     const cardGap = 6;
@@ -385,7 +395,7 @@ export class PdfService {
         drawCard(
           c3,
           topY - (cardH + cardGap) - (cardH + cardGap),
-          'COUNTERPARTY',
+          'COUNTERPARTY ADDRESS',
           counterparty.address ?? '-',
         );
       }
@@ -424,7 +434,7 @@ export class PdfService {
       );
       writeText(
         page,
-        uppercase((transaction.shipment as unknown as string) || 'PENDING'),
+        uppercase(transaction.shipment ? transaction.shipment : '-'),
         summaryX + summaryW - 8,
         s1y - 9,
         9,
@@ -481,14 +491,41 @@ export class PdfService {
       });
       writeText(
         page,
-        'Reason: -',
+        'Reason: ',
         tableX + 8,
         reasonTopY - 14,
         9.2,
         bold,
         C.text,
       );
-      writeText(page, 'Notes:', tableX + 8, reasonTopY - 30, 9.2, bold, C.text);
+      writeText(
+        page,
+        transaction.reason ? transaction.reason : '',
+        tableX + 46,
+        reasonTopY - 14,
+        9.2,
+        regular,
+        C.text,
+      );
+
+      writeText(
+        page,
+        'Notes: ',
+        tableX + 8,
+        reasonTopY - 30,
+        9.2,
+        bold,
+        C.text,
+      );
+      writeText(
+        page,
+        transaction.notes ? transaction.notes : '',
+        tableX + 40,
+        reasonTopY - 30,
+        9.2,
+        regular,
+        C.text,
+      );
 
       // Footer
       const footerY = 14;
