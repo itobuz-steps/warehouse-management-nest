@@ -6,6 +6,7 @@ import { WarehouseDocument } from 'src/warehouse/schemas/warehouse.schema';
 import { Variant, VariantDocument } from 'src/variant/schemas/variant.schema';
 import { Types } from 'mongoose';
 import { CustomerDocument } from 'src/customer/entities/customer.entity';
+import { SupplierDocument } from 'src/supplier/entities/supplier.entity';
 
 export type RequestWithUserDocument = Request & {
   user: UserDocument;
@@ -24,26 +25,52 @@ export type PopulatedVariant = Variant & { _id: Types.ObjectId };
 
 export type PopulatedTransactionForPdfGeneration = Omit<
   TransactionDocument,
-  'products' | 'sourceWarehouse' | 'performedBy | customer'
+  | 'products'
+  | 'sourceWarehouse'
+  | 'performedBy'
+  | 'customer'
+  | 'approvedBy'
+  | 'destinationWarehouse'
 > & {
   products: {
-    product: ProductDocument;
+    product: ProductDocument & {
+      supplier?: SupplierDocument | null;
+    };
     variants: {
       variant: VariantDocument;
       quantity: number;
+      batches?: {
+        batch: string;
+        quantity: number;
+      }[];
     }[];
   }[];
+
   performedBy: UserDocument;
-  sourceWarehouse?: WarehouseDocument;
-  customer: CustomerDocument;
+
+  sourceWarehouse?: WarehouseDocument | null;
+  destinationWarehouse?: WarehouseDocument | null;
+
+  customer?: CustomerDocument | null;
+
+  supplier?: SupplierDocument | null;
+
+  approvedBy?: UserDocument | null;
+  approvedAt?: Date | null;
 };
 
 export type FlattenedItem = {
   sku: string;
   attributes: string;
+
   quantity: number;
   price: number;
   total: number;
+
+  batches: {
+    label: string;
+    quantity: number;
+  }[];
 };
 
 export type LogProduct = Array<{
