@@ -16,7 +16,6 @@ import {
 import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
 import { UserDocument } from 'src/auth/entities/auth.entity';
 import { BatchMarkedDamagedLog } from 'src/transaction-logs/types/batch-log.type';
-// import { TRANSACTION_TYPES } from 'src/transaction/constants/transactionConstants';
 
 type BatchProductItem = {
   variant: Types.ObjectId;
@@ -52,38 +51,12 @@ export class BatchService {
     private readonly logsService: TransactionLogsService,
   ) {}
 
-  // private validateWarehouses(source?: string, destination?: string) {
-  //   if (type === TRANSACTION_TYPES.TRANSFER) {
-  //     if (!source || !destination) {
-  //       throw new BadRequestException(
-  //         'Transfer requires both source and destination warehouses',
-  //       );
-  //     }
-  //     if (source === destination) {
-  //       throw new BadRequestException(
-  //         'Source and destination cannot be the same',
-  //       );
-  //     }
-  //   }
-
-  //   if (type === TRANSACTION_TYPES.IN && !destination) {
-  //     throw new BadRequestException('Stock In requires destination warehouse');
-  //   }
-
-  //   if (type === TRANSACTION_TYPES.OUT && !source) {
-  //     throw new BadRequestException('Stock Out requires source warehouse');
-  //   }
-  // }
-
   async create(dto: CreateBatchDto) {
-    // this.validateWarehouses(dto.sourceWarehouse, dto.destinationWarehouse);
-
     const preparedItems: BatchProductItem[] = dto.items.map((item) =>
       this.toBatchProductItem(item.variant, item.quantity),
     );
 
     const batch = new this.batchModel({
-      // transactionType: dto.transactionType,
       sourceWarehouse: new Types.ObjectId(dto.sourceWarehouse),
       destinationWarehouse: new Types.ObjectId(dto.destinationWarehouse),
       items: preparedItems,
