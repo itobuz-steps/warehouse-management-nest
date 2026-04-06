@@ -20,7 +20,7 @@ import {
   Notification,
   NotificationSchema,
 } from 'src/notification/entities/notification.entity';
-import SendEmail from 'src/utils/SendEmail';
+import { MailModule } from 'src/mail/mail.module';
 import { NotificationModule } from 'src/notification/notification.module';
 import {
   Subscription,
@@ -65,9 +65,10 @@ import { StorageModule } from 'src/storage/storage.module';
     VariantStockModule,
     TransactionLogsModule,
     StorageModule,
+    MailModule,
   ],
   controllers: [TransactionController],
-  providers: [TransactionService, PdfService, NotificationService, SendEmail],
-  exports: [SendEmail, TransactionService],
+  providers: [TransactionService, PdfService, NotificationService],
+  exports: [TransactionService],
 })
 export class TransactionModule {}

@@ -9,7 +9,7 @@ import { OTP, OTPSchema } from './entities/otp.entity';
 import { TokenGenerator } from 'src/utils/TokenGenerator';
 import { ConfigModule } from 'src/config/config.module';
 import OtpGenerator from 'src/utils/OtpGenerator';
-import SendEmail from 'src/utils/SendEmail';
+import { MailModule } from 'src/mail/mail.module';
 import { WarehouseModule } from 'src/warehouse/warehouse.module';
 import {
   Warehouse,
@@ -29,9 +29,10 @@ import { TransactionModule } from 'src/transaction/transaction.module';
     ]),
     WarehouseModule,
     TransactionModule,
+    MailModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, TokenGenerator, OtpGenerator, SendEmail],
+  providers: [AuthService, TokenGenerator, OtpGenerator],
   exports: [OtpGenerator, TokenGenerator], // Optional if needed elsewhere
 })
 export class AuthModule {}

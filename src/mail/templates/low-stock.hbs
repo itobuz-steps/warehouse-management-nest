@@ -1,0 +1,225 @@
+<html lang='en'>
+  <head>
+    <meta charset='UTF-8' />
+    <meta name='viewport' content='width=device-width, initial-scale=1.0' />
+    <title>Low Stock Alert</title>
+  </head>
+
+  <body
+    style='margin:0;padding:0;background-color:#f4f6f9;font-family:Arial,sans-serif;'
+  >
+    <table
+      width='100%'
+      cellpadding='0'
+      cellspacing='0'
+      style='padding:48px 16px;'
+    >
+      <tr>
+        <td align='center'>
+
+          <table
+            width='560'
+            cellpadding='0'
+            cellspacing='0'
+            style='background:#ffffff;border-radius:12px;overflow:hidden;
+                 border:1px solid #e5e7eb;box-shadow:0 4px 14px rgba(0,0,0,0.04);'
+          >
+
+            <!-- Top accent -->
+            <tr>
+              <td
+                style='background:linear-gradient(90deg,#f5550b,#fb2424);height:4px;'
+              ></td>
+            </tr>
+
+            <!-- Header -->
+            <tr>
+              <td style='padding:28px 40px 0;'>
+                <table width='100%'>
+                  <tr>
+                    <td>
+                      <p
+                        style='font-size:18px;font-weight:700;color:#111827;margin:0;'
+                      >
+                        {{appName}}
+                      </p>
+                    </td>
+                    <td align='right'>
+                      <span
+                        style='background:#fff7ed;color:#b40909;
+                                 font-size:11px;font-weight:700;
+                                 padding:6px 12px;border-radius:999px;
+                                 border:1px solid #f03c3c;'
+                      >
+                        Low Stock
+                      </span>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Title -->
+            <tr>
+              <td style='padding:26px 40px 0;'>
+                <h1
+                  style='font-size:22px;font-weight:700;color:#111827;margin:0 0 10px;'
+                >
+                  Stock running low
+                </h1>
+
+                <p
+                  style='font-size:14px;line-height:1.7;color:#4b5563;margin:0;'
+                >
+                  Hello
+                  <strong style='color:#111;'>{{userName}}</strong>, one of your
+                  inventory items has dropped below the defined threshold and
+                  needs your attention.
+                </p>
+              </td>
+            </tr>
+
+            <!-- Product card -->
+            <tr>
+              <td style='padding:22px 40px 0;'>
+                <table
+                  width='100%'
+                  cellpadding='0'
+                  cellspacing='0'
+                  style='background:#ffffff;border:1px solid #e5e7eb;
+                       border-radius:10px;overflow:hidden;'
+                >
+
+                  <!-- Card header -->
+                  <tr>
+                    <td
+                      style='padding:14px 18px;background:#f9fafb;border-bottom:1px solid #e5e7eb;'
+                    >
+                      <p
+                        style='font-size:11px;font-weight:700;
+                              letter-spacing:0.08em;text-transform:uppercase;
+                              color:#6b7280;margin:0;'
+                      >
+                        Product Details
+                      </p>
+                    </td>
+                  </tr>
+
+                  <!-- Content -->
+                  <tr>
+                    <td style='padding:0 18px;'>
+                      <table
+                        width='100%'
+                        cellpadding='0'
+                        cellspacing='0'
+                        style='font-size:14px;'
+                      >
+
+                        <tr>
+                          <td
+                            style='padding:14px 0 10px;color:#6b7280;width:40%;
+                                   border-bottom:1px solid #f1f5f9;'
+                          >
+                            Product name
+                          </td>
+                          <td
+                            style='padding:14px 0 10px;font-weight:600;color:#111827;
+                                   border-bottom:1px solid #f1f5f9;'
+                          >
+                            {{productName}}
+                            {{#if variantName}}- {{variantName}}{{/if}}
+                          </td>
+                        </tr>
+
+                        <tr>
+                          <td
+                            style='padding:10px 0;color:#6b7280;
+                                   border-bottom:1px solid #f1f5f9;'
+                          >
+                            Warehouse
+                          </td>
+                          <td
+                            style='padding:10px 0;color:#111827;
+                                   border-bottom:1px solid #f1f5f9;'
+                          >
+                            {{warehouseName}}
+                          </td>
+                        </tr>
+
+                        <tr>
+                          <td style='padding:12px 0 16px;color:#6b7280;'>
+                            Current stock
+                          </td>
+                          <td style='padding:12px 0 16px;'>
+                            <span
+                              style='background:#fef2f2;color:#dc2626;
+                                       font-weight:700;padding:4px 10px;
+                                       border-radius:6px;font-size:13px;'
+                            >
+                              {{currentStock}}
+                              units
+                            </span>
+                          </td>
+                        </tr>
+
+                      </table>
+                    </td>
+                  </tr>
+
+                </table>
+              </td>
+            </tr>
+
+            <!-- Message -->
+            <tr>
+              <td style='padding:26px 40px 0;'>
+                <p
+                  style='font-size:14px;line-height:1.7;color:#4b5563;margin:0;'
+                >
+                  Please restock
+                  <strong style='color:#111827;'>{{productName}}
+                    {{#if variantName}}- {{variantName}}{{/if}}</strong>
+                  to prevent operational delays. You can review and update stock
+                  levels directly from your dashboard.
+                </p>
+              </td>
+            </tr>
+
+            <!-- CTA -->
+            <tr>
+              <td style='padding:26px 40px 20px;'>
+                <a
+                  href='{{link}}'
+                  style='display:inline-block;background:#f5550b;color:#ffffff;
+                       padding:12px 26px;font-size:14px;font-weight:600;
+                       text-decoration:none;border-radius:6px;'
+                >
+                  View Product
+                </a>
+              </td>
+            </tr>
+
+            <!-- Footer -->
+            <tr>
+              <td
+                style='padding:30px 40px 36px;border-top:1px solid #e5e7eb;margin-top:30px;'
+              >
+                <p
+                  style='font-size:12px;color:#9ca3af;line-height:1.7;margin:0;'
+                >
+                  You’re receiving this notification because stock alerts are
+                  enabled.<br />
+                  Manage preferences in your account settings.<br />
+                  &copy;
+                  {{appName}}. All rights reserved.
+                </p>
+              </td>
+            </tr>
+
+          </table>
+
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

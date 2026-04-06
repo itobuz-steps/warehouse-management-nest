@@ -1,0 +1,214 @@
+<html lang='en'>
+  <head>
+    <meta charset='UTF-8' />
+    <meta name='viewport' content='width=device-width, initial-scale=1.0' />
+    <title>Order Delivered</title>
+  </head>
+
+  <body
+    style='margin:0;padding:0;background-color:#f4f7f9;font-family:Arial,sans-serif;'
+  >
+    <table
+      width='100%'
+      cellpadding='0'
+      cellspacing='0'
+      style='padding:48px 16px;'
+    >
+      <tr>
+        <td align='center'>
+
+          <table
+            width='560'
+            cellpadding='0'
+            cellspacing='0'
+            style='background:#ffffff;border-radius:12px;overflow:hidden;
+                 border:1px solid #e5e7eb;box-shadow:0 6px 18px rgba(0,0,0,0.05);'
+          >
+
+            <!-- Top accent -->
+            <tr>
+              <td
+                style='background:linear-gradient(90deg,#22c55e,#16a34a);height:4px;'
+              ></td>
+            </tr>
+
+            <!-- Header -->
+            <tr>
+              <td style='padding:28px 40px 0;'>
+                <table width='100%'>
+                  <tr>
+                    <td>
+                      <p
+                        style='font-size:18px;font-weight:700;color:#111827;margin:0;'
+                      >
+                        {{appName}}
+                      </p>
+                    </td>
+                    <td align='right'>
+                      <span
+                        style='background:#ecfdf5;color:#15803d;
+                                 font-size:11px;font-weight:700;
+                                 padding:6px 12px;border-radius:999px;
+                                 border:1px solid #bbf7d0;'
+                      >
+                        Delivered
+                      </span>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Title -->
+            <tr>
+              <td style='padding:26px 40px 0;'>
+                <h1
+                  style='font-size:22px;font-weight:700;color:#111827;margin:0 0 10px;'
+                >
+                  Order delivered successfully
+                </h1>
+
+                <p
+                  style='font-size:14px;line-height:1.7;color:#4b5563;margin:0;'
+                >
+                  Hi
+                  <strong style='color:#111827;'>{{customerName}}</strong>, your
+                  shipment has been delivered. You can find the order details
+                  below. An invoice is included with this email for your
+                  records.
+                </p>
+              </td>
+            </tr>
+
+            <!-- Order Card -->
+            <tr>
+              <td style='padding:22px 40px 0;'>
+                <table
+                  width='100%'
+                  cellpadding='0'
+                  cellspacing='0'
+                  style='background:#ffffff;border:1px solid #e5e7eb;
+                       border-radius:10px;overflow:hidden;'
+                >
+
+                  <!-- Header -->
+                  <tr>
+                    <td
+                      style='padding:14px 18px;background:#f9fafb;
+                             border-bottom:1px solid #e5e7eb;'
+                    >
+                      <p
+                        style='font-size:11px;font-weight:700;
+                              letter-spacing:0.08em;text-transform:uppercase;
+                              color:#6b7280;margin:0;'
+                      >
+                        Order Summary
+                      </p>
+                    </td>
+                  </tr>
+
+                  <!-- Content -->
+                  <tr>
+                    <td style='padding:0 18px;'>
+                      <table
+                        width='100%'
+                        cellpadding='0'
+                        cellspacing='0'
+                        style='font-size:14px;'
+                      >
+
+                        <tr>
+                          <td
+                            style='padding:14px 0 10px;color:#6b7280;width:40%;
+                                   border-bottom:1px solid #f1f5f9;'
+                          >
+                            Order ID
+                          </td>
+                          <td
+                            style="padding:14px 0 10px;font-weight:600;
+                                   font-family:'Courier New',monospace;
+                                   color:#111827;border-bottom:1px solid #f1f5f9;"
+                          >
+                            {{orderId}}
+                          </td>
+                        </tr>
+
+                        <tr>
+                          <td style='padding:12px 0 16px;color:#6b7280;'>
+                            Status
+                          </td>
+                          <td style='padding:12px 0 16px;'>
+                            <span
+                              style='background:#ecfdf5;color:#16a34a;
+                                       font-weight:600;padding:4px 10px;
+                                       border-radius:6px;font-size:13px;'
+                            >
+                              {{shipmentStatus}}
+                            </span>
+                          </td>
+                        </tr>
+
+                      </table>
+                    </td>
+                  </tr>
+
+                </table>
+              </td>
+            </tr>
+
+            <!-- Info Box -->
+            <tr>
+              <td style='padding:24px 40px 0;'>
+                <table width='100%'>
+                  <tr>
+                    <td
+                      style='background:#f9fafb;border-left:4px solid #16a34a;
+                             border-radius:6px;padding:14px 16px;'
+                    >
+                      <p
+                        style='font-size:13px;color:#374151;margin:0;line-height:1.6;'
+                      >
+                        Your invoice is attached as a PDF. Please retain it for
+                        your records or future reference.
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Message -->
+            <tr>
+              <td style='padding:26px 40px 20px;'>
+                <p
+                  style='font-size:14px;line-height:1.7;color:#4b5563;margin:0;'
+                >
+                  Thank you for your business,
+                  <strong style='color:#111827;'>{{customerName}}</strong>. If
+                  you have any questions or need further assistance, feel free
+                  to contact our support team.
+                </p>
+              </td>
+            </tr>
+
+            <!-- Footer -->
+            <tr>
+              <td style='padding:30px 40px 36px;border-top:1px solid #e5e7eb;'>
+                <p
+                  style='font-size:12px;color:#9ca3af;line-height:1.7;margin:0;'
+                >
+                  This is an automated delivery confirmation from
+                  {{appName}}.<br />
+                  &copy;
+                  {{appName}}. All rights reserved.
+                </p>
+              </td>
+            </tr>
+
+          </table>
+
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

@@ -27,7 +27,7 @@ import {
   Warehouse,
   WarehouseSchema,
 } from 'src/warehouse/schemas/warehouse.schema';
-import SendEmail from 'src/utils/SendEmail';
+import { MailModule } from 'src/mail/mail.module';
 import { PdfService } from 'src/transaction/services/pdf.service';
 import {
   Supplier,
@@ -62,13 +62,13 @@ import { Variant, VariantSchema } from 'src/variant/schemas/variant.schema';
       { name: Variant.name, schema: VariantSchema },
     ]),
     TransactionLogsModule,
+    MailModule,
   ],
   controllers: [NotificationController],
   providers: [
     NotificationService,
     NotificationHelper,
     NotificationTriggerService,
-    SendEmail,
     PdfService,
     StorageService,
   ],

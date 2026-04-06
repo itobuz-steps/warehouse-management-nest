@@ -47,7 +47,7 @@ import { Variant } from 'src/variant/schemas/variant.schema';
 import { TRANSACTION_STATUS } from './constants/transactionStatus';
 import { ProductItemDto } from './dto/product-item.dto';
 import { StorageService } from 'src/storage/storage.service';
-import SendEmail from 'src/utils/SendEmail';
+import { MailService } from 'src/mail/mail.service';
 
 type ShipmentUpdateStatus = 'shipped' | 'cancelled';
 
@@ -91,7 +91,7 @@ export class TransactionService {
 
     private readonly s3Service: StorageService,
 
-    private readonly sendEmail: SendEmail,
+    private readonly sendEmail: MailService,
   ) {}
 
   async getTransactions(query: GetTransactionsQueryDto, user: UserDocument) {
@@ -1829,11 +1829,11 @@ export class TransactionService {
     }
 
     if (status === 'shipped') {
-      await this.sendEmail.sendProductShippedEmailToCustomer(transaction);
+      await this.sendEmail.sendOrderDeliveredEmail(transaction);
       return;
     }
 
-    await this.sendEmail.sendProductCancelEmailToCustomer(transaction);
+    await this.sendEmail.sendOrderCancelledEmail(transaction);
   }
 
   private toShipmentEnum(status: ShipmentUpdateStatus): SHIPMENT_TYPES {

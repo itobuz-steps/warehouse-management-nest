@@ -75,10 +75,11 @@ export class NotificationTriggerService {
       title: 'Low Stock Alert',
       message: `${product.name} (${variant.sku}) is running low in ${warehouse.name}, only ${variantStock.quantity} unit(s) remaining.`,
       relatedProduct: productId,
-      relatedVariant: variantId,
       product,
       warehouse,
       warehouseId,
+      variant,
+      variantStock,
       transactionPerformedBy: performedBy,
     });
   }

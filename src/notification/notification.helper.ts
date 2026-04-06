@@ -7,20 +7,22 @@ import { Subscription } from './entities/subscription.entity';
 import { sendBrowserNotification } from './notification.sender';
 import { User, UserDocument } from 'src/auth/entities/auth.entity';
 
-import SendEmail from 'src/utils/SendEmail';
+import { MailService } from 'src/mail/mail.service';
 import { NOTIFICATION_TYPES } from './notificationTypes';
 import { Product } from 'src/products/entities/product.entity';
 import { WarehouseDocument } from 'src/warehouse/schemas/warehouse.schema';
+import { VariantStockDocument } from 'src/variant-stock/schemas/variant-stock.schema';
+import { VariantDocument } from 'src/variant/schemas/variant.schema';
 
 export interface NotificationPayload {
   users: UserDocument[];
   type: NOTIFICATION_TYPES | string;
   title: string;
   message: string;
-
+  variant?: VariantDocument;
   relatedProduct?: Types.ObjectId | string;
   relatedVariant?: Types.ObjectId | string;
-
+  variantStock?: VariantStockDocument;
   product: Product;
   warehouse: WarehouseDocument;
   warehouseId?: Types.ObjectId;
@@ -50,14 +52,16 @@ export class NotificationHelper {
     @InjectModel(Subscription.name)
     private subscriptionModel: Model<Subscription>,
 
-    private readonly sendEmail: SendEmail,
+    private readonly sendEmail: MailService,
 
     @InjectModel(User.name)
     private userModel: Model<UserDocument>,
   ) {}
 
   async notify(payload: NotificationPayload) {
-    if (!payload.users?.length) return;
+    if (!payload.users?.length) {
+      return;
+    }
 
     const objectIds: Types.ObjectId[] = payload.users.map((u) => {
       const id = u._id;
@@ -66,7 +70,7 @@ export class NotificationHelper {
 
     const freshUsers = await this.userModel
       .find({ _id: { $in: objectIds } })
-      .select('_id email preferences')
+      .select('_id email preferences name')
       .lean();
 
     const pushUsers = freshUsers.filter((user) => user.preferences.push);
@@ -115,9 +119,14 @@ export class NotificationHelper {
               user.email,
               user,
               payload.product,
+              payload.relatedProduct!,
               payload.warehouse,
+              payload.variant!,
+              payload.variantStock!,
             );
-          } else if (
+          }
+
+          if (
             (payload.type as NOTIFICATION_TYPES) ===
             NOTIFICATION_TYPES.PENDING_SHIPMENT
           ) {
@@ -126,6 +135,7 @@ export class NotificationHelper {
               user,
               payload.product,
               payload.warehouse,
+              payload.transactionId!,
             );
           }
         } catch (err) {
