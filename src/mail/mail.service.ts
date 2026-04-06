@@ -130,6 +130,10 @@ export class MailService {
   async sendOrderDeliveredEmail(
     transaction: PopulatedTransactionForPdfGeneration,
   ): Promise<void> {
+    if (!transaction.customer?.email) {
+      return;
+    }
+
     try {
       const invoice = (await this.pdfService.generateTransactionPdf(
         transaction,
@@ -169,6 +173,10 @@ export class MailService {
   async sendOrderCancelledEmail(
     transaction: PopulatedTransactionForPdfGeneration,
   ): Promise<void> {
+    if (!transaction.customer?.email) {
+      return;
+    }
+
     try {
       const invoice = (await this.pdfService.generateTransactionPdf(
         transaction,
