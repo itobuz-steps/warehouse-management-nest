@@ -15,6 +15,7 @@ import {
 } from './transaction-log.type';
 import { UserStatusChangeLog } from './user-status-log.type';
 import { VariantCreateLog } from './variant-log.type';
+import { BatchMarkedDamagedLog } from './batch-log.type';
 
 export type LogMetadata =
   | ProductCreateLog
@@ -32,4 +33,5 @@ export type LogMetadata =
   | StockOutLog
   | StockTransferLog
   | StockAdjustLog
-  | ShipmentStatusChangeLog;
+  | ShipmentStatusChangeLog
+  | BatchMarkedDamagedLog;

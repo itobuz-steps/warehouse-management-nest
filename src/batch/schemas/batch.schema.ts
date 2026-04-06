@@ -17,6 +17,7 @@ export class Batch {
         variant: { type: Types.ObjectId, ref: 'Variant', required: true },
         quantity: { type: Number, required: true, min: 1 },
         remainingQuantity: { type: Number, required: true, min: 0 },
+        damagedQuantity: { type: Number, required: true, min: 0, default: 0 },
       },
     ],
     required: true,
@@ -25,6 +26,7 @@ export class Batch {
     variant: Types.ObjectId;
     quantity: number;
     remainingQuantity: number;
+    damagedQuantity: number;
   }[];
 }
 
