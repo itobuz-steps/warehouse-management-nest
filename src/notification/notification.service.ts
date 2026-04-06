@@ -139,7 +139,7 @@ export class NotificationService {
 
   async updateShipmentNotifications(
     transactionId: Types.ObjectId,
-    status: 'shipped' | 'cancelled',
+    status: 'shipped' | 'cancelled' | 'returned',
     reportedBy: Types.ObjectId,
     message: string,
   ) {
