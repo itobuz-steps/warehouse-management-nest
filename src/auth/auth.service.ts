@@ -25,7 +25,7 @@ import {
 
 import config from '../config/config.service';
 import { TokenGenerator } from '../utils/TokenGenerator.js';
-import SendEmail from '../utils/SendEmail.js';
+import { MailService } from 'src/mail/mail.service';
 import OtpGenerator from '../utils/OtpGenerator.js';
 
 export interface TokenPayload {
@@ -41,7 +41,7 @@ export class AuthService {
     private readonly tokenGenerator: TokenGenerator,
     private readonly otpGenerator: OtpGenerator,
 
-    private readonly sendEmail: SendEmail,
+    private readonly sendEmail: MailService,
   ) {}
 
   async signup(dto: SignupDto) {

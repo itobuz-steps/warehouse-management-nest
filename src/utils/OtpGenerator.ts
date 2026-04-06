@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import SendEmail from './SendEmail.js';
+import { MailService } from 'src/mail/mail.service';
 import { ConfigService } from '@nestjs/config';
 
 import { OTP, OTPDocument } from '../auth/entities/otp.entity.js';
@@ -11,7 +11,7 @@ export default class OtpGenerator {
   constructor(
     private readonly config: ConfigService,
     @InjectModel(OTP.name) private readonly otpModel: Model<OTPDocument>,
-    private readonly sendEmail: SendEmail,
+    private readonly sendEmail: MailService,
   ) {}
 
   generateOtp = async (email: string) => {
@@ -26,7 +26,7 @@ export default class OtpGenerator {
     }
     await otpDoc.save();
 
-    const response = await this.sendEmail.sendOtpViaMail(email, otp);
+    const response = await this.sendEmail.sendOtpEmail(email, otp);
     return response;
   };
 }

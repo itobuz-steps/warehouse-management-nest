@@ -12,6 +12,12 @@
         }
       }
     ],
+    "assets": [
+      {
+        "include": "mail/templates/*.hbs",
+        "watchAssets": true
+      }
+    ],
     "deleteOutDir": true
   }
 }
