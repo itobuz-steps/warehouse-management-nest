@@ -114,6 +114,15 @@ export class TransactionController {
     );
   }
 
+  @Patch('return-shipment/:id')
+  return(@Req() req: RequestWithUserDocument, @Param('id') id: string) {
+    return this.transactionService.updateShipmentStatus(
+      id,
+      'returned',
+      req.user,
+    );
+  }
+
   @Get('generate-invoice/:id')
   generateInvoice(@Param('id') id: string) {
     return this.transactionService.generateInvoice(id);
