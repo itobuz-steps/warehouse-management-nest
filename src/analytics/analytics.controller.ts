@@ -7,6 +7,8 @@ import { AuthGuard } from 'src/common/guard/auth.guard';
 import { ApiBearerAuth } from '@nestjs/swagger';
 import { ProductsByStockQueryDto } from './dto/products-stock-query.dto';
 import { GetWarehouseProductStockQueryDto } from './dto/warehouse-product-stock.dto';
+import { DamagedBatchBySupplierQueryDto } from './dto/damaged-batch-by-supplier.dto';
+import { TransactionSummaryQueryDto } from './dto/transaction-summary-query.dto';
 @UseGuards(AuthGuard)
 @ApiBearerAuth()
 @Controller('analytics')
@@ -149,5 +151,21 @@ export class AnalyticsController {
     @Query('warehouseId') warehouseId?: string,
   ) {
     return this.analyticsService.getTopConsumedBatches(limit, warehouseId);
+  }
+
+  @Get('batches/damaged-cost-by-supplier')
+  getDamagedCostBySupplier(@Query() query: DamagedBatchBySupplierQueryDto) {
+    return this.analyticsService.getDamagedCostBySupplier(query);
+  }
+
+  @Get('transaction-summary')
+  async getTransactionSummary(@Query() query: TransactionSummaryQueryDto) {
+    const result = await this.analyticsService.getTransactionSummary(query);
+
+    return {
+      success: true,
+      message: 'Transaction analytics fetched successfully.',
+      data: result,
+    };
   }
 }
