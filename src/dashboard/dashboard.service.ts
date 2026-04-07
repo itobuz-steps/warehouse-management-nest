@@ -470,98 +470,6 @@ export class DashboardService {
     };
   }
 
-  // async getLowStockProducts(id?: string) {
-  //   const stockLimit = Number(config().STOCK_LIMIT) || 20;
-  //   const warehouseId = this.toObjectId(id);
-
-  //   if (warehouseId) {
-  //     // Single warehouse — sum all variants for that warehouse, check total
-  //     const lowStockProducts =
-  //       await this.variantStockModel.aggregate<LowStockProduct>([
-  //         { $match: { warehouseId } },
-  //         {
-  //           $group: { _id: '$productId', totalQuantity: { $sum: '$quantity' } },
-  //         },
-  //         { $match: { totalQuantity: { $lt: stockLimit } } },
-  //         {
-  //           $lookup: {
-  //             from: 'products',
-  //             localField: '_id',
-  //             foreignField: '_id',
-  //             as: 'product',
-  //           },
-  //         },
-  //         { $unwind: '$product' },
-  //         { $match: { 'product.isArchived': false } },
-  //         {
-  //           $project: {
-  //             _id: 0,
-  //             productId: '$product._id',
-  //             productName: '$product.name',
-  //             quantity: '$totalQuantity',
-  //             category: '$product.category',
-  //           },
-  //         },
-  //       ]);
-
-  //     return {
-  //       message: 'Low stock products retrieved successfully',
-  //       success: true,
-  //       data: lowStockProducts,
-  //     };
-  //   }
-
-  //   // All warehouses — find products that are low stock in ANY warehouse
-  //   const lowStockProducts =
-  //     await this.variantStockModel.aggregate<LowStockProduct>([
-  //       {
-  //         // Group by productId + warehouseId to get per-warehouse quantity
-  //         $group: {
-  //           _id: { productId: '$productId', warehouseId: '$warehouseId' },
-  //           warehouseQuantity: { $sum: '$quantity' },
-  //         },
-  //       },
-  //       {
-  //         // Keep only warehouse-product pairs below the limit
-  //         $match: { warehouseQuantity: { $lt: stockLimit } },
-  //       },
-  //       {
-  //         // Group by product, take the minimum quantity across warehouses
-  //         $group: {
-  //           _id: '$_id.productId',
-  //           minQuantity: { $min: '$warehouseQuantity' },
-  //           warehouseCount: { $sum: 1 },
-  //         },
-  //       },
-  //       {
-  //         $lookup: {
-  //           from: 'products',
-  //           localField: '_id',
-  //           foreignField: '_id',
-  //           as: 'product',
-  //         },
-  //       },
-  //       { $unwind: '$product' },
-  //       { $match: { 'product.isArchived': false } },
-  //       { $sort: { minQuantity: 1 } },
-  //       {
-  //         $project: {
-  //           _id: 0,
-  //           productId: '$product._id',
-  //           productName: '$product.name',
-  //           quantity: '$minQuantity', // show the lowest quantity across warehouses
-  //           category: '$product.category',
-  //         },
-  //       },
-  //     ]);
-
-  //   return {
-  //     message: 'Low stock products retrieved successfully',
-  //     success: true,
-  //     data: lowStockProducts,
-  //   };
-  // }
-
   async getTopSellingProducts(id?: string, limit = defaultDataLimit) {
     const warehouseId = this.toObjectId(id);
     const srcMatch = warehouseId ? { sourceWarehouse: warehouseId } : {};
@@ -808,7 +716,6 @@ export class DashboardService {
     };
   }
 
-  //need to be changed
   async getProfitLoss(query: {
     period?: string;
     id?: string;
@@ -816,21 +723,21 @@ export class DashboardService {
     to?: string;
   }) {
     const warehouseId = this.toObjectId(query.id);
-
-    const period = query.period ?? TIME_RANGE.WEEK;
+    const period = query.period ?? TIME_RANGE.MONTH;
     const from = query.from;
     const to = query.to;
 
     let start: Date;
     let end: Date;
     let totalDays: number;
-
     const now = new Date();
+
+    const groupByMonth =
+      period === '3months' || period === '6months' || period === '12months';
 
     if (from && to) {
       start = new Date(from);
       start.setHours(0, 0, 0, 0);
-
       end = new Date(to);
       end.setHours(23, 59, 59, 999);
 
@@ -841,21 +748,32 @@ export class DashboardService {
       totalDays = Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
     } else {
       if (
-        ![TIME_RANGE.WEEK as string, TIME_RANGE.MONTH as string].includes(
-          period,
-        )
+        ![
+          TIME_RANGE.WEEK as string,
+          TIME_RANGE.MONTH as string,
+          '3months',
+          '6months',
+          '12months',
+        ].includes(period)
       ) {
         throw new BadRequestException(
-          'Invalid period. Allowed values: week, month',
+          'Invalid period. Allowed values: week, month, 3months, 6months, 12months',
         );
       }
 
-      totalDays = period === (TIME_RANGE.MONTH as string) ? 30 : 7;
+      if (period === '3months') {
+        totalDays = 90;
+      } else if (period === '6months') {
+        totalDays = 180;
+      } else if (period === '12months') {
+        totalDays = 365;
+      } else {
+        totalDays = period === (TIME_RANGE.MONTH as string) ? 30 : 7;
+      }
 
       start = new Date();
       start.setDate(start.getDate() - (totalDays - 1));
       start.setHours(0, 0, 0, 0);
-
       end = now;
     }
 
@@ -876,9 +794,16 @@ export class DashboardService {
       {
         $group: {
           _id: {
-            date: {
+            sortKey: {
               $dateToString: {
-                format: '%d-%m-%Y',
+                format: groupByMonth ? '%Y-%m' : '%Y-%m-%d',
+                date: '$createdAt',
+                timezone: TIME_ZONE,
+              },
+            },
+            label: {
+              $dateToString: {
+                format: groupByMonth ? '%m-%Y' : '%d-%m-%Y',
                 date: '$createdAt',
                 timezone: TIME_ZONE,
               },
@@ -891,7 +816,7 @@ export class DashboardService {
 
       {
         $group: {
-          _id: '$_id.date',
+          _id: { sortKey: '$_id.sortKey', label: '$_id.label' },
           profit: {
             $sum: {
               $cond: [
@@ -913,17 +838,17 @@ export class DashboardService {
         },
       },
 
+      { $sort: { '_id.sortKey': 1 } },
+
       {
         $project: {
           _id: 0,
-          label: '$_id',
+          label: '$_id.label',
           profit: { $round: ['$profit', 2] },
           loss: { $round: ['$loss', 2] },
           net: { $round: [{ $subtract: ['$profit', '$loss'] }, 2] },
         },
       },
-
-      { $sort: { label: 1 } },
     ]);
 
     return {
@@ -932,11 +857,4 @@ export class DashboardService {
       data: dbData,
     };
   }
-
-  formatDateLocal = (date: Date): string => {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-  };
 }
