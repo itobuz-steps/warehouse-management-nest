@@ -1,5 +1,5 @@
-import { Injectable, HttpException, BadRequestException } from '@nestjs/common';
-import mongoose, { Model, QueryFilter, Types } from 'mongoose';
+import { Injectable, BadRequestException } from '@nestjs/common';
+import mongoose, { Model, QueryFilter } from 'mongoose';
 import { Quantity } from 'src/quantity/entities/quantity.entity';
 
 import { subDays, eachDayOfInterval, format } from 'date-fns';
@@ -41,19 +41,23 @@ export class DashboardService {
     private readonly variantStockModel: Model<VariantStock>,
   ) {}
 
-  validateWarehouse(id?: string) {
-    if (!id) throw new HttpException('Warehouse Id missing', 404);
+  toObjectId(id?: string): mongoose.Types.ObjectId | undefined {
+    if (!id) {
+      return undefined;
+    }
+
     return new mongoose.Types.ObjectId(id);
   }
 
   // ----------------------------------------------
 
-  async getTopFiveProductsData(id: string) {
-    const warehouseId = this.validateWarehouse(id);
+  async getTopFiveProductsData(id?: string) {
+    const warehouseId = this.toObjectId(id);
+    const warehouseMatch = warehouseId ? { warehouseId } : {};
 
     const data: TopProductItem[] = await this.variantStockModel.aggregate([
       {
-        $match: { warehouseId },
+        $match: warehouseMatch,
       },
 
       // Aggregate per product
@@ -108,7 +112,7 @@ export class DashboardService {
     return data;
   }
 
-  async getTopFiveProducts(id: string) {
+  async getTopFiveProducts(id?: string) {
     const data = await this.getTopFiveProductsData(id);
     return data;
   }
@@ -121,14 +125,15 @@ export class DashboardService {
   // ----------------------------------------------
 
   async getInventoryByCategoryData(
-    id: string,
+    id?: string,
   ): Promise<InventoryByCategoryAggItem[]> {
-    const warehouseId = this.validateWarehouse(id);
+    const warehouseId = this.toObjectId(id);
+    const warehouseMatch = warehouseId ? { warehouseId } : {};
 
     const productsCategory =
       await this.variantStockModel.aggregate<InventoryByCategoryAggItem>([
         {
-          $match: { warehouseId },
+          $match: warehouseMatch,
         },
 
         {
@@ -170,7 +175,7 @@ export class DashboardService {
     return this.excel.generateInventoryByCategoryExcel(data);
   }
 
-  async getInventoryByCategory(id: string) {
+  async getInventoryByCategory(id?: string) {
     const productsCategory = await this.getInventoryByCategoryData(id);
 
     return {
@@ -183,9 +188,19 @@ export class DashboardService {
   // ----------------------------------------------
 
   async getProductTransactionData(
-    id: string,
+    id?: string,
   ): Promise<ProductTransactionDay[]> {
-    const warehouseId = this.validateWarehouse(id);
+    const warehouseId = this.toObjectId(id);
+
+    // This one has a special $or match structure:
+    const warehouseFilter = warehouseId
+      ? {
+          $or: [
+            { type: TRANSACTION_TYPES.IN, destinationWarehouse: warehouseId },
+            { type: TRANSACTION_TYPES.OUT, sourceWarehouse: warehouseId },
+          ],
+        }
+      : {};
 
     const start = subDays(new Date(), 6);
     const end = new Date();
@@ -207,10 +222,7 @@ export class DashboardService {
             createdAt: {
               $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
             },
-            $or: [
-              { type: TRANSACTION_TYPES.IN, destinationWarehouse: warehouseId },
-              { type: TRANSACTION_TYPES.OUT, sourceWarehouse: warehouseId },
-            ],
+            ...warehouseFilter,
           },
         },
 
@@ -269,7 +281,7 @@ export class DashboardService {
     return this.excel.generateProductTransactionExcel(transactionDetails);
   }
 
-  async getProductTransaction(id: string) {
+  async getProductTransaction(id?: string) {
     const transactionDetails = await this.getProductTransactionData(id);
 
     return {
@@ -281,15 +293,16 @@ export class DashboardService {
 
   // ---------------------------------------------------
 
-  async getTransactionStats(id: string) {
-    const warehouseId = new Types.ObjectId(this.validateWarehouse(id));
-
+  async getTransactionStats(id?: string) {
+    const warehouseId = this.toObjectId(id);
+    const srcMatch = warehouseId ? { sourceWarehouse: warehouseId } : {};
+    const dstMatch = warehouseId ? { destinationWarehouse: warehouseId } : {};
     // Sales Overview
     const sales = await this.transactionModel.aggregate<SalesOverview>([
       {
         $match: {
           type: TRANSACTION_TYPES.OUT,
-          sourceWarehouse: warehouseId,
+          ...srcMatch,
         },
       },
       {
@@ -306,7 +319,7 @@ export class DashboardService {
       {
         $match: {
           type: TRANSACTION_TYPES.IN,
-          destinationWarehouse: warehouseId,
+          ...dstMatch,
         },
       },
       {
@@ -323,8 +336,8 @@ export class DashboardService {
       [
         {
           $match: {
-            warehouseId,
-            quantity: { $gt: 0 }, // only variants that still have stock
+            quantity: { $gt: 0 },
+            ...(warehouseId ? { warehouseId } : {}),
           },
         },
         {
@@ -364,9 +377,9 @@ export class DashboardService {
       await this.transactionModel.aggregate<TodayShipmentOverview>([
         {
           $match: {
-            sourceWarehouse: warehouseId,
             type: TRANSACTION_TYPES.OUT,
             createdAt: { $gte: dayStarting },
+            ...srcMatch,
           },
         },
         {
@@ -401,19 +414,15 @@ export class DashboardService {
     };
   }
 
-  async getLowStockProducts(id: string) {
-    const stockLimit = Number(config().STOCK_LIMIT);
+  async getLowStockProducts(id?: string) {
+    const stockLimit = Number(config().STOCK_LIMIT) || 20;
 
-    const warehouseId = this.validateWarehouse(id);
+    const warehouseId = this.toObjectId(id);
+    const warehouseMatch = warehouseId ? { warehouseId } : {};
 
     const lowStockProducts =
       await this.variantStockModel.aggregate<LowStockProduct>([
-        {
-          $match: {
-            warehouseId: warehouseId,
-          },
-        },
-
+        { $match: warehouseMatch },
         {
           $group: {
             _id: '$productId',
@@ -463,17 +472,13 @@ export class DashboardService {
     };
   }
 
-  async getTopSellingProducts(id: string, limit = defaultDataLimit) {
-    const warehouseId = this.validateWarehouse(id);
+  async getTopSellingProducts(id?: string, limit = defaultDataLimit) {
+    const warehouseId = this.toObjectId(id);
+    const srcMatch = warehouseId ? { sourceWarehouse: warehouseId } : {};
 
     const topSellingProducts =
       await this.transactionModel.aggregate<TopSellingProduct>([
-        {
-          $match: {
-            type: TRANSACTION_TYPES.OUT,
-            sourceWarehouse: warehouseId,
-          },
-        },
+        { $match: { type: TRANSACTION_TYPES.OUT, ...srcMatch } },
 
         { $unwind: '$products' },
 
@@ -556,7 +561,7 @@ export class DashboardService {
   }
 
   async getMostCancelledProducts(
-    id: string,
+    id?: string,
     options?: {
       startDate?: string;
       endDate?: string;
@@ -565,13 +570,13 @@ export class DashboardService {
   ) {
     const { startDate, endDate } = options || {};
 
-    const warehouseId = this.validateWarehouse(id);
-    const limit = Number(options?.limit || defaultDataLimit);
+    const warehouseId = this.toObjectId(id);
 
     const match: QueryFilter<Transaction> = {
       shipment: SHIPMENT_TYPES.CANCELLED,
-      sourceWarehouse: warehouseId,
+      ...(warehouseId ? { sourceWarehouse: warehouseId } : {}),
     };
+    const limit = Number(options?.limit || defaultDataLimit);
 
     if (startDate || endDate) {
       match.createdAt = {};
@@ -646,21 +651,18 @@ export class DashboardService {
   }
 
   async getMostAdjustedProducts(
-    id: string,
+    id?: string,
     options?: {
       limit?: number;
     },
   ) {
-    const warehouseId = this.validateWarehouse(id);
+    const warehouseId = this.toObjectId(id);
+    const dstMatch = warehouseId ? { destinationWarehouse: warehouseId } : {};
+
     const limit = Number(options?.limit || defaultDataLimit);
 
     const mostAdjustedProducts = await this.transactionModel.aggregate([
-      {
-        $match: {
-          type: TRANSACTION_TYPES.ADJUSTMENT,
-          destinationWarehouse: warehouseId,
-        },
-      },
+      { $match: { type: TRANSACTION_TYPES.ADJUSTMENT, ...dstMatch } },
 
       { $unwind: '$products' },
 
@@ -716,29 +718,28 @@ export class DashboardService {
     };
   }
 
-  //need to be changed
   async getProfitLoss(query: {
     period?: string;
     id?: string;
     from?: string;
     to?: string;
   }) {
-    const warehouseId = this.validateWarehouse(query.id);
-
-    const period = query.period ?? TIME_RANGE.WEEK;
+    const warehouseId = this.toObjectId(query.id);
+    const period = query.period ?? TIME_RANGE.MONTH;
     const from = query.from;
     const to = query.to;
 
     let start: Date;
     let end: Date;
     let totalDays: number;
-
     const now = new Date();
+
+    const groupByMonth =
+      period === '3months' || period === '6months' || period === '12months';
 
     if (from && to) {
       start = new Date(from);
       start.setHours(0, 0, 0, 0);
-
       end = new Date(to);
       end.setHours(23, 59, 59, 999);
 
@@ -749,21 +750,32 @@ export class DashboardService {
       totalDays = Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
     } else {
       if (
-        ![TIME_RANGE.WEEK as string, TIME_RANGE.MONTH as string].includes(
-          period,
-        )
+        ![
+          TIME_RANGE.WEEK as string,
+          TIME_RANGE.MONTH as string,
+          '3months',
+          '6months',
+          '12months',
+        ].includes(period)
       ) {
         throw new BadRequestException(
-          'Invalid period. Allowed values: week, month',
+          'Invalid period. Allowed values: week, month, 3months, 6months, 12months',
         );
       }
 
-      totalDays = period === (TIME_RANGE.MONTH as string) ? 30 : 7;
+      if (period === '3months') {
+        totalDays = 90;
+      } else if (period === '6months') {
+        totalDays = 180;
+      } else if (period === '12months') {
+        totalDays = 365;
+      } else {
+        totalDays = period === (TIME_RANGE.MONTH as string) ? 30 : 7;
+      }
 
       start = new Date();
       start.setDate(start.getDate() - (totalDays - 1));
       start.setHours(0, 0, 0, 0);
-
       end = now;
     }
 
@@ -784,9 +796,16 @@ export class DashboardService {
       {
         $group: {
           _id: {
-            date: {
+            sortKey: {
               $dateToString: {
-                format: '%d-%m-%Y',
+                format: groupByMonth ? '%Y-%m' : '%Y-%m-%d',
+                date: '$createdAt',
+                timezone: TIME_ZONE,
+              },
+            },
+            label: {
+              $dateToString: {
+                format: groupByMonth ? '%m-%Y' : '%d-%m-%Y',
                 date: '$createdAt',
                 timezone: TIME_ZONE,
               },
@@ -799,7 +818,7 @@ export class DashboardService {
 
       {
         $group: {
-          _id: '$_id.date',
+          _id: { sortKey: '$_id.sortKey', label: '$_id.label' },
           profit: {
             $sum: {
               $cond: [
@@ -821,17 +840,17 @@ export class DashboardService {
         },
       },
 
+      { $sort: { '_id.sortKey': 1 } },
+
       {
         $project: {
           _id: 0,
-          label: '$_id',
+          label: '$_id.label',
           profit: { $round: ['$profit', 2] },
           loss: { $round: ['$loss', 2] },
           net: { $round: [{ $subtract: ['$profit', '$loss'] }, 2] },
         },
       },
-
-      { $sort: { label: 1 } },
     ]);
 
     return {
@@ -840,11 +859,4 @@ export class DashboardService {
       data: dbData,
     };
   }
-
-  formatDateLocal = (date: Date): string => {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-  };
 }

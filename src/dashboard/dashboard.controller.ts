@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, Res, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { DashboardService } from './dashboard.service';
 import { AuthGuard } from 'src/common/guard/auth.guard';
@@ -10,14 +10,14 @@ import { ApiBearerAuth } from '@nestjs/swagger';
 export class DashboardController {
   constructor(private readonly service: DashboardService) {}
 
-  @Get('get-inventory-category/:warehouseId')
-  getInventoryByCategory(@Param('warehouseId') id: string) {
+  @Get('get-inventory-category')
+  getInventoryByCategory(@Query('warehouseId') id?: string) {
     return this.service.getInventoryByCategory(id);
   }
 
-  @Get('get-inventory-category-chart-data/:warehouseId')
+  @Get('get-inventory-category-chart-data')
   async exportInventoryCategoryExcel(
-    @Param('warehouseId') warehouseId: string,
+    @Query('warehouseId') warehouseId: string,
     @Res() res: Response,
   ) {
     const buffer =
@@ -32,14 +32,14 @@ export class DashboardController {
     return res.status(200).send(buffer);
   }
 
-  @Get('get-product-transaction/:warehouseId')
-  getProductTransaction(@Param('warehouseId') id: string) {
+  @Get('get-product-transaction')
+  getProductTransaction(@Query('warehouseId') id?: string) {
     return this.service.getProductTransaction(id);
   }
 
-  @Get('get-product-transaction-chart-data/:warehouseId')
+  @Get('get-product-transaction-chart-data')
   async exportTransactionExcel(
-    @Param('warehouseId') warehouseId: string,
+    @Query('warehouseId') warehouseId: string,
     @Res() res: Response,
   ) {
     const buffer =
@@ -54,27 +54,27 @@ export class DashboardController {
     return res.status(200).send(buffer);
   }
 
-  @Get('get-transaction-stats/:warehouseId')
-  getTransactionStats(@Param('warehouseId') id: string) {
+  @Get('get-transaction-stats')
+  getTransactionStats(@Query('warehouseId') id?: string) {
     return this.service.getTransactionStats(id);
   }
 
-  @Get('get-low-stock-products/:warehouseId')
-  getLowStockProducts(@Param('warehouseId') id: string) {
+  @Get('get-low-stock-products')
+  getLowStockProducts(@Query('warehouseId') id?: string) {
     return this.service.getLowStockProducts(id);
   }
 
-  @Get('get-top-selling-products/:warehouseId')
+  @Get('get-top-selling-products')
   getTopSellingProducts(
-    @Param('warehouseId') id: string,
+    @Query('warehouseId') id?: string,
     @Query('limit') limit?: number,
   ) {
     return this.service.getTopSellingProducts(id, limit);
   }
 
-  @Get('get-cancelled-orders/:warehouseId')
+  @Get('get-cancelled-orders')
   getCancelledProducts(
-    @Param('warehouseId') id: string,
+    @Query('warehouseId') id?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('limit') limit?: string,
@@ -86,9 +86,9 @@ export class DashboardController {
     });
   }
 
-  @Get('get-most-adjusted-products/:warehouseId')
+  @Get('get-most-adjusted-products')
   getMostAdjustedProducts(
-    @Param('warehouseId') id: string,
+    @Query('warehouseId') id?: string,
     @Query('limit') limit?: string,
   ) {
     return this.service.getMostAdjustedProducts(id, {
@@ -111,8 +111,8 @@ export class DashboardController {
     });
   }
 
-  @Get('get-top-products/:warehouseId')
-  async getTopFiveProducts(@Param('warehouseId') warehouseId: string) {
+  @Get('get-top-products')
+  async getTopFiveProducts(@Query('warehouseId') warehouseId?: string) {
     const data = await this.service.getTopFiveProducts(warehouseId);
 
     return {
@@ -122,9 +122,9 @@ export class DashboardController {
     };
   }
 
-  @Get('get-top-products-chart-data/:warehouseId')
+  @Get('get-top-products-chart-data')
   async generateTopFiveProductsExcel(
-    @Param('warehouseId') warehouseId: string,
+    @Query('warehouseId') warehouseId: string,
     @Res() res: Response,
   ) {
     const buffer = await this.service.generateTopFiveProductsExcel(warehouseId);
