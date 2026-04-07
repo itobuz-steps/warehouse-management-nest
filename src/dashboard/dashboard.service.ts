@@ -42,8 +42,10 @@ export class DashboardService {
   ) {}
 
   toObjectId(id?: string): mongoose.Types.ObjectId | undefined {
-    if (!id || id === 'undefined' || id === 'null' || id === 'all')
+    if (!id) {
       return undefined;
+    }
+
     return new mongoose.Types.ObjectId(id);
   }
 
