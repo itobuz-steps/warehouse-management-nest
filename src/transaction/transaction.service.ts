@@ -49,7 +49,7 @@ import { ProductItemDto } from './dto/product-item.dto';
 import { StorageService } from 'src/storage/storage.service';
 import { MailService } from 'src/mail/mail.service';
 
-type ShipmentUpdateStatus = 'shipped' | 'cancelled';
+type ShipmentUpdateStatus = 'shipped' | 'cancelled' | 'returned';
 
 @Injectable()
 export class TransactionService {
@@ -631,6 +631,7 @@ export class TransactionService {
               variant: new Types.ObjectId(variant.variantId),
               quantity: variant.quantity,
               remainingQuantity: variant.quantity,
+              damagedQuantity: 0,
             })),
           },
         ],
@@ -1156,6 +1157,7 @@ export class TransactionService {
                   variant: variantId,
                   quantity: requiredQty,
                   remainingQuantity: requiredQty,
+                  damagedQuantity: 0,
                 },
               ],
             },
@@ -1416,6 +1418,7 @@ export class TransactionService {
                     variant: variantId,
                     quantity: adjustmentQty,
                     remainingQuantity: adjustmentQty,
+                    damagedQuantity: 0,
                   },
                 ],
               },
@@ -1558,7 +1561,7 @@ export class TransactionService {
         (transaction.shipment as SHIPMENT_TYPES) ?? SHIPMENT_TYPES.PENDING;
       const newStatus = this.toShipmentEnum(status);
 
-      if (status === 'cancelled') {
+      if (status === 'cancelled' || status === 'returned') {
         await this.revertShipmentStock(
           transaction,
           transaction.sourceWarehouse as Types.ObjectId,
@@ -1603,7 +1606,7 @@ export class TransactionService {
         message:
           status === 'shipped'
             ? 'Shipment marked shipped'
-            : 'Shipment cancelled and stock reverted successfully',
+            : `Shipment ${status} and stock reverted successfully`,
       };
     } catch (err) {
       if (!isCommitted) {
@@ -1664,7 +1667,7 @@ export class TransactionService {
       throw new BadRequestException('Shipment status not initialized');
     }
 
-    if (currentShipment === SHIPMENT_TYPES.SHIPPED) {
+    if (status === 'shipped' && currentShipment === SHIPMENT_TYPES.SHIPPED) {
       throw new BadRequestException('Shipment is already marked as shipped');
     }
 
@@ -1672,8 +1675,10 @@ export class TransactionService {
       throw new BadRequestException('Shipment is already cancelled');
     }
 
-    if (status === 'cancelled' && currentShipment !== SHIPMENT_TYPES.PENDING) {
-      throw new BadRequestException('Only pending shipments can be cancelled');
+    if (status === 'returned' && currentShipment !== SHIPMENT_TYPES.SHIPPED) {
+      throw new BadRequestException(
+        'Only shipped transactions can be returned',
+      );
     }
   }
 
@@ -1837,9 +1842,11 @@ export class TransactionService {
   }
 
   private toShipmentEnum(status: ShipmentUpdateStatus): SHIPMENT_TYPES {
-    return status === 'shipped'
-      ? SHIPMENT_TYPES.SHIPPED
-      : SHIPMENT_TYPES.CANCELLED;
+    if (status === 'shipped') {
+      return SHIPMENT_TYPES.SHIPPED;
+    } else if (status === 'returned') {
+      return SHIPMENT_TYPES.RETURNED;
+    } else return SHIPMENT_TYPES.CANCELLED;
   }
 
   async generateInvoice(id: string) {

@@ -23,6 +23,7 @@ import {
 } from './transaction-log.type';
 import { UserStatusChangeLog } from './user-status-log.type';
 import { VariantCreateLog } from './variant-log.type';
+import { BatchMarkedDamagedLog } from './batch-log.type';
 import {
   WarehouseCreateLog,
   WarehouseDeleteLog,
@@ -59,4 +60,6 @@ export type LogMetadataMap = {
 
   [LOG_ACTION.SHIPMENT_SHIPPED]: ShipmentStatusChangeLog;
   [LOG_ACTION.SHIPMENT_CANCELLED]: ShipmentStatusChangeLog;
+
+  [LOG_ACTION.BATCH_MARKED_DAMAGED]: BatchMarkedDamagedLog;
 };
