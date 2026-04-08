@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Model, PipelineStage, Types } from 'mongoose';
 import { Warehouse, WarehouseDocument } from './schemas/warehouse.schema';
 import { USER_TYPES } from 'src/auth/userType';
 import mongoose from 'mongoose';
@@ -17,6 +17,7 @@ import { LOG_ENTITY_TYPE } from 'src/transaction-logs/enums/log-entity-type.enum
 import { User, UserDocument } from 'src/auth/entities/auth.entity';
 import { StorageService } from 'src/storage/storage.service';
 import { PopulatedManager } from './types/userType';
+import { Transaction } from 'src/transaction/schemas/transaction.schema';
 
 @Injectable()
 export class WarehouseService {
@@ -29,6 +30,9 @@ export class WarehouseService {
 
     @InjectModel(User.name)
     private readonly userModel: Model<User>,
+
+    @InjectModel(Transaction.name)
+    private readonly transactionModel: Model<Transaction>,
 
     private readonly logService: TransactionLogsService,
 
@@ -323,6 +327,127 @@ export class WarehouseService {
     return {
       success: true,
       message: 'Warehouse Deleted Successfully',
+    };
+  }
+
+  async getFrequentWarehouses(user: UserDocument) {
+    if (user.role !== USER_TYPES.MANAGER && user.role !== USER_TYPES.ADMIN) {
+      throw new ForbiddenException('User role not allowed to fetch warehouses');
+    }
+
+    const isManager = user.role === USER_TYPES.MANAGER;
+
+    // Step 1: Get allowed warehouse IDs (for manager)
+    let allowedWarehouseIds: Types.ObjectId[] = [];
+
+    if (isManager) {
+      const warehouses = await this.warehouseModel
+        .find({ managerIds: user._id, active: true })
+        .select('_id')
+        .lean();
+
+      allowedWarehouseIds = warehouses.map((w) => w._id);
+    } else {
+      const warehouses = await this.warehouseModel
+        .find({ active: true })
+        .select('_id')
+        .lean();
+
+      allowedWarehouseIds = warehouses.map((w) => w._id);
+    }
+
+    // Step 2: Aggregation on transactions
+    const pipeline: PipelineStage[] = [
+      {
+        $match: {
+          $or: [
+            { sourceWarehouse: { $in: allowedWarehouseIds } },
+            { destinationWarehouse: { $in: allowedWarehouseIds } },
+          ],
+        },
+      },
+
+      {
+        $facet: {
+          topSource: [
+            {
+              $match: {
+                sourceWarehouse: { $in: allowedWarehouseIds },
+              },
+            },
+            {
+              $group: {
+                _id: '$sourceWarehouse',
+                recentUsedAt: { $max: '$createdAt' },
+              },
+            },
+            { $sort: { recentUsedAt: -1 } },
+            { $limit: 3 },
+
+            {
+              $lookup: {
+                from: 'warehouses',
+                localField: '_id',
+                foreignField: '_id',
+                as: 'warehouse',
+              },
+            },
+            { $unwind: '$warehouse' },
+
+            {
+              $project: {
+                _id: '$warehouse._id',
+                name: '$warehouse.name',
+                recentUsedAt: 1,
+              },
+            },
+          ],
+
+          topDestination: [
+            {
+              $match: {
+                destinationWarehouse: { $in: allowedWarehouseIds },
+              },
+            },
+            {
+              $group: {
+                _id: '$destinationWarehouse',
+                recentUsedAt: { $max: '$createdAt' },
+              },
+            },
+            { $sort: { recentUsedAt: -1 } },
+            { $limit: 3 },
+
+            {
+              $lookup: {
+                from: 'warehouses',
+                localField: '_id',
+                foreignField: '_id',
+                as: 'warehouse',
+              },
+            },
+            { $unwind: '$warehouse' },
+
+            {
+              $project: {
+                _id: '$warehouse._id',
+                name: '$warehouse.name',
+                recentUsedAt: 1,
+              },
+            },
+          ],
+        },
+      },
+    ];
+
+    const frequentWarehouses = await this.transactionModel.aggregate(pipeline);
+
+    return {
+      success: true,
+      message: isManager
+        ? 'Your frequent warehouses (based on usage)'
+        : 'Frequent warehouses',
+      data: frequentWarehouses,
     };
   }
 }

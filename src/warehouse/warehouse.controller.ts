@@ -66,4 +66,9 @@ export class WarehouseController {
   deleteWarehouse(@Param('id') id: string, @Req() req: RequestWithUser) {
     return this.service.deleteWarehouse(id, req.user);
   }
+
+  @Get('/frequent-warehouses')
+  getFrequentWarehouses(@Req() req: RequestWithUser) {
+    return this.service.getFrequentWarehouses(req.user);
+  }
 }

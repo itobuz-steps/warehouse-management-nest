@@ -10,6 +10,10 @@ import {
 } from 'src/quantity/entities/quantity.entity';
 import { TransactionLogsModule } from 'src/transaction-logs/transaction-logs.module';
 import { StorageService } from 'src/storage/storage.service';
+import {
+  Transaction,
+  TransactionSchema,
+} from 'src/transaction/schemas/transaction.schema';
 
 @Module({
   imports: [
@@ -17,6 +21,7 @@ import { StorageService } from 'src/storage/storage.service';
       { name: Warehouse.name, schema: WarehouseSchema },
       { name: User.name, schema: UserSchema },
       { name: Quantity.name, schema: QuantitySchema },
+      { name: Transaction.name, schema: TransactionSchema },
     ]),
     TransactionLogsModule,
   ],
