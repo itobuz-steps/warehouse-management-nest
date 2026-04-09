@@ -42,8 +42,14 @@ import { VariantStock } from 'src/variant-stock/schemas/variant-stock.schema';
 import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
 import { LOG_ACTION } from 'src/transaction-logs/enums/log-action.enum';
 import { LOG_ENTITY_TYPE } from 'src/transaction-logs/enums/log-entity-type.enum';
-import { Supplier } from 'src/supplier/entities/supplier.entity';
-import { Customer } from 'src/customer/entities/customer.entity';
+import {
+  Supplier,
+  SupplierDocument,
+} from 'src/supplier/entities/supplier.entity';
+import {
+  Customer,
+  CustomerDocument,
+} from 'src/customer/entities/customer.entity';
 import { Variant, VariantDocument } from 'src/variant/schemas/variant.schema';
 import { TRANSACTION_STATUS } from './constants/transactionStatus';
 import { ProductItemDto } from './dto/product-item.dto';
@@ -58,6 +64,24 @@ type FrequentProductAggregateType = {
   availableStock: number;
   variant: VariantDocument;
   product: ProductDocument;
+};
+
+type FrequentWarehouseAggType = {
+  _id: string;
+  name: string;
+  recentUsedAt: Date;
+};
+
+type RecentCustomerAggType = {
+  lastUsedAt: Date;
+  usageCount: number;
+  customer: CustomerDocument;
+};
+
+type RecentSupplierAggType = {
+  lastUsedAt: Date;
+  usageCount: number;
+  supplier: SupplierDocument;
 };
 
 @Injectable()
@@ -2219,8 +2243,6 @@ export class TransactionService {
     ]);
 
     return {
-      warehouseId,
-      transactionType,
       mostUsed: mostUsed.map((r) => ({
         usageCount: r.usageCount,
         lastUsedAt: r.lastUsedAt,
@@ -2305,8 +2327,8 @@ export class TransactionService {
       },
     ];
 
-    const recentCustomers = await this.transactionModel.aggregate(pipeline);
-
+    const recentCustomers =
+      await this.transactionModel.aggregate<RecentCustomerAggType>(pipeline);
     return {
       success: true,
       message: isManager ? 'Your recent customers' : 'Recent customers',
@@ -2381,7 +2403,8 @@ export class TransactionService {
       },
     ];
 
-    const recentSuppliers = await this.transactionModel.aggregate(pipeline);
+    const recentSuppliers =
+      await this.transactionModel.aggregate<RecentSupplierAggType>(pipeline);
 
     return {
       success: true,
@@ -2500,7 +2523,8 @@ export class TransactionService {
       },
     ];
 
-    const frequentWarehouses = await this.transactionModel.aggregate(pipeline);
+    const frequentWarehouses =
+      await this.transactionModel.aggregate<FrequentWarehouseAggType>(pipeline);
 
     return {
       success: true,
