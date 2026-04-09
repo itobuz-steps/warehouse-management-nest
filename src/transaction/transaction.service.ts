@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   StreamableFile,
@@ -2234,6 +2235,279 @@ export class TransactionService {
         variant: r.variant,
         product: r.product,
       })),
+    };
+  }
+
+  async getRecentCustomers(user: UserDocument) {
+    if (user.role !== USER_TYPES.MANAGER && user.role !== USER_TYPES.ADMIN) {
+      throw new ForbiddenException('User role not allowed to fetch customers');
+    }
+
+    const isManager = user.role === USER_TYPES.MANAGER;
+
+    let allowedWarehouseIds: Types.ObjectId[] = [];
+
+    // Step 1: Restrict warehouses for manager
+    if (isManager) {
+      const warehouses = await this.warehouseModel
+        .find({ managerIds: user._id, active: true })
+        .select('_id')
+        .lean();
+
+      allowedWarehouseIds = warehouses.map((w) => w._id);
+    }
+
+    // Step 2: Aggregation
+    const pipeline: PipelineStage[] = [
+      {
+        $match: {
+          type: TRANSACTION_TYPES.OUT, // customers are tied to outgoing transactions
+          customer: { $ne: null },
+
+          ...(isManager && {
+            sourceWarehouse: { $in: allowedWarehouseIds },
+          }),
+        },
+      },
+
+      // Group by customer
+      {
+        $group: {
+          _id: '$customer',
+          lastUsedAt: { $max: '$createdAt' },
+          usageCount: { $sum: 1 }, // optional
+        },
+      },
+
+      // Sort by recency
+      { $sort: { lastUsedAt: -1 } },
+
+      { $limit: 3 },
+
+      // Lookup customer details
+      {
+        $lookup: {
+          from: 'customers',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'customer',
+        },
+      },
+      { $unwind: '$customer' },
+
+      {
+        $project: {
+          _id: 0,
+          lastUsedAt: 1,
+          usageCount: 1,
+          customer: 1,
+        },
+      },
+    ];
+
+    const recentCustomers = await this.transactionModel.aggregate(pipeline);
+
+    return {
+      success: true,
+      message: isManager ? 'Your recent customers' : 'Recent customers',
+      data: recentCustomers,
+    };
+  }
+
+  async getRecentSuppliers(user: UserDocument) {
+    if (user.role !== USER_TYPES.MANAGER && user.role !== USER_TYPES.ADMIN) {
+      throw new ForbiddenException('User role not allowed to fetch customers');
+    }
+
+    const isManager = user.role === USER_TYPES.MANAGER;
+
+    let allowedWarehouseIds: Types.ObjectId[] = [];
+
+    // Step 1: Restrict warehouses for manager
+    if (isManager) {
+      const warehouses = await this.warehouseModel
+        .find({ managerIds: user._id, active: true })
+        .select('_id')
+        .lean();
+
+      allowedWarehouseIds = warehouses.map((w) => w._id);
+    }
+
+    // Step 2: Aggregation
+    const pipeline: PipelineStage[] = [
+      {
+        $match: {
+          type: TRANSACTION_TYPES.IN, // suppliers are tied to incoming transactions
+          supplier: { $ne: null },
+
+          ...(isManager && {
+            destinationWarehouse: { $in: allowedWarehouseIds },
+          }),
+        },
+      },
+
+      // Group by supplier
+      {
+        $group: {
+          _id: '$supplier',
+          lastUsedAt: { $max: '$createdAt' },
+          usageCount: { $sum: 1 }, // optional
+        },
+      },
+
+      // Sort by recency
+      { $sort: { lastUsedAt: -1 } },
+
+      { $limit: 3 },
+
+      // Lookup supplier details
+      {
+        $lookup: {
+          from: 'suppliers',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'supplier',
+        },
+      },
+      { $unwind: '$supplier' },
+
+      {
+        $project: {
+          _id: 0,
+          lastUsedAt: 1,
+          usageCount: 1,
+          supplier: 1,
+        },
+      },
+    ];
+
+    const recentSuppliers = await this.transactionModel.aggregate(pipeline);
+
+    return {
+      success: true,
+      message: isManager ? 'Your recent customers' : 'Recent customers',
+      data: recentSuppliers,
+    };
+  }
+
+  async getFrequentWarehouses(user: UserDocument) {
+    if (user.role !== USER_TYPES.MANAGER && user.role !== USER_TYPES.ADMIN) {
+      throw new ForbiddenException('User role not allowed to fetch warehouses');
+    }
+
+    const isManager = user.role === USER_TYPES.MANAGER;
+
+    // Step 1: Get allowed warehouse IDs (for manager)
+    let allowedWarehouseIds: Types.ObjectId[] = [];
+
+    if (isManager) {
+      const warehouses = await this.warehouseModel
+        .find({ managerIds: user._id, active: true })
+        .select('_id')
+        .lean();
+
+      allowedWarehouseIds = warehouses.map((w) => w._id);
+    } else {
+      const warehouses = await this.warehouseModel
+        .find({ active: true })
+        .select('_id')
+        .lean();
+
+      allowedWarehouseIds = warehouses.map((w) => w._id);
+    }
+
+    // Step 2: Aggregation on transactions
+    const pipeline: PipelineStage[] = [
+      {
+        $match: {
+          $or: [
+            { sourceWarehouse: { $in: allowedWarehouseIds } },
+            { destinationWarehouse: { $in: allowedWarehouseIds } },
+          ],
+        },
+      },
+
+      {
+        $facet: {
+          topSource: [
+            {
+              $match: {
+                sourceWarehouse: { $in: allowedWarehouseIds },
+              },
+            },
+            {
+              $group: {
+                _id: '$sourceWarehouse',
+                recentUsedAt: { $max: '$createdAt' },
+              },
+            },
+            { $sort: { recentUsedAt: -1 } },
+            { $limit: 3 },
+
+            {
+              $lookup: {
+                from: 'warehouses',
+                localField: '_id',
+                foreignField: '_id',
+                as: 'warehouse',
+              },
+            },
+            { $unwind: '$warehouse' },
+
+            {
+              $project: {
+                _id: '$warehouse._id',
+                name: '$warehouse.name',
+                recentUsedAt: 1,
+              },
+            },
+          ],
+
+          topDestination: [
+            {
+              $match: {
+                destinationWarehouse: { $in: allowedWarehouseIds },
+              },
+            },
+            {
+              $group: {
+                _id: '$destinationWarehouse',
+                recentUsedAt: { $max: '$createdAt' },
+              },
+            },
+            { $sort: { recentUsedAt: -1 } },
+            { $limit: 3 },
+
+            {
+              $lookup: {
+                from: 'warehouses',
+                localField: '_id',
+                foreignField: '_id',
+                as: 'warehouse',
+              },
+            },
+            { $unwind: '$warehouse' },
+
+            {
+              $project: {
+                _id: '$warehouse._id',
+                name: '$warehouse.name',
+                recentUsedAt: 1,
+              },
+            },
+          ],
+        },
+      },
+    ];
+
+    const frequentWarehouses = await this.transactionModel.aggregate(pipeline);
+
+    return {
+      success: true,
+      message: isManager
+        ? 'Your frequent warehouses (based on usage)'
+        : 'Frequent warehouses',
+      data: frequentWarehouses,
     };
   }
 }

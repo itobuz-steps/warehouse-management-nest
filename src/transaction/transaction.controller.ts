@@ -51,6 +51,21 @@ export class TransactionController {
     return res;
   }
 
+  @Get('/recent-suppliers')
+  getRecentSuppliers(@Req() req: RequestWithUserDocument) {
+    return this.transactionService.getRecentSuppliers(req.user);
+  }
+
+  @Get('/recent-customers')
+  getRecentCustomers(@Req() req: RequestWithUserDocument) {
+    return this.transactionService.getRecentCustomers(req.user);
+  }
+
+  @Get('/frequent-warehouses')
+  getFrequentWarehouses(@Req() req: RequestWithUserDocument) {
+    return this.transactionService.getFrequentWarehouses(req.user);
+  }
+
   @Get('/:warehouseId')
   getWarehouseTransactions(
     @Param('warehouseId') warehouseId: string,
