@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   StreamableFile,
@@ -16,7 +17,7 @@ import { USER_TYPES } from 'src/auth/userType';
 import { User, UserDocument } from 'src/auth/entities/auth.entity';
 import { WarehouseTransactionsQueryDto } from './dto/query/warehouse-transactions.query.dto';
 import { GetTransactionsQueryDto } from './dto/query/get-transactions.query.dto';
-import type { ClientSession, QueryFilter } from 'mongoose';
+import type { ClientSession, PipelineStage, QueryFilter } from 'mongoose';
 import { PdfService } from './services/pdf.service';
 import {
   BatchBreakdownType,
@@ -29,7 +30,7 @@ import {
   TRANSACTION_TYPES,
 } from './constants/transactionConstants';
 import { StockOutDto } from './dto/stock-out.dto';
-import { Product } from 'src/products/entities/product.entity';
+import { Product, ProductDocument } from 'src/products/entities/product.entity';
 import { SHIPMENT_TYPES } from './constants/shipmentConstants';
 import { TransferDto } from './dto/transfer.dto';
 import { AdjustmentDto } from './dto/adjustment.dto';
@@ -41,15 +42,47 @@ import { VariantStock } from 'src/variant-stock/schemas/variant-stock.schema';
 import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
 import { LOG_ACTION } from 'src/transaction-logs/enums/log-action.enum';
 import { LOG_ENTITY_TYPE } from 'src/transaction-logs/enums/log-entity-type.enum';
-import { Supplier } from 'src/supplier/entities/supplier.entity';
-import { Customer } from 'src/customer/entities/customer.entity';
-import { Variant } from 'src/variant/schemas/variant.schema';
+import {
+  Supplier,
+  SupplierDocument,
+} from 'src/supplier/entities/supplier.entity';
+import {
+  Customer,
+  CustomerDocument,
+} from 'src/customer/entities/customer.entity';
+import { Variant, VariantDocument } from 'src/variant/schemas/variant.schema';
 import { TRANSACTION_STATUS } from './constants/transactionStatus';
 import { ProductItemDto } from './dto/product-item.dto';
 import { StorageService } from 'src/storage/storage.service';
 import { MailService } from 'src/mail/mail.service';
 
 type ShipmentUpdateStatus = 'shipped' | 'cancelled' | 'returned';
+
+type FrequentProductAggregateType = {
+  usageCount: number;
+  lastUsedAt: Date;
+  availableStock: number;
+  variant: VariantDocument;
+  product: ProductDocument;
+};
+
+type FrequentWarehouseAggType = {
+  _id: string;
+  name: string;
+  recentUsedAt: Date;
+};
+
+type RecentCustomerAggType = {
+  lastUsedAt: Date;
+  usageCount: number;
+  customer: CustomerDocument;
+};
+
+type RecentSupplierAggType = {
+  lastUsedAt: Date;
+  usageCount: number;
+  supplier: SupplierDocument;
+};
 
 @Injectable()
 export class TransactionService {
@@ -2055,5 +2088,450 @@ export class TransactionService {
     }
 
     return total;
+  }
+
+  async getFrequentProducts(
+    warehouseId: string,
+    transactionType: TRANSACTION_TYPES,
+  ) {
+    const warehouseObjectId = new Types.ObjectId(warehouseId);
+    const isInbound = transactionType === TRANSACTION_TYPES.IN;
+
+    let availableVariantIds: Types.ObjectId[] = [];
+
+    if (!isInbound) {
+      const stocks = await this.variantStockModel.find(
+        { warehouseId: warehouseObjectId, quantity: { $gt: 0 } },
+        { variantId: 1 },
+      );
+      availableVariantIds = stocks.map((s) => s.variantId);
+
+      if (!availableVariantIds.length) return [];
+    }
+
+    const pipeline: PipelineStage[] = [
+      {
+        $match: {
+          type: transactionType,
+          ...(isInbound
+            ? { destinationWarehouse: warehouseObjectId }
+            : { sourceWarehouse: warehouseObjectId }),
+        },
+      },
+      { $sort: { createdAt: -1 } },
+      { $unwind: '$products' },
+      { $unwind: '$products.variants' },
+      ...(!isInbound
+        ? [
+            {
+              $match: {
+                'products.variants.variant': { $in: availableVariantIds },
+              },
+            } as PipelineStage,
+          ]
+        : []),
+      {
+        $group: {
+          _id: {
+            variantId: '$products.variants.variant',
+            productId: '$products.product',
+          },
+          usageCount: { $sum: 1 },
+          lastUsedAt: { $max: '$createdAt' },
+        },
+      },
+      {
+        $lookup: {
+          from: 'variants',
+          let: { variantId: '$_id.variantId' },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ['$_id', { $toObjectId: '$$variantId' }] },
+              },
+            },
+            {
+              $project: {
+                _id: 1,
+                sku: 1,
+                price: 1,
+                markup: 1,
+                attributes: 1,
+                images: 1,
+              },
+            },
+          ],
+          as: 'variant',
+        },
+      },
+      { $unwind: '$variant' },
+      {
+        $lookup: {
+          from: 'products',
+          let: { productId: '$_id.productId' },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ['$_id', { $toObjectId: '$$productId' }] },
+              },
+            },
+            {
+              $project: {
+                _id: 1,
+                name: 1,
+                category: 1,
+                brand: 1,
+                label: 1,
+              },
+            },
+          ],
+          as: 'product',
+        },
+      },
+      { $unwind: '$product' },
+      {
+        $lookup: {
+          from: 'variantstocks',
+          let: { variantId: '$_id.variantId' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$variantId', { $toObjectId: '$$variantId' }] },
+                    { $eq: ['$warehouseId', warehouseObjectId] },
+                  ],
+                },
+              },
+            },
+            { $project: { _id: 0, quantity: 1 } },
+          ],
+          as: 'stock',
+        },
+      },
+      {
+        $unwind: {
+          path: '$stock',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          usageCount: 1,
+          lastUsedAt: 1,
+          availableStock: { $ifNull: ['$stock.quantity', 0] },
+          variant: 1,
+          product: 1,
+        },
+      },
+    ];
+
+    const [mostUsed, recentlyUsed] = await Promise.all([
+      // top 3 by usage count
+      this.transactionModel.aggregate<FrequentProductAggregateType>([
+        ...pipeline,
+        { $sort: { usageCount: -1, lastUsedAt: -1 } },
+        { $limit: 3 },
+      ]),
+      // top 3 by recency
+      this.transactionModel.aggregate<FrequentProductAggregateType>([
+        ...pipeline,
+        { $sort: { lastUsedAt: -1, usageCount: -1 } },
+        { $limit: 3 },
+      ]),
+    ]);
+
+    return {
+      mostUsed: mostUsed.map((r) => ({
+        usageCount: r.usageCount,
+        lastUsedAt: r.lastUsedAt,
+        availableStock: r.availableStock,
+        variant: r.variant,
+        product: r.product,
+      })),
+      recentlyUsed: recentlyUsed.map((r) => ({
+        usageCount: r.usageCount,
+        lastUsedAt: r.lastUsedAt,
+        availableStock: r.availableStock,
+        variant: r.variant,
+        product: r.product,
+      })),
+    };
+  }
+
+  async getRecentCustomers(user: UserDocument) {
+    if (user.role !== USER_TYPES.MANAGER && user.role !== USER_TYPES.ADMIN) {
+      throw new ForbiddenException('User role not allowed to fetch customers');
+    }
+
+    const isManager = user.role === USER_TYPES.MANAGER;
+
+    let allowedWarehouseIds: Types.ObjectId[] = [];
+
+    // Step 1: Restrict warehouses for manager
+    if (isManager) {
+      const warehouses = await this.warehouseModel
+        .find({ managerIds: user._id, active: true })
+        .select('_id')
+        .lean();
+
+      allowedWarehouseIds = warehouses.map((w) => w._id);
+    }
+
+    // Step 2: Aggregation
+    const pipeline: PipelineStage[] = [
+      {
+        $match: {
+          type: TRANSACTION_TYPES.OUT, // customers are tied to outgoing transactions
+          customer: { $ne: null },
+
+          ...(isManager && {
+            sourceWarehouse: { $in: allowedWarehouseIds },
+          }),
+        },
+      },
+
+      // Group by customer
+      {
+        $group: {
+          _id: '$customer',
+          lastUsedAt: { $max: '$createdAt' },
+          usageCount: { $sum: 1 }, // optional
+        },
+      },
+
+      // Sort by recency
+      { $sort: { lastUsedAt: -1 } },
+
+      { $limit: 3 },
+
+      // Lookup customer details
+      {
+        $lookup: {
+          from: 'customers',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'customer',
+        },
+      },
+      { $unwind: '$customer' },
+
+      {
+        $project: {
+          _id: 0,
+          lastUsedAt: 1,
+          usageCount: 1,
+          customer: 1,
+        },
+      },
+    ];
+
+    const recentCustomers =
+      await this.transactionModel.aggregate<RecentCustomerAggType>(pipeline);
+    return {
+      success: true,
+      message: isManager ? 'Your recent customers' : 'Recent customers',
+      data: recentCustomers,
+    };
+  }
+
+  async getRecentSuppliers(user: UserDocument) {
+    if (user.role !== USER_TYPES.MANAGER && user.role !== USER_TYPES.ADMIN) {
+      throw new ForbiddenException('User role not allowed to fetch customers');
+    }
+
+    const isManager = user.role === USER_TYPES.MANAGER;
+
+    let allowedWarehouseIds: Types.ObjectId[] = [];
+
+    // Step 1: Restrict warehouses for manager
+    if (isManager) {
+      const warehouses = await this.warehouseModel
+        .find({ managerIds: user._id, active: true })
+        .select('_id')
+        .lean();
+
+      allowedWarehouseIds = warehouses.map((w) => w._id);
+    }
+
+    // Step 2: Aggregation
+    const pipeline: PipelineStage[] = [
+      {
+        $match: {
+          type: TRANSACTION_TYPES.IN, // suppliers are tied to incoming transactions
+          supplier: { $ne: null },
+
+          ...(isManager && {
+            destinationWarehouse: { $in: allowedWarehouseIds },
+          }),
+        },
+      },
+
+      // Group by supplier
+      {
+        $group: {
+          _id: '$supplier',
+          lastUsedAt: { $max: '$createdAt' },
+          usageCount: { $sum: 1 }, // optional
+        },
+      },
+
+      // Sort by recency
+      { $sort: { lastUsedAt: -1 } },
+
+      { $limit: 3 },
+
+      // Lookup supplier details
+      {
+        $lookup: {
+          from: 'suppliers',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'supplier',
+        },
+      },
+      { $unwind: '$supplier' },
+
+      {
+        $project: {
+          _id: 0,
+          lastUsedAt: 1,
+          usageCount: 1,
+          supplier: 1,
+        },
+      },
+    ];
+
+    const recentSuppliers =
+      await this.transactionModel.aggregate<RecentSupplierAggType>(pipeline);
+
+    return {
+      success: true,
+      message: isManager ? 'Your recent customers' : 'Recent customers',
+      data: recentSuppliers,
+    };
+  }
+
+  async getFrequentWarehouses(user: UserDocument) {
+    if (user.role !== USER_TYPES.MANAGER && user.role !== USER_TYPES.ADMIN) {
+      throw new ForbiddenException('User role not allowed to fetch warehouses');
+    }
+
+    const isManager = user.role === USER_TYPES.MANAGER;
+
+    // Step 1: Get allowed warehouse IDs (for manager)
+    let allowedWarehouseIds: Types.ObjectId[] = [];
+
+    if (isManager) {
+      const warehouses = await this.warehouseModel
+        .find({ managerIds: user._id, active: true })
+        .select('_id')
+        .lean();
+
+      allowedWarehouseIds = warehouses.map((w) => w._id);
+    } else {
+      const warehouses = await this.warehouseModel
+        .find({ active: true })
+        .select('_id')
+        .lean();
+
+      allowedWarehouseIds = warehouses.map((w) => w._id);
+    }
+
+    // Step 2: Aggregation on transactions
+    const pipeline: PipelineStage[] = [
+      {
+        $match: {
+          $or: [
+            { sourceWarehouse: { $in: allowedWarehouseIds } },
+            { destinationWarehouse: { $in: allowedWarehouseIds } },
+          ],
+        },
+      },
+
+      {
+        $facet: {
+          topSource: [
+            {
+              $match: {
+                sourceWarehouse: { $in: allowedWarehouseIds },
+              },
+            },
+            {
+              $group: {
+                _id: '$sourceWarehouse',
+                recentUsedAt: { $max: '$createdAt' },
+              },
+            },
+            { $sort: { recentUsedAt: -1 } },
+            { $limit: 3 },
+
+            {
+              $lookup: {
+                from: 'warehouses',
+                localField: '_id',
+                foreignField: '_id',
+                as: 'warehouse',
+              },
+            },
+            { $unwind: '$warehouse' },
+
+            {
+              $project: {
+                _id: '$warehouse._id',
+                name: '$warehouse.name',
+                recentUsedAt: 1,
+              },
+            },
+          ],
+
+          topDestination: [
+            {
+              $match: {
+                destinationWarehouse: { $in: allowedWarehouseIds },
+              },
+            },
+            {
+              $group: {
+                _id: '$destinationWarehouse',
+                recentUsedAt: { $max: '$createdAt' },
+              },
+            },
+            { $sort: { recentUsedAt: -1 } },
+            { $limit: 3 },
+
+            {
+              $lookup: {
+                from: 'warehouses',
+                localField: '_id',
+                foreignField: '_id',
+                as: 'warehouse',
+              },
+            },
+            { $unwind: '$warehouse' },
+
+            {
+              $project: {
+                _id: '$warehouse._id',
+                name: '$warehouse.name',
+                recentUsedAt: 1,
+              },
+            },
+          ],
+        },
+      },
+    ];
+
+    const frequentWarehouses =
+      await this.transactionModel.aggregate<FrequentWarehouseAggType>(pipeline);
+
+    return {
+      success: true,
+      message: isManager
+        ? 'Your frequent warehouses (based on usage)'
+        : 'Frequent warehouses',
+      data: frequentWarehouses,
+    };
   }
 }

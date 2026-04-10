@@ -17,6 +17,7 @@ import { LOG_ENTITY_TYPE } from 'src/transaction-logs/enums/log-entity-type.enum
 import { User, UserDocument } from 'src/auth/entities/auth.entity';
 import { StorageService } from 'src/storage/storage.service';
 import { PopulatedManager } from './types/userType';
+import { Transaction } from 'src/transaction/schemas/transaction.schema';
 
 @Injectable()
 export class WarehouseService {
@@ -29,6 +30,9 @@ export class WarehouseService {
 
     @InjectModel(User.name)
     private readonly userModel: Model<User>,
+
+    @InjectModel(Transaction.name)
+    private readonly transactionModel: Model<Transaction>,
 
     private readonly logService: TransactionLogsService,
 

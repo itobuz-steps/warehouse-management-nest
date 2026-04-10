@@ -21,6 +21,7 @@ import { AdjustmentDto } from './dto/adjustment.dto';
 import { ApiBearerAuth } from '@nestjs/swagger';
 import { Roles } from 'src/common/guard/roles.decorator';
 import { USER_TYPES } from 'src/auth/userType';
+import { GetFrequentProductsDto } from './dto/query/get-frequent-products.query.dto';
 
 @Controller('transaction')
 @UseGuards(AuthGuard)
@@ -39,6 +40,30 @@ export class TransactionController {
   @Get('single/:id')
   getTransactionById(@Param('id') id: string) {
     return this.transactionService.getTransactionById(id);
+  }
+
+  @Get('/frequent-products')
+  getFrequentProducts(@Query() query: GetFrequentProductsDto) {
+    const res = this.transactionService.getFrequentProducts(
+      query.warehouseId,
+      query.type,
+    );
+    return res;
+  }
+
+  @Get('/recent-suppliers')
+  getRecentSuppliers(@Req() req: RequestWithUserDocument) {
+    return this.transactionService.getRecentSuppliers(req.user);
+  }
+
+  @Get('/recent-customers')
+  getRecentCustomers(@Req() req: RequestWithUserDocument) {
+    return this.transactionService.getRecentCustomers(req.user);
+  }
+
+  @Get('/frequent-warehouses')
+  getFrequentWarehouses(@Req() req: RequestWithUserDocument) {
+    return this.transactionService.getFrequentWarehouses(req.user);
   }
 
   @Get('/:warehouseId')
