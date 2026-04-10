@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { ClientSession, Model, Types } from 'mongoose';
+import { ClientSession, Model, PipelineStage, Types } from 'mongoose';
 import { Variant, VariantDocument } from './schemas/variant.schema';
 import { CreateVariantDto } from './dto/create-variant.dto';
 import { Product, ProductDocument } from 'src/products/entities/product.entity';
@@ -257,5 +257,88 @@ export class VariantService {
     );
 
     return variant;
+  }
+
+  async getVariantsStock(warehouseId: string, variantIds: string[]) {
+    const warehouseObjectId = new Types.ObjectId(warehouseId);
+    const variantObjectIds = variantIds.map((id) => new Types.ObjectId(id));
+
+    const pipeline: PipelineStage[] = [
+      // Step 1: Match only required variants
+      {
+        $match: {
+          _id: { $in: variantObjectIds },
+        },
+      },
+
+      // Step 2: Lookup product
+      {
+        $lookup: {
+          from: 'products',
+          localField: 'product',
+          foreignField: '_id',
+          as: 'product',
+        },
+      },
+      { $unwind: '$product' },
+
+      // Step 3: Lookup stock for this warehouse
+      {
+        $lookup: {
+          from: 'variantstocks',
+          let: { variantId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$variantId', '$$variantId'] },
+                    { $eq: ['$warehouseId', warehouseObjectId] },
+                  ],
+                },
+              },
+            },
+          ],
+          as: 'stock',
+        },
+      },
+
+      {
+        $unwind: {
+          path: '$stock',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+
+      // Step 4: Final shape
+      {
+        $project: {
+          _id: 0,
+
+          product: '$product',
+
+          variant: {
+            _id: '$_id',
+            attributes: '$attributes',
+            variantImage: '$variantImage',
+            price: '$price',
+            markup: '$markup',
+            sku: '$sku',
+            createdAt: '$createdAt',
+            updatedAt: '$updatedAt',
+          },
+
+          currentStock: { $ifNull: ['$stock.quantity', 0] },
+        },
+      },
+    ];
+
+    const data = await this.variantModel.aggregate(pipeline);
+
+    return {
+      success: true,
+      message: 'Variants with stock fetched successfully',
+      data,
+    };
   }
 }

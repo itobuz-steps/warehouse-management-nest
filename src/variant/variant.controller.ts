@@ -20,6 +20,7 @@ import { memoryStorage } from 'multer';
 import { StorageService } from 'src/storage/storage.service';
 import type { RequestWithUser } from 'src/profile/profile.controller';
 import { UpdateVariantDto } from './dto/update-variant.dto';
+import { GetVariantsWithStockDto } from './dto/get-variant-stock.dto';
 @Controller('variant')
 @UseGuards(AuthGuard)
 export class VariantController {
@@ -85,6 +86,13 @@ export class VariantController {
       ...dto,
       ...(imageUrls.length && { variantImage: imageUrls }),
     });
+  }
+
+  @Post('/get-stocks')
+  async getVariantsWithStock(@Body() body: GetVariantsWithStockDto) {
+    const { warehouseId, variantIds } = body;
+
+    return this.variantService.getVariantsStock(warehouseId, variantIds);
   }
 
   @Get('/:id')
