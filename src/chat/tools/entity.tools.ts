@@ -107,7 +107,8 @@ export function createEntityTools(
         'List all inventory batches with source/destination warehouse details and variant items. Batches track stock movement between warehouses.',
       inputSchema: z.object({}),
       execute: async () => {
-        return unwrapToolResponse(await batchService.findAll());
+        const user = getUserContext() as User as unknown as UserDocument;
+        return unwrapToolResponse(await batchService.findAll({}, user));
       },
     }),
 

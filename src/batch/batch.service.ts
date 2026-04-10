@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -16,7 +17,13 @@ import {
 import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
 import { UserDocument } from 'src/auth/entities/auth.entity';
 import { BatchMarkedDamagedLog } from 'src/transaction-logs/types/batch-log.type';
+import { USER_TYPES } from 'src/auth/userType';
+import {
+  Warehouse,
+  WarehouseDocument,
+} from 'src/warehouse/schemas/warehouse.schema';
 
+import {} from 'src/warehouse/warehouse.service';
 type BatchProductItem = {
   variant: Types.ObjectId;
   quantity: number;
@@ -48,6 +55,9 @@ export class BatchService {
     @InjectModel(VariantStock.name)
     private readonly variantStockModel: Model<VariantStockDocument>,
 
+    @InjectModel(Warehouse.name)
+    private readonly warehouseModel: Model<WarehouseDocument>,
+
     private readonly logsService: TransactionLogsService,
   ) {}
 
@@ -69,12 +79,12 @@ export class BatchService {
     };
   }
 
-  async findAll(query: FindAllBatchesQuery = {}) {
+  async findAll(query: FindAllBatchesQuery = {}, user: UserDocument) {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
     const skip = (page - 1) * limit;
 
-    const filter = this.buildFindAllFilter(query);
+    const filter = await this.buildFindAllFilter(query, user);
 
     const [batches, total] = await Promise.all([
       this.batchModel
@@ -101,15 +111,46 @@ export class BatchService {
     };
   }
 
-  private buildFindAllFilter(
+  private async buildFindAllFilter(
     query: FindAllBatchesQuery,
-  ): Record<string, unknown> {
+    user: UserDocument,
+  ): Promise<Record<string, unknown>> {
     const filter: Record<string, unknown> = {};
+    const isAdmin = user.role === USER_TYPES.ADMIN;
+
+    if (!isAdmin) {
+      const warehouseIds = await this.getUserWarehouseIds(user._id.toString());
+
+      if (!warehouseIds.length) {
+        throw new ForbiddenException('No warehouse is assigned to this user');
+      }
+
+      filter.destinationWarehouse = { $in: warehouseIds };
+    }
 
     if (query.destinationWarehouse) {
-      filter.destinationWarehouse = new Types.ObjectId(
+      if (!Types.ObjectId.isValid(query.destinationWarehouse)) {
+        throw new BadRequestException('Invalid destinationWarehouse id');
+      }
+
+      const destinationWarehouseId = new Types.ObjectId(
         query.destinationWarehouse,
       );
+
+      if (!isAdmin) {
+        const isAllowed = await this.warehouseModel.exists({
+          _id: destinationWarehouseId,
+          managerIds: user._id,
+        });
+
+        if (!isAllowed) {
+          throw new ForbiddenException(
+            'You are not allowed to view batches for this warehouse',
+          );
+        }
+      }
+
+      filter.destinationWarehouse = destinationWarehouseId;
     }
 
     const search = query.search?.trim();
@@ -125,6 +166,15 @@ export class BatchService {
     }
 
     return filter;
+  }
+
+  private async getUserWarehouseIds(userId: string): Promise<Types.ObjectId[]> {
+    const warehouses = await this.warehouseModel
+      .find({ managerIds: new Types.ObjectId(userId), active: true })
+      .select('_id')
+      .lean();
+
+    return warehouses.map((warehouse) => warehouse._id);
   }
 
   private escapeRegex(value: string): string {

@@ -27,8 +27,8 @@ export class BatchController {
   }
 
   @Get()
-  findAll(@Query() query: GetBatchesQueryDto) {
-    return this.batchService.findAll(query);
+  findAll(@Query() query: GetBatchesQueryDto, @Req() req: RequestWithUser) {
+    return this.batchService.findAll(query, req.user);
   }
 
   @Get(':id')
