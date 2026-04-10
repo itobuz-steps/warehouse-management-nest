@@ -10,6 +10,10 @@ import {
   VariantStockSchema,
 } from 'src/variant-stock/schemas/variant-stock.schema';
 import { TransactionLogsModule } from 'src/transaction-logs/transaction-logs.module';
+import {
+  Warehouse,
+  WarehouseSchema,
+} from 'src/warehouse/schemas/warehouse.schema';
 
 @Module({
   imports: [
@@ -18,6 +22,7 @@ import { TransactionLogsModule } from 'src/transaction-logs/transaction-logs.mod
       { name: Variant.name, schema: VariantSchema },
       { name: User.name, schema: UserSchema },
       { name: VariantStock.name, schema: VariantStockSchema },
+      { name: Warehouse.name, schema: WarehouseSchema },
     ]),
     TransactionLogsModule,
   ],
