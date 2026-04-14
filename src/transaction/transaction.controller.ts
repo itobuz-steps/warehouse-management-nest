@@ -47,6 +47,7 @@ export class TransactionController {
     const res = this.transactionService.getFrequentProducts(
       query.warehouseId,
       query.type,
+      query.supplierId,
     );
     return res;
   }

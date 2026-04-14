@@ -2093,9 +2093,23 @@ export class TransactionService {
   async getFrequentProducts(
     warehouseId: string,
     transactionType: TRANSACTION_TYPES,
+    supplierId?: string,
   ) {
     const warehouseObjectId = new Types.ObjectId(warehouseId);
     const isInbound = transactionType === TRANSACTION_TYPES.IN;
+
+    let supplierCategories: string[] = [];
+
+    if (supplierId) {
+      const supplier = await this.supplierModel.findById(supplierId, {
+        suppliedProduct: 1,
+      });
+
+      if (!supplier) return { mostUsed: [], recentlyUsed: [] };
+
+      supplierCategories = supplier.suppliedProduct ?? [];
+      if (!supplierCategories.length) return { mostUsed: [], recentlyUsed: [] };
+    }
 
     let availableVariantIds: Types.ObjectId[] = [];
 
@@ -2104,9 +2118,10 @@ export class TransactionService {
         { warehouseId: warehouseObjectId, quantity: { $gt: 0 } },
         { variantId: 1 },
       );
-      availableVariantIds = stocks.map((s) => s.variantId);
 
-      if (!availableVariantIds.length) return [];
+      availableVariantIds = stocks.map((s) => s.variantId);
+      if (!availableVariantIds.length)
+        return { mostUsed: [], recentlyUsed: [] };
     }
 
     const pipeline: PipelineStage[] = [
@@ -2121,25 +2136,27 @@ export class TransactionService {
       { $sort: { createdAt: -1 } },
       { $unwind: '$products' },
       { $unwind: '$products.variants' },
+
       ...(!isInbound
-        ? [
+        ? ([
             {
               $match: {
                 'products.variants.variant': { $in: availableVariantIds },
               },
-            } as PipelineStage,
-          ]
+            },
+          ] as PipelineStage[])
         : []),
+
       {
         $group: {
           _id: {
             variantId: '$products.variants.variant',
-            productId: '$products.product',
           },
           usageCount: { $sum: 1 },
           lastUsedAt: { $max: '$createdAt' },
         },
       },
+
       {
         $lookup: {
           from: 'variants',
@@ -2147,12 +2164,13 @@ export class TransactionService {
           pipeline: [
             {
               $match: {
-                $expr: { $eq: ['$_id', { $toObjectId: '$$variantId' }] },
+                $expr: { $eq: ['$_id', '$$variantId'] },
               },
             },
             {
               $project: {
                 _id: 1,
+                product: 1,
                 sku: 1,
                 price: 1,
                 markup: 1,
@@ -2165,14 +2183,19 @@ export class TransactionService {
         },
       },
       { $unwind: '$variant' },
+
       {
         $lookup: {
           from: 'products',
-          let: { productId: '$_id.productId' },
+          let: { productId: '$variant.product' },
           pipeline: [
             {
               $match: {
-                $expr: { $eq: ['$_id', { $toObjectId: '$$productId' }] },
+                $expr: { $eq: ['$_id', '$$productId'] },
+                isArchived: false,
+                ...(supplierId && supplierCategories.length
+                  ? { category: { $in: supplierCategories } }
+                  : {}),
               },
             },
             {
@@ -2189,6 +2212,7 @@ export class TransactionService {
         },
       },
       { $unwind: '$product' },
+
       {
         $lookup: {
           from: 'variantstocks',
@@ -2198,7 +2222,7 @@ export class TransactionService {
               $match: {
                 $expr: {
                   $and: [
-                    { $eq: ['$variantId', { $toObjectId: '$$variantId' }] },
+                    { $eq: ['$variantId', '$$variantId'] },
                     { $eq: ['$warehouseId', warehouseObjectId] },
                   ],
                 },
@@ -2228,13 +2252,11 @@ export class TransactionService {
     ];
 
     const [mostUsed, recentlyUsed] = await Promise.all([
-      // top 3 by usage count
       this.transactionModel.aggregate<FrequentProductAggregateType>([
         ...pipeline,
         { $sort: { usageCount: -1, lastUsedAt: -1 } },
         { $limit: 3 },
       ]),
-      // top 3 by recency
       this.transactionModel.aggregate<FrequentProductAggregateType>([
         ...pipeline,
         { $sort: { lastUsedAt: -1, usageCount: -1 } },
