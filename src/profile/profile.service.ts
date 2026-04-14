@@ -8,7 +8,6 @@ import { Model, Types } from 'mongoose';
 import { User, UserDocument } from '../auth/entities/auth.entity';
 import { USER_TYPES } from '../auth/userType';
 import { StorageService } from 'src/storage/storage.service';
-// import { Request } from 'express';
 import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
 import { LOG_ACTION } from 'src/transaction-logs/enums/log-action.enum';
 import { LOG_ENTITY_TYPE } from 'src/transaction-logs/enums/log-entity-type.enum';
@@ -164,5 +163,13 @@ export class ProfileService {
 
     await user.save();
     return user.preferences;
+  }
+
+  async getUsers() {
+    const users = await this.userModel
+      .find({ isVerified: true }, { name: 1, email: 1, role: 1, _id: 1 })
+      .lean();
+
+    return users;
   }
 }

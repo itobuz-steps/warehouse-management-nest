@@ -101,4 +101,12 @@ export class ProfileController {
       data: res,
     };
   }
+
+  @Get('users')
+  async getUsers() {
+    return {
+      success: true,
+      data: await this.profileService.getUsers(),
+    };
+  }
 }
