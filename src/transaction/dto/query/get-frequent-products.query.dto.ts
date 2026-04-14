@@ -1,4 +1,4 @@
-import { IsEnum, IsMongoId } from 'class-validator';
+import { IsEnum, IsMongoId, IsOptional } from 'class-validator';
 import { TRANSACTION_TYPES } from 'src/transaction/constants/transactionConstants';
 
 export class GetFrequentProductsDto {
@@ -7,4 +7,8 @@ export class GetFrequentProductsDto {
 
   @IsEnum(TRANSACTION_TYPES)
   type: TRANSACTION_TYPES;
+
+  @IsOptional()
+  @IsMongoId()
+  supplierId?: string;
 }
