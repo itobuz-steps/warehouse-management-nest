@@ -7,6 +7,7 @@ import {
   IsString,
   IsNumber,
   IsEnum,
+  IsMongoId,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import {
@@ -72,4 +73,8 @@ export class WarehouseTransactionsQueryDto {
   @IsInt()
   @Min(1)
   limit?: number;
+
+  @IsOptional()
+  @IsMongoId()
+  performedBy?: string;
 }

@@ -141,6 +141,7 @@ export class TransactionService {
       sortOrder,
       page = 1,
       limit = 10,
+      performedBy,
     } = query;
 
     const scopeMatch: QueryFilter<Transaction> = {};
@@ -197,6 +198,10 @@ export class TransactionService {
         ...(minAmount !== undefined && { $gte: minAmount }),
         ...(maxAmount !== undefined && { $lte: maxAmount }),
       };
+    }
+
+    if (performedBy) {
+      match.performedBy = new Types.ObjectId(performedBy);
     }
 
     const sortField =
@@ -384,6 +389,7 @@ export class TransactionService {
       sortOrder,
       page = 1,
       limit = 10,
+      performedBy,
     } = query;
 
     if (!isValidObjectId(warehouseId)) {
@@ -438,6 +444,10 @@ export class TransactionService {
         ...(minAmount !== undefined && { $gte: minAmount }),
         ...(maxAmount !== undefined && { $lte: maxAmount }),
       };
+    }
+
+    if (performedBy) {
+      filter.performedBy = new Types.ObjectId(performedBy);
     }
 
     const sortField =
