@@ -11,6 +11,12 @@ import type { UserDocument } from 'src/auth/entities/auth.entity';
 import { PerformedBy } from './types/performed-by.type';
 import { GetLogsDto } from './dto/get-logs.dto';
 import { StorageService } from 'src/storage/storage.service';
+import { USER_TYPES } from 'src/auth/userType';
+import {
+  Warehouse,
+  WarehouseDocument,
+} from 'src/warehouse/schemas/warehouse.schema';
+import { LOG_ACTION } from './enums/log-action.enum';
 
 type DateRangeFilter = {
   $gte?: Date;
@@ -52,7 +58,8 @@ export class TransactionLogsService {
   constructor(
     @InjectModel(TransactionLog.name)
     private readonly logModel: Model<TransactionLogDocument>,
-
+    @InjectModel(Warehouse.name)
+    private warehouseModel: Model<WarehouseDocument>,
     private readonly storageService: StorageService,
   ) {}
 
@@ -83,7 +90,7 @@ export class TransactionLogsService {
       .exec();
   }
 
-  async getLogs(query: GetLogsDto) {
+  async getLogs(query: GetLogsDto, currentUser: UserDocument) {
     const {
       action,
       entityType,
@@ -96,8 +103,85 @@ export class TransactionLogsService {
     } = query;
 
     const skip = (page - 1) * limit;
-
     const match: PipelineStage.Match['$match'] = {};
+
+    //Manager scope
+    if (currentUser.role === USER_TYPES.MANAGER) {
+      const assignedWarehouses = await this.warehouseModel
+        .find(
+          { managerIds: new Types.ObjectId(currentUser._id), active: true },
+          { _id: 1 },
+        )
+        .lean();
+
+      if (!assignedWarehouses.length) {
+        return { data: [], total: 0, page, limit };
+      }
+
+      const wIds = assignedWarehouses.map((w) => w._id.toString());
+
+      const stockActions = [
+        LOG_ACTION.STOCK_IN,
+        LOG_ACTION.STOCK_OUT,
+        LOG_ACTION.STOCK_ADJUSTED,
+        LOG_ACTION.STOCK_TRANSFER,
+      ];
+
+      const warehouseActions = [
+        LOG_ACTION.WAREHOUSE_CREATED,
+        LOG_ACTION.WAREHOUSE_UPDATED,
+        LOG_ACTION.WAREHOUSE_DELETED,
+        LOG_ACTION.WAREHOUSE_ACTIVATED,
+        LOG_ACTION.WAREHOUSE_DEACTIVATED,
+      ];
+
+      const batchActions = [LOG_ACTION.BATCH_MARKED_DAMAGED];
+
+      match.$or = [
+        {
+          action: {
+            $nin: [...stockActions, ...warehouseActions, ...batchActions],
+          },
+        },
+
+        {
+          action: LOG_ACTION.STOCK_IN,
+          'metadata.destinationWarehouse.warehouseId': { $in: wIds },
+        },
+        {
+          action: LOG_ACTION.STOCK_OUT,
+          'metadata.sourceWarehouse.warehouseId': { $in: wIds },
+        },
+        {
+          action: LOG_ACTION.STOCK_ADJUSTED,
+          'metadata.destinationWarehouse.warehouseId': { $in: wIds },
+        },
+        {
+          action: LOG_ACTION.STOCK_TRANSFER,
+          'metadata.sourceWarehouse.warehouseId': { $in: wIds },
+        },
+        {
+          action: LOG_ACTION.STOCK_TRANSFER,
+          'metadata.destinationWarehouse.warehouseId': { $in: wIds },
+        },
+        {
+          action: { $in: stockActions },
+          'performedBy.userId': new Types.ObjectId(currentUser._id),
+        },
+
+        {
+          action: { $in: warehouseActions },
+          entityId: { $in: wIds },
+        },
+
+        {
+          action: { $in: batchActions },
+          'metadata.destinationWarehouseId': {
+            $in: wIds,
+          },
+        },
+      ];
+    }
 
     if (action?.length) {
       match.action = { $in: action };
@@ -112,12 +196,17 @@ export class TransactionLogsService {
     }
 
     if (startDate || endDate) {
-      const createdAtFilter: DateRangeFilter = {};
+      const range: DateRangeFilter = {};
 
-      if (startDate) createdAtFilter.$gte = new Date(startDate);
-      if (endDate) createdAtFilter.$lte = new Date(endDate);
+      if (startDate) {
+        range.$gte = new Date(startDate);
+      }
 
-      match.createdAt = createdAtFilter;
+      if (endDate) {
+        range.$lte = new Date(endDate);
+      }
+
+      match.createdAt = range;
     }
 
     const basePipeline: PipelineStage[] = [
@@ -131,17 +220,11 @@ export class TransactionLogsService {
           as: 'user',
         },
       },
-
-      {
-        $unwind: {
-          path: '$user',
-          preserveNullAndEmptyArrays: true,
-        },
-      },
+      { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
     ];
 
     if (search) {
-      const searchStage: PipelineStage.Match = {
+      basePipeline.push({
         $match: {
           $or: [
             { entityId: { $regex: search, $options: 'i' } },
@@ -151,9 +234,7 @@ export class TransactionLogsService {
             { 'user.email': { $regex: search, $options: 'i' } },
           ],
         },
-      };
-
-      basePipeline.push(searchStage);
+      });
     }
 
     const dataPipeline: PipelineStage[] = [
@@ -199,7 +280,9 @@ export class TransactionLogsService {
       logs.map(async (log) => {
         const user = log.performedBy?.userId;
 
-        if (!user) return log;
+        if (!user) {
+          return log;
+        }
 
         let profileImageUrl: string | undefined;
 
