@@ -19,6 +19,8 @@ export type ProductTransactionDay = {
   _id: string;
   IN: number;
   OUT: number;
+  TRANSFER: number;
+  ADJUSTMENT: number;
 };
 
 export type LowStockProduct = {
