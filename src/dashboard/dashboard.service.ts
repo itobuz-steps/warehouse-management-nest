@@ -1,5 +1,5 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
-import mongoose, { Model, QueryFilter } from 'mongoose';
+import mongoose, { Model, QueryFilter, Types } from 'mongoose';
 import { Quantity } from 'src/quantity/entities/quantity.entity';
 
 import { subDays, eachDayOfInterval, format } from 'date-fns';
@@ -42,7 +42,7 @@ export class DashboardService {
   ) {}
 
   toObjectId(id?: string): mongoose.Types.ObjectId | undefined {
-    if (!id) {
+    if (!id || !Types.ObjectId.isValid(id)) {
       return undefined;
     }
 
@@ -198,6 +198,17 @@ export class DashboardService {
           $or: [
             { type: TRANSACTION_TYPES.IN, destinationWarehouse: warehouseId },
             { type: TRANSACTION_TYPES.OUT, sourceWarehouse: warehouseId },
+            {
+              type: TRANSACTION_TYPES.TRANSFER,
+              $or: [
+                { sourceWarehouse: warehouseId },
+                { destinationWarehouse: warehouseId },
+              ],
+            },
+            {
+              type: TRANSACTION_TYPES.ADJUSTMENT,
+              sourceWarehouse: warehouseId,
+            },
           ],
         }
       : {};
@@ -213,6 +224,8 @@ export class DashboardService {
       _id: format(d, 'yyyy-MM-dd'),
       IN: 0,
       OUT: 0,
+      TRANSFER: 0,
+      ADJUSTMENT: 0,
     }));
 
     const daysTransaction =
@@ -259,6 +272,24 @@ export class DashboardService {
                 ],
               },
             },
+            TRANSFER: {
+              $sum: {
+                $cond: [
+                  { $eq: ['$_id.type', TRANSACTION_TYPES.TRANSFER] },
+                  '$total',
+                  0,
+                ],
+              },
+            },
+            ADJUSTMENT: {
+              $sum: {
+                $cond: [
+                  { $eq: ['$_id.type', TRANSACTION_TYPES.ADJUSTMENT] },
+                  '$total',
+                  0,
+                ],
+              },
+            },
           },
         },
 
@@ -270,6 +301,8 @@ export class DashboardService {
       if (day) {
         day.IN = item.IN;
         day.OUT = item.OUT;
+        day.TRANSFER = item.TRANSFER;
+        day.ADJUSTMENT = item.ADJUSTMENT;
       }
     });
 
@@ -290,8 +323,6 @@ export class DashboardService {
       data: transactionDetails,
     };
   }
-
-  // ---------------------------------------------------
 
   async getTransactionStats(id?: string) {
     const warehouseId = this.toObjectId(id);
@@ -725,7 +756,11 @@ export class DashboardService {
     to?: string;
   }) {
     const warehouseId = this.toObjectId(query.id);
-    const period = query.period ?? TIME_RANGE.MONTH;
+    const period: TIME_RANGE = Object.values(TIME_RANGE).includes(
+      query.period as TIME_RANGE,
+    )
+      ? (query.period as TIME_RANGE)
+      : TIME_RANGE.MONTH;
     const from = query.from;
     const to = query.to;
 
@@ -734,8 +769,12 @@ export class DashboardService {
     let totalDays: number;
     const now = new Date();
 
+    const groupByHour = period === TIME_RANGE.HOURS_24;
+
     const groupByMonth =
-      period === '3months' || period === '6months' || period === '12months';
+      period === TIME_RANGE.MONTHS_3 ||
+      period === TIME_RANGE.MONTHS_6 ||
+      period === TIME_RANGE.MONTHS_12;
 
     if (from && to) {
       start = new Date(from);
@@ -753,30 +792,38 @@ export class DashboardService {
         ![
           TIME_RANGE.WEEK as string,
           TIME_RANGE.MONTH as string,
-          '3months',
-          '6months',
-          '12months',
+          TIME_RANGE.MONTHS_3 as string,
+          TIME_RANGE.MONTHS_6 as string,
+          TIME_RANGE.MONTHS_12 as string,
+          TIME_RANGE.HOURS_24 as string,
         ].includes(period)
       ) {
         throw new BadRequestException(
-          'Invalid period. Allowed values: week, month, 3months, 6months, 12months',
+          'Invalid period. Allowed values: week, month, 3months, 6months, 12months, 24hours',
         );
       }
 
-      if (period === '3months') {
-        totalDays = 90;
-      } else if (period === '6months') {
-        totalDays = 180;
-      } else if (period === '12months') {
-        totalDays = 365;
+      if (period === TIME_RANGE.HOURS_24) {
+        end = new Date();
+        start = new Date(end.getTime() - 24 * 60 * 60 * 1000);
+        totalDays = 1;
       } else {
-        totalDays = period === (TIME_RANGE.MONTH as string) ? 30 : 7;
-      }
+        const PERIOD_DAYS_MAP: Record<TIME_RANGE, number> = {
+          [TIME_RANGE.WEEK]: 7,
+          [TIME_RANGE.MONTH]: 30,
+          [TIME_RANGE.MONTHS_3]: 90,
+          [TIME_RANGE.MONTHS_6]: 180,
+          [TIME_RANGE.MONTHS_12]: 365,
+          [TIME_RANGE.HOURS_24]: 1,
+        };
 
-      start = new Date();
-      start.setDate(start.getDate() - (totalDays - 1));
-      start.setHours(0, 0, 0, 0);
-      end = now;
+        totalDays = PERIOD_DAYS_MAP[period];
+
+        start = new Date();
+        start.setDate(start.getDate() - (totalDays - 1));
+        start.setHours(0, 0, 0, 0);
+        end = now;
+      }
     }
 
     const match: QueryFilter<Transaction> = {
@@ -798,14 +845,22 @@ export class DashboardService {
           _id: {
             sortKey: {
               $dateToString: {
-                format: groupByMonth ? '%Y-%m' : '%Y-%m-%d',
+                format: groupByHour
+                  ? '%Y-%m-%d %H:00'
+                  : groupByMonth
+                    ? '%Y-%m'
+                    : '%Y-%m-%d',
                 date: '$createdAt',
                 timezone: TIME_ZONE,
               },
             },
             label: {
               $dateToString: {
-                format: groupByMonth ? '%m-%Y' : '%d-%m-%Y',
+                format: groupByHour
+                  ? '%d-%m-%Y %H:00'
+                  : groupByMonth
+                    ? '%m-%Y'
+                    : '%d-%m-%Y',
                 date: '$createdAt',
                 timezone: TIME_ZONE,
               },
