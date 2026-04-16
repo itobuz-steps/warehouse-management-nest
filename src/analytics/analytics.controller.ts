@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Res, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { AnalyticsService } from './analytics.service';
 import type { Response } from 'express';
 
@@ -9,6 +9,7 @@ import { ProductsByStockQueryDto } from './dto/products-stock-query.dto';
 import { GetWarehouseProductStockQueryDto } from './dto/warehouse-product-stock.dto';
 import { DamagedBatchBySupplierQueryDto } from './dto/damaged-batch-by-supplier.dto';
 import { TransactionSummaryQueryDto } from './dto/transaction-summary-query.dto';
+import type { RequestWithUserDocument } from 'src/transaction/types/types';
 @UseGuards(AuthGuard)
 @ApiBearerAuth()
 @Controller('analytics')
@@ -159,8 +160,14 @@ export class AnalyticsController {
   }
 
   @Get('transaction-summary')
-  async getTransactionSummary(@Query() query: TransactionSummaryQueryDto) {
-    const result = await this.analyticsService.getTransactionSummary(query);
+  async getTransactionSummary(
+    @Query() query: TransactionSummaryQueryDto,
+    @Req() req: RequestWithUserDocument,
+  ) {
+    const result = await this.analyticsService.getTransactionSummary(
+      query,
+      req.user,
+    );
 
     return {
       success: true,
