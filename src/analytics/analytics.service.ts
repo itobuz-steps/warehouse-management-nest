@@ -14,6 +14,8 @@ import {
 } from 'src/variant-stock/schemas/variant-stock.schema';
 import { Batch, BatchDocument } from 'src/batch/schemas/batch.schema';
 import { DamagedBatchBySupplierQueryDto } from './dto/damaged-batch-by-supplier.dto';
+import { UserDocument } from 'src/auth/entities/auth.entity';
+import { USER_TYPES } from 'src/auth/userType';
 
 type CountMap = Record<string, number>;
 
@@ -716,6 +718,7 @@ export class AnalyticsService {
 
   async getTransactionSummary(
     query: TransactionSummaryQuery,
+    user: UserDocument,
   ): Promise<TransactionSummary> {
     const [
       overviewRows,
@@ -729,29 +732,29 @@ export class AnalyticsService {
         totalRevenue: number;
         totalOrders: number;
         outOrders: number;
-      }>(this.buildTransactionOverviewPipeline(query)),
+      }>(await this.buildTransactionOverviewPipeline(query, user)),
       this.transactionModel.aggregate<{ totalDamageLoss: number }>(
-        this.buildTransactionDamageLossPipeline(query),
+        await this.buildTransactionDamageLossPipeline(query, user),
       ),
       this.variantStockModel.aggregate<{ inventoryValue: number }>(
-        this.buildInventoryValuePipeline(query),
+        await this.buildInventoryValuePipeline(query, user),
       ),
       this.transactionModel.aggregate<{
         date: string;
         revenue: number;
         procurement: number;
         orders: number;
-      }>(this.buildSalesTrendPipeline(query)),
+      }>(await this.buildSalesTrendPipeline(query, user)),
       this.transactionModel.aggregate<{
         type: string;
         count: number;
         totalAmount: number;
-      }>(this.buildTransactionMixPipeline(query)),
+      }>(await this.buildTransactionMixPipeline(query, user)),
       this.transactionModel.aggregate<{
         productId: Types.ObjectId;
         productName: string;
         unitsSold: number;
-      }>(this.buildTopProductsPipeline(query)),
+      }>(await this.buildTopProductsPipeline(query, user)),
     ]);
 
     const totalRevenue = overviewRows[0]?.totalRevenue ?? 0;
@@ -797,8 +800,47 @@ export class AnalyticsService {
     };
   }
 
-  private buildTransactionBaseMatch(query: TransactionSummaryQuery) {
+  private async resolveWarehouseIds(
+    user: UserDocument,
+    warehouseId?: string,
+  ): Promise<Types.ObjectId[] | null> {
+    // ADMIN
+    if (user.role !== USER_TYPES.MANAGER) {
+      if (!warehouseId) {
+        return null;
+      }
+
+      return [new Types.ObjectId(warehouseId)];
+    }
+
+    // MANAGER
+    const warehouses = await this.warehouseModel
+      .find({ managerIds: user._id })
+      .select('_id');
+
+    const ids = warehouses.map((w) => w._id);
+
+    if (ids.length === 0) {
+      return [];
+    }
+
+    if (warehouseId) {
+      const wid = new Types.ObjectId(warehouseId);
+
+      const isAllowed = ids.some((id) => id.equals(wid));
+      return isAllowed ? [wid] : [];
+    }
+
+    return ids;
+  }
+
+  private async buildTransactionBaseMatch(
+    query: TransactionSummaryQuery,
+    user: UserDocument,
+  ) {
     const { warehouseId, startDate, endDate } = query;
+
+    const ids = await this.resolveWarehouseIds(user, warehouseId);
 
     const match: Record<string, unknown> = {
       approvalStatus: 'APPROVED',
@@ -813,21 +855,28 @@ export class AnalyticsService {
       };
     }
 
-    if (warehouseId) {
-      const warehouseObjectId = new Types.ObjectId(warehouseId);
-      match.$or = [
-        { sourceWarehouse: warehouseObjectId },
-        { destinationWarehouse: warehouseObjectId },
-      ];
+    if (ids === null) {
+      return match;
     }
+
+    if (ids?.length === 0) {
+      match._id = { $exists: false };
+      return match;
+    }
+
+    match.$or = [
+      { sourceWarehouse: { $in: ids } },
+      { destinationWarehouse: { $in: ids } },
+    ];
 
     return match;
   }
 
-  private buildTransactionOverviewPipeline(
+  private async buildTransactionOverviewPipeline(
     query: TransactionSummaryQuery,
-  ): PipelineStage[] {
-    const match = this.buildTransactionBaseMatch(query);
+    user: UserDocument,
+  ): Promise<PipelineStage[]> {
+    const match = await this.buildTransactionBaseMatch(query, user);
 
     return [
       { $match: match },
@@ -858,10 +907,11 @@ export class AnalyticsService {
     ];
   }
 
-  private buildSalesTrendPipeline(
+  private async buildSalesTrendPipeline(
     query: TransactionSummaryQuery,
-  ): PipelineStage[] {
-    const match = this.buildTransactionBaseMatch(query);
+    user: UserDocument,
+  ): Promise<PipelineStage[]> {
+    const match = await this.buildTransactionBaseMatch(query, user);
 
     return [
       { $match: match },
@@ -901,10 +951,11 @@ export class AnalyticsService {
     ];
   }
 
-  private buildTransactionMixPipeline(
+  private async buildTransactionMixPipeline(
     query: TransactionSummaryQuery,
-  ): PipelineStage[] {
-    const match = this.buildTransactionBaseMatch(query);
+    user: UserDocument,
+  ): Promise<PipelineStage[]> {
+    const match = await this.buildTransactionBaseMatch(query, user);
 
     return [
       { $match: match },
@@ -927,10 +978,11 @@ export class AnalyticsService {
     ];
   }
 
-  private buildTopProductsPipeline(
+  private async buildTopProductsPipeline(
     query: TransactionSummaryQuery,
-  ): PipelineStage[] {
-    const match = this.buildTransactionBaseMatch(query);
+    user: UserDocument,
+  ): Promise<PipelineStage[]> {
+    const match = await this.buildTransactionBaseMatch(query, user);
 
     return [
       {
@@ -968,27 +1020,16 @@ export class AnalyticsService {
     ];
   }
 
-  private buildTransactionDamageLossPipeline(
+  private async buildTransactionDamageLossPipeline(
     query: TransactionSummaryQuery,
-  ): PipelineStage[] {
-    const { warehouseId, startDate, endDate } = query;
+    user: UserDocument,
+  ): Promise<PipelineStage[]> {
+    const baseMatch = await this.buildTransactionBaseMatch(query, user);
 
     const match: Record<string, unknown> = {
+      ...baseMatch,
       type: 'IN',
     };
-
-    if (warehouseId) {
-      match.destinationWarehouse = new Types.ObjectId(warehouseId);
-    }
-
-    if (startDate || endDate) {
-      match.createdAt = {
-        ...(startDate && { $gte: new Date(startDate) }),
-        ...(endDate && {
-          $lte: new Date(new Date(endDate).setHours(23, 59, 59, 999)),
-        }),
-      };
-    }
 
     return [
       { $match: match },
@@ -1051,13 +1092,18 @@ export class AnalyticsService {
     ];
   }
 
-  private buildInventoryValuePipeline(
+  private async buildInventoryValuePipeline(
     query: TransactionSummaryQuery,
-  ): PipelineStage[] {
+    user: UserDocument,
+  ): Promise<PipelineStage[]> {
+    const ids = await this.resolveWarehouseIds(user, query.warehouseId);
+
     const match: Record<string, unknown> = {};
 
-    if (query.warehouseId) {
-      match.warehouseId = new Types.ObjectId(query.warehouseId);
+    if (ids?.length === 0) {
+      match._id = { $exists: false };
+    } else if (ids) {
+      match.warehouseId = { $in: ids };
     }
 
     return [
