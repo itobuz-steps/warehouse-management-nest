@@ -8,7 +8,9 @@ import {
   Param,
   UseGuards,
   Req,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { TransactionService } from './transaction.service';
 import { StockInDto } from './dto/stock-in.dto';
 import { AuthGuard } from 'src/common/guard/auth.guard';
@@ -65,6 +67,27 @@ export class TransactionController {
   @Get('/frequent-warehouses')
   getFrequentWarehouses(@Req() req: RequestWithUserDocument) {
     return this.transactionService.getFrequentWarehouses(req.user);
+  }
+
+  @Get('export/csv')
+  async exportTransactionsCsv(
+    @Query() query: GetTransactionsQueryDto,
+    @Req() req: RequestWithUserDocument,
+    @Res() res: Response,
+  ) {
+    const csv = await this.transactionService.exportTransactionsCsv(
+      query,
+      req.user,
+    );
+
+    const timestamp = new Date().toISOString().slice(0, 10);
+
+    res.set({
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename=transactions-${timestamp}.csv`,
+    });
+
+    return res.send(csv);
   }
 
   @Get('/:warehouseId')

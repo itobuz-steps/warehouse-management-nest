@@ -51,6 +51,23 @@ export class ProductsController {
     };
   }
 
+  @Get('export/csv')
+  async exportProductsCsv(
+    @Query() queryDto: GetProductsQueryDto,
+    @Res() res: Response,
+  ) {
+    const csv = await this.productsService.exportProductsCsv(queryDto);
+
+    const timestamp = new Date().toISOString().slice(0, 10);
+
+    res.set({
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename=products-${timestamp}.csv`,
+    });
+
+    return res.send(csv);
+  }
+
   @Get(':id')
   async getProduct(@Param('id') id: string) {
     return {

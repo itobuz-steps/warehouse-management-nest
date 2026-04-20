@@ -206,6 +206,56 @@ export class ProductsService {
     };
   }
 
+  async exportProductsCsv(queryDto: GetProductsQueryDto): Promise<string> {
+    const { products } = await this.getProducts(queryDto);
+
+    const headers = [
+      'id',
+      'name',
+      'category',
+      'brand',
+      'label',
+      'description',
+      'isArchived',
+      'variantCount',
+    ];
+
+    const csvRows = products.map((product) => {
+      const values: Array<
+        string | number | boolean | Types.ObjectId | null | undefined
+      > = [
+        product._id,
+        product.name,
+        product.category,
+        product.brand,
+        product.label,
+        product.description,
+        product.isArchived,
+        product.variantCount,
+      ];
+
+      return values
+        .map((value) => {
+          if (!value) {
+            return '""';
+          }
+
+          const normalizedValue =
+            typeof value === 'string' ||
+            typeof value === 'number' ||
+            typeof value === 'boolean'
+              ? String(value)
+              : value.toString();
+
+          const escapedValue = normalizedValue.replace(/"/g, '""');
+          return `"${escapedValue}"`;
+        })
+        .join(',');
+    });
+
+    return [headers.join(','), ...csvRows].join('\n');
+  }
+
   async getProductsForWarehouse(query: GetWarehouseProductsQueryDto) {
     const filter: QueryFilter<ProductDocument> = { isArchived: false };
 

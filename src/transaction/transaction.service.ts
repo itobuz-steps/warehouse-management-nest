@@ -325,6 +325,105 @@ export class TransactionService {
     };
   }
 
+  async exportTransactionsCsv(
+    query: GetTransactionsQueryDto,
+    user: UserDocument,
+  ): Promise<string> {
+    const result = await this.getTransactions(query, user);
+
+    const transactions = result.data.transactions;
+
+    const headers = [
+      'id',
+      'type',
+      'approvalStatus',
+      'shipment',
+      'totalAmount',
+      'productsCount',
+      'performedBy',
+      'sourceWarehouse',
+      'destinationWarehouse',
+      'supplier',
+      'customer',
+      'createdAt',
+      'updatedAt',
+    ];
+
+    const getObjectDisplayValue = (
+      value: unknown,
+      keys: string[] = ['name', 'email', '_id'],
+    ): string => {
+      if (!value || typeof value !== 'object') {
+        return '';
+      }
+
+      const record = value as Record<string, unknown>;
+
+      for (const key of keys) {
+        const candidate = record[key];
+
+        if (
+          typeof candidate === 'string' ||
+          typeof candidate === 'number' ||
+          typeof candidate === 'boolean'
+        ) {
+          return String(candidate);
+        }
+
+        if (candidate instanceof Types.ObjectId) {
+          return candidate.toString();
+        }
+      }
+
+      return '';
+    };
+
+    const toCellString = (value: unknown): string => {
+      if (!value) {
+        return '';
+      }
+
+      if (
+        typeof value === 'string' ||
+        typeof value === 'number' ||
+        typeof value === 'boolean'
+      ) {
+        return String(value);
+      }
+
+      if (value instanceof Date || value instanceof Types.ObjectId) {
+        return value.toString();
+      }
+
+      return '';
+    };
+
+    const escapeCsvValue = (value: string): string =>
+      `"${value.replace(/"/g, '""')}"`;
+
+    const csvRows = transactions.map((transaction) => {
+      const values = [
+        toCellString(transaction._id),
+        toCellString(transaction.type),
+        toCellString(transaction.approvalStatus),
+        toCellString(transaction.shipment),
+        toCellString(transaction.totalAmount),
+        toCellString(transaction.products?.length ?? 0),
+        getObjectDisplayValue(transaction.performedBy),
+        getObjectDisplayValue(transaction.sourceWarehouse),
+        getObjectDisplayValue(transaction.destinationWarehouse),
+        getObjectDisplayValue(transaction.supplier),
+        getObjectDisplayValue(transaction.customer),
+        toCellString(transaction.createdAt),
+        toCellString(transaction.updatedAt),
+      ];
+
+      return values.map((value) => escapeCsvValue(value)).join(',');
+    });
+
+    return [headers.join(','), ...csvRows].join('\n');
+  }
+
   async getTransactionById(id: string) {
     const transaction = await this.transactionModel.findById(id).populate([
       { path: 'performedBy', select: 'name email role profileImageKey' },
