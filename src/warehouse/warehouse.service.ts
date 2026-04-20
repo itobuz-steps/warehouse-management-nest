@@ -23,7 +23,9 @@ import { Transaction } from 'src/transaction/schemas/transaction.schema';
 export class WarehouseService {
   constructor(
     @InjectModel(Warehouse.name)
-    private readonly warehouseModel: Model<WarehouseDocument>,
+    private readonly warehouseModel: Model<
+      WarehouseDocument & { warehouseImageUrl?: string }
+    >,
 
     @InjectModel(Quantity.name)
     private readonly quantityModel: Model<Quantity>,
@@ -56,15 +58,26 @@ export class WarehouseService {
       }>('managerIds', 'name email role profileImageKey')
       .lean();
 
-    for (const warehouse of warehouses) {
-      for (const manager of warehouse.managerIds) {
-        manager.profileImage = manager.profileImageKey
-          ? await this.storageService.getPresignedSignedUrl(
-              manager.profileImageKey,
-            )
-          : undefined;
-      }
-    }
+    await Promise.all(
+      warehouses.map(async (warehouse) => {
+        if (warehouse.warehouseImageKey) {
+          warehouse.warehouseImageUrl =
+            await this.storageService.getPresignedSignedUrl(
+              warehouse.warehouseImageKey,
+            );
+        }
+
+        await Promise.all(
+          warehouse.managerIds.map(async (manager) => {
+            manager.profileImage = manager.profileImageKey
+              ? await this.storageService.getPresignedSignedUrl(
+                  manager.profileImageKey,
+                )
+              : undefined;
+          }),
+        );
+      }),
+    );
 
     return {
       success: true,
@@ -93,6 +106,14 @@ export class WarehouseService {
         );
       }
 
+      let imageUrl: string | null = null;
+
+      if (warehouse.warehouseImageKey) {
+        imageUrl = await this.storageService.getPresignedSignedUrl(
+          warehouse.warehouseImageKey,
+        );
+      }
+
       return {
         success: true,
         message: 'Warehouse Details',
@@ -103,6 +124,7 @@ export class WarehouseService {
             email: user.email,
           },
           warehouse,
+          imageUrl,
         },
       };
     }
@@ -173,7 +195,11 @@ export class WarehouseService {
     };
   }
 
-  async addWarehouse(dto: CreateWarehouseDto, user: UserDocument) {
+  async addWarehouse(
+    dto: CreateWarehouseDto,
+    imageKey: string | null,
+    user: UserDocument,
+  ) {
     const managerIds =
       dto.managers?.map((id) => new mongoose.Types.ObjectId(id)) ?? [];
 
@@ -184,6 +210,7 @@ export class WarehouseService {
 
     const warehouse = await this.warehouseModel.create({
       ...dto,
+      warehouseImageKey: imageKey,
       managerIds,
     });
 
@@ -202,6 +229,7 @@ export class WarehouseService {
           name: m.name as string,
         })),
         maxTransactionPriceLimit: warehouse.maxTransactionPriceLimit,
+        warehouseImage: warehouse.warehouseImageKey,
       },
     });
 
@@ -215,6 +243,7 @@ export class WarehouseService {
   async updateWarehouse(
     id: string,
     dto: UpdateWarehouseDto,
+    imageKey: string | null,
     user: UserDocument,
   ) {
     const managerIds: Types.ObjectId[] =
@@ -240,10 +269,19 @@ export class WarehouseService {
           .lean()
       : [];
 
+    if (!imageKey) {
+      const existing = await this.warehouseModel.findById(
+        new Types.ObjectId(id),
+      );
+
+      imageKey = existing?.warehouseImageKey || null;
+    }
+
     const updatedWarehouse = await this.warehouseModel.findByIdAndUpdate(
       id,
       {
         ...dto,
+        warehouseImageKey: imageKey,
         managerIds,
       },
       { new: true },
