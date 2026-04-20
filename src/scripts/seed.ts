@@ -59,6 +59,7 @@ type BatchSeedRecord = {
   variantId: ObjId;
   destinationWarehouse: ObjId;
   quantity: number;
+  remainingQuantity: number;
 };
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
@@ -356,7 +357,7 @@ async function seed(): Promise<void> {
   }
 
   await mongoose.connect(dbUri, {
-    dbName: 'new_seeded_db',
+    dbName: 'seeded_db_3',
   });
 
   const UserModel =
@@ -706,50 +707,34 @@ async function seed(): Promise<void> {
     }
   }
 
-  const initialStockMap = new Map<string, number>();
-  const knownVariantWarehousePairs = new Set<string>();
-
-  for (const variant of variantRecords) {
-    const assignedWarehouses = randomSubset(warehouseDocs, 1, 2);
-
-    for (const warehouse of assignedWarehouses) {
-      const key = stockKey(variant._id, warehouse._id);
-      const quantity = randomInt(30, 140);
-      initialStockMap.set(key, quantity);
-      knownVariantWarehousePairs.add(key);
-    }
-  }
-
   const batchRecords: BatchSeedRecord[] = [];
 
   for (let i = 0; i < 28; i++) {
     const variant = randomFrom(variantRecords);
     const warehouse = randomFrom(warehouseDocs);
     const quantity = randomInt(40, 160);
+    const remainingQuantity = randomInt(0, quantity);
 
     batchRecords.push({
       _id: new Types.ObjectId(),
       variantId: variant._id,
       destinationWarehouse: warehouse._id,
       quantity,
+      remainingQuantity,
     });
   }
 
-  await BatchModel.insertMany(
-    batchRecords.map((batch) => ({
-      _id: batch._id,
-      sourceWarehouse: null,
-      destinationWarehouse: batch.destinationWarehouse,
-      items: [
-        {
-          variant: batch.variantId,
-          quantity: batch.quantity,
-          remainingQuantity: randomInt(0, batch.quantity),
-        },
-      ],
-      ...timestampPair(),
-    })),
-  );
+  const initialStockMap = new Map<string, number>();
+  const knownVariantWarehousePairs = new Set<string>();
+
+  for (const batch of batchRecords) {
+    const key = stockKey(batch.variantId, batch.destinationWarehouse);
+    initialStockMap.set(
+      key,
+      (initialStockMap.get(key) ?? 0) + batch.remainingQuantity,
+    );
+    knownVariantWarehousePairs.add(key);
+  }
 
   const batchesByVariant = new Map<string, BatchSeedRecord[]>();
 
@@ -789,6 +774,67 @@ async function seed(): Promise<void> {
     initialStockMap.set(key, nextValue);
     knownVariantWarehousePairs.add(key);
     return nextValue;
+  };
+
+  const reconcileBatchRemainingWithStocks = () => {
+    const batchesByPair = new Map<string, BatchSeedRecord[]>();
+
+    for (const batch of batchRecords) {
+      const key = stockKey(batch.variantId, batch.destinationWarehouse);
+      const list = batchesByPair.get(key) ?? [];
+      list.push(batch);
+      batchesByPair.set(key, list);
+    }
+
+    for (const key of knownVariantWarehousePairs) {
+      let target = initialStockMap.get(key) ?? 0;
+      target = Math.max(0, target);
+
+      const pairBatches = batchesByPair.get(key) ?? [];
+
+      if (pairBatches.length === 0) {
+        if (target === 0) {
+          continue;
+        }
+
+        const { variantId, warehouseId } = parseStockKey(key);
+        const syntheticBatch: BatchSeedRecord = {
+          _id: new Types.ObjectId(),
+          variantId,
+          destinationWarehouse: warehouseId,
+          quantity: target,
+          remainingQuantity: target,
+        };
+
+        batchRecords.push(syntheticBatch);
+        batchesByPair.set(key, [syntheticBatch]);
+        continue;
+      }
+
+      let remainingTarget = target;
+
+      for (const batch of pairBatches) {
+        const allocation = Math.min(batch.quantity, remainingTarget);
+        batch.remainingQuantity = allocation;
+        remainingTarget -= allocation;
+      }
+
+      if (remainingTarget > 0) {
+        const { variantId, warehouseId } = parseStockKey(key);
+        const extraBatch: BatchSeedRecord = {
+          _id: new Types.ObjectId(),
+          variantId,
+          destinationWarehouse: warehouseId,
+          quantity: remainingTarget,
+          remainingQuantity: remainingTarget,
+        };
+
+        batchRecords.push(extraBatch);
+        const existing = batchesByPair.get(key) ?? [];
+        existing.push(extraBatch);
+        batchesByPair.set(key, existing);
+      }
+    }
   };
 
   for (const variant of variantRecords) {
@@ -1094,9 +1140,53 @@ async function seed(): Promise<void> {
     }
   }
 
+  reconcileBatchRemainingWithStocks();
+
+  await BatchModel.insertMany(
+    batchRecords.map((batch) => ({
+      _id: batch._id,
+      sourceWarehouse: null,
+      destinationWarehouse: batch.destinationWarehouse,
+      items: [
+        {
+          variant: batch.variantId,
+          quantity: batch.quantity,
+          remainingQuantity: batch.remainingQuantity,
+        },
+      ],
+      ...timestampPair(),
+    })),
+  );
+
+  await TransactionModel.insertMany(transactionDocs);
+  await TransactionLogModel.insertMany(logDocs);
+
+  const persistedBatchStockRows = await BatchModel.aggregate<{
+    _id: { variantId: ObjId; warehouseId: ObjId };
+    quantity: number;
+  }>([
+    { $unwind: '$items' },
+    {
+      $group: {
+        _id: {
+          variantId: '$items.variant',
+          warehouseId: '$destinationWarehouse',
+        },
+        quantity: { $sum: '$items.remainingQuantity' },
+      },
+    },
+  ]);
+
+  const stockMapFromBatches = new Map<string, number>();
+
+  for (const row of persistedBatchStockRows) {
+    const key = stockKey(row._id.variantId, row._id.warehouseId);
+    stockMapFromBatches.set(key, row.quantity);
+  }
+
   const lowStockThreshold = numberFromEnv('STOCK_LIMIT', 25);
 
-  for (const [key, quantity] of initialStockMap.entries()) {
+  for (const [key, quantity] of stockMapFromBatches.entries()) {
     if (quantity > lowStockThreshold) {
       continue;
     }
@@ -1123,29 +1213,98 @@ async function seed(): Promise<void> {
     });
   }
 
-  await TransactionModel.insertMany(transactionDocs);
   await NotificationModel.insertMany(notificationDocs);
-  await TransactionLogModel.insertMany(logDocs);
 
-  const variantStockDocs = Array.from(knownVariantWarehousePairs).map((key) => {
-    const { variantId, warehouseId } = parseStockKey(key);
-    const variant = variantRecords.find((item) => item._id.equals(variantId));
+  const variantStockDocs = Array.from(stockMapFromBatches.entries()).map(
+    ([key, quantity]) => {
+      const { variantId, warehouseId } = parseStockKey(key);
+      const variant = variantRecords.find((item) => item._id.equals(variantId));
 
-    if (!variant) {
-      throw new Error('Variant not found for stock record.');
-    }
+      if (!variant) {
+        throw new Error('Variant not found for stock record.');
+      }
 
-    return {
-      _id: new Types.ObjectId(),
-      productId: variant.productId,
-      variantId,
-      warehouseId,
-      quantity: initialStockMap.get(key) ?? 0,
-      ...timestampPair(),
-    };
-  });
+      return {
+        _id: new Types.ObjectId(),
+        productId: variant.productId,
+        variantId,
+        warehouseId,
+        quantity,
+        ...timestampPair(),
+      };
+    },
+  );
 
   await VariantStockModel.insertMany(variantStockDocs);
+
+  const batchTotals = await BatchModel.aggregate<{
+    _id: { variantId: ObjId; warehouseId: ObjId };
+    quantity: number;
+  }>([
+    { $unwind: '$items' },
+    {
+      $group: {
+        _id: {
+          variantId: '$items.variant',
+          warehouseId: '$destinationWarehouse',
+        },
+        quantity: { $sum: '$items.remainingQuantity' },
+      },
+    },
+  ]);
+
+  const variantStockTotals = await VariantStockModel.aggregate<{
+    _id: { variantId: ObjId; warehouseId: ObjId };
+    quantity: number;
+  }>([
+    {
+      $group: {
+        _id: {
+          variantId: '$variantId',
+          warehouseId: '$warehouseId',
+        },
+        quantity: { $sum: '$quantity' },
+      },
+    },
+  ]);
+
+  const batchTotalMap = new Map<string, number>();
+  const variantStockTotalMap = new Map<string, number>();
+
+  for (const row of batchTotals) {
+    batchTotalMap.set(
+      stockKey(row._id.variantId, row._id.warehouseId),
+      row.quantity,
+    );
+  }
+
+  for (const row of variantStockTotals) {
+    variantStockTotalMap.set(
+      stockKey(row._id.variantId, row._id.warehouseId),
+      row.quantity,
+    );
+  }
+
+  const allStockKeys = new Set([
+    ...batchTotalMap.keys(),
+    ...variantStockTotalMap.keys(),
+  ]);
+
+  const mismatches = Array.from(allStockKeys)
+    .map((key) => ({
+      key,
+      batchQuantity: batchTotalMap.get(key) ?? 0,
+      variantStockQuantity: variantStockTotalMap.get(key) ?? 0,
+    }))
+    .filter((item) => item.batchQuantity !== item.variantStockQuantity);
+
+  if (mismatches.length > 0) {
+    throw new Error(
+      `Seed invariant violated for ${mismatches.length} variant-warehouse pair(s). Example: ${JSON.stringify(
+        mismatches[0],
+      )}`,
+    );
+  }
 
   const productWarehouseTotals = new Map<string, number>();
 
