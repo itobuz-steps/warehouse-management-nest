@@ -308,6 +308,7 @@ export class WarehouseService {
             name: m.name as string,
             email: m.email,
           })),
+          warehouseImage: oldWarehouse.warehouseImageKey,
         },
         newValue: {
           name: updatedWarehouse.name,
@@ -320,6 +321,7 @@ export class WarehouseService {
             name: m.name as string,
             email: m.email,
           })),
+          warehouseImage: updatedWarehouse.warehouseImageKey,
         },
       },
     });
@@ -359,6 +361,7 @@ export class WarehouseService {
         active: !warehouse.active,
         address: warehouse.address,
         maxTransactionPriceLimit: warehouse.maxTransactionPriceLimit,
+        warehouseImage: warehouse.warehouseImageKey,
       },
     });
 

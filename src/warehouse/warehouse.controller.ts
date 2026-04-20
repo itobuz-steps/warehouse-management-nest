@@ -91,7 +91,6 @@ export class WarehouseController {
   ) {
     let imageUrl: string | null = null;
 
-    console.log(file);
     if (file) {
       const uploadedImage = await this.storageService.uploadSingleFile(file);
       imageUrl = uploadedImage.key;

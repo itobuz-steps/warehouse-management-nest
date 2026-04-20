@@ -27,5 +27,5 @@ export type WarehouseDeleteLog = {
   address: string;
   active: boolean;
   maxTransactionPriceLimit: number;
-  warehouseImages?: string[];
+  warehouseImage?: string | null;
 };
