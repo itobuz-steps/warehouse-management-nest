@@ -27,6 +27,7 @@ import config from '../config/config.service';
 import { TokenGenerator } from '../utils/TokenGenerator.js';
 import { MailService } from 'src/mail/mail.service';
 import OtpGenerator from '../utils/OtpGenerator.js';
+import { USER_TYPES } from './userType';
 
 export interface TokenPayload {
   email?: string;
@@ -45,13 +46,22 @@ export class AuthService {
   ) {}
 
   async signup(dto: SignupDto) {
-    const { name, email, role } = dto;
+    const { name, email } = dto;
 
     const isUser = await this.userModel.findOne({ email }).exec();
 
     if (!isUser) {
-      await this.userModel.create({ name, email, role });
+      await this.userModel.create({
+        name,
+        email,
+        role: USER_TYPES.MANAGER,
+        preferences: {
+          push: true,
+          email: true,
+        },
+      });
     }
+
     if (isUser?.isVerified) {
       throw new BadRequestException('User already exists');
     }
