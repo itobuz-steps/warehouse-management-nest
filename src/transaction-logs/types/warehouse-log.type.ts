@@ -13,6 +13,7 @@ export type WarehouseCreateLog = {
   capacity: number;
   active: boolean;
   maxTransactionPriceLimit: number;
+  warehouseImage?: string | null;
 };
 
 export type WarehouseUpdateLog = {
@@ -26,4 +27,5 @@ export type WarehouseDeleteLog = {
   address: string;
   active: boolean;
   maxTransactionPriceLimit: number;
+  warehouseImage?: string | null;
 };

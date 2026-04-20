@@ -27,6 +27,9 @@ export class Warehouse {
 
   @Prop({ required: true, default: 10000 })
   maxTransactionPriceLimit: number; // for approval of admin to set stock updates upto a certain amount of whole batch
+
+  @Prop({ type: String, default: null })
+  warehouseImageKey: string | null;
 }
 
 export const WarehouseSchema = SchemaFactory.createForClass(Warehouse);

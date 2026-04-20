@@ -6,7 +6,9 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Min,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class UpdateWarehouseDto extends PartialType(CreateWarehouseDto) {
   @IsOptional()
@@ -25,15 +27,20 @@ export class UpdateWarehouseDto extends PartialType(CreateWarehouseDto) {
   @IsBoolean()
   active?: boolean;
 
-  @IsOptional()
+  @Transform(({ value }: { value: string | string[] }) =>
+    Array.isArray(value) ? value : value ? [value] : [],
+  )
   @IsArray()
+  @IsOptional()
   managers?: string[];
 
-  @IsOptional()
+  @Transform(({ value }) => Number(value))
   @IsNumber()
-  capacity?: number;
+  @Min(1)
+  capacity: number;
 
+  @Transform(({ value }) => Number(value))
   @IsNumber()
-  @IsOptional()
-  maxTransactionPriceLimit?: number;
+  @Min(1)
+  maxTransactionPriceLimit: number;
 }

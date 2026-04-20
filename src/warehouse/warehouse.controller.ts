@@ -8,6 +8,8 @@ import {
   Post,
   Req,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
 import { WarehouseService } from './warehouse.service';
 import { AuthGuard } from 'src/common/guard/auth.guard';
@@ -17,12 +19,19 @@ import { Roles } from 'src/common/guard/roles.decorator';
 import { UpdateWarehouseDto } from './dto/update-warehouse.dto';
 import { ApiBearerAuth } from '@nestjs/swagger';
 import type { RequestWithUser } from 'src/profile/profile.controller';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { FILE_FIELD } from 'src/common/constants/file.constant';
+import { StorageService } from 'src/storage/storage.service';
 
 @UseGuards(AuthGuard)
 @ApiBearerAuth()
 @Controller('warehouse/')
 export class WarehouseController {
-  constructor(private readonly service: WarehouseService) {}
+  constructor(
+    private readonly service: WarehouseService,
+    private readonly storageService: StorageService,
+  ) {}
 
   @Get('get-warehouses')
   getWarehouses(@Req() req: RequestWithUser) {
@@ -46,19 +55,48 @@ export class WarehouseController {
   }
 
   @Post()
+  @UseInterceptors(
+    FileInterceptor(FILE_FIELD.warehouseImage, {
+      storage: memoryStorage(),
+    }),
+  )
   @Roles(USER_TYPES.ADMIN)
-  addWarehouse(@Body() dto: CreateWarehouseDto, @Req() req: RequestWithUser) {
-    return this.service.addWarehouse(dto, req.user);
+  async addWarehouse(
+    @Body() dto: CreateWarehouseDto,
+    @UploadedFile() file: Express.Multer.File,
+    @Req() req: RequestWithUser,
+  ) {
+    let imageKey: string | null = null;
+
+    if (file) {
+      const uploadedImage = await this.storageService.uploadSingleFile(file);
+      imageKey = uploadedImage.key;
+    }
+
+    return await this.service.addWarehouse(dto, imageKey, req.user);
   }
 
   @Put('/:id')
+  @UseInterceptors(
+    FileInterceptor(FILE_FIELD.warehouseImage, {
+      storage: memoryStorage(),
+    }),
+  )
   @Roles(USER_TYPES.ADMIN)
-  updateWarehouse(
+  async updateWarehouse(
     @Param('id') id: string,
     @Body() dto: UpdateWarehouseDto,
     @Req() req: RequestWithUser,
+    @UploadedFile() file: Express.Multer.File,
   ) {
-    return this.service.updateWarehouse(id, dto, req.user);
+    let imageUrl: string | null = null;
+
+    if (file) {
+      const uploadedImage = await this.storageService.uploadSingleFile(file);
+      imageUrl = uploadedImage.key;
+    }
+
+    return this.service.updateWarehouse(id, dto, imageUrl, req.user);
   }
 
   @Delete('/:id')
