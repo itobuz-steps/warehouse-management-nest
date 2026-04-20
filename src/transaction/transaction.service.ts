@@ -769,7 +769,7 @@ export class TransactionService {
       }
     }
 
-    Promise.all(notificationPromises).catch(() =>
+    Promise.allSettled(notificationPromises).catch(() =>
       console.error('Notification failed'),
     );
   }
@@ -1007,7 +1007,7 @@ export class TransactionService {
       }
     }
 
-    Promise.all(notificationPromises).catch(() =>
+    Promise.allSettled(notificationPromises).catch(() =>
       console.error('Notification failure'),
     );
   }
@@ -1539,7 +1539,7 @@ export class TransactionService {
       }
     }
 
-    Promise.all(notificationPromises).catch(() =>
+    Promise.allSettled(notificationPromises).catch(() =>
       console.error('Notification failed'),
     );
   }
