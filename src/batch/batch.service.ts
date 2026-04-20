@@ -38,6 +38,8 @@ type FindAllBatchesQuery = {
   destinationWarehouse?: string;
   page?: number;
   limit?: number;
+  startDate?: Date;
+  endDate?: Date;
 };
 
 @Injectable()
@@ -163,6 +165,22 @@ export class BatchService {
           options: 'i',
         },
       };
+    }
+
+    if (query.startDate || query.endDate) {
+      const createdAtFilter: Record<string, Date> = {};
+
+      if (query.startDate) {
+        createdAtFilter.$gte = new Date(query.startDate);
+      }
+
+      if (query.endDate) {
+        const end = new Date(query.endDate);
+        end.setHours(23, 59, 59, 999);
+        createdAtFilter.$lte = end;
+      }
+
+      filter.createdAt = createdAtFilter;
     }
 
     return filter;
