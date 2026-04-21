@@ -45,18 +45,30 @@ export class AdminService {
     private readonly storageService: StorageService,
   ) {}
 
-  async getManagers() {
-    const data = await this.userModel.find(
-      {
-        role: USER_TYPES.MANAGER,
-        isVerified: true,
-        isDeleted: false,
-      },
-      {
-        password: 0,
-        __v: 0,
-      },
-    );
+  async getManagers(warehouseId?: string) {
+    const filter: QueryFilter<User> = {
+      role: USER_TYPES.MANAGER,
+      isVerified: true,
+      isDeleted: false,
+    };
+
+    if (warehouseId) {
+      const warehouse = await this.warehouseModel
+        .findById(warehouseId)
+        .select('managerIds')
+        .lean();
+
+      if (!warehouse) {
+        throw new NotFoundException(`Warehouse ${warehouseId} not found`);
+      }
+
+      filter._id = { $in: warehouse.managerIds ?? [] };
+    }
+
+    const data = await this.userModel.find(filter, {
+      password: 0,
+      __v: 0,
+    });
 
     return {
       message: 'All Managers',
