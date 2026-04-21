@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, QueryFilter, Types } from 'mongoose';
 import { USER_TYPES } from 'src/auth/userType';
@@ -6,6 +6,7 @@ import { User } from 'src/auth/entities/auth.entity';
 import { StorageService } from 'src/storage/storage.service';
 import { GetManagersDto } from './dto/get-manager.dto';
 import { Transaction } from 'src/transaction/schemas/transaction.schema';
+import { Warehouse } from 'src/warehouse/schemas/warehouse.schema';
 
 /* ── Types ───────────────────────────────────────────────────────────────── */
 
@@ -37,6 +38,9 @@ export class AdminService {
 
     @InjectModel(Transaction.name)
     private readonly transactionModel: Model<Transaction>,
+
+    @InjectModel(Warehouse.name)
+    private readonly warehouseModel: Model<Warehouse>,
 
     private readonly storageService: StorageService,
   ) {}
@@ -127,10 +131,10 @@ export class AdminService {
     };
   }
 
-  async getManagerTransactionStats(managerId?: string) {
+  async getManagerTransactionStats(managerId?: string, warehouseId?: string) {
     const stat = managerId
-      ? await this.getStatForManager(managerId)
-      : await this.getMostEfficientManager();
+      ? await this.getStatForManager(managerId, warehouseId)
+      : await this.getMostEfficientManager(warehouseId);
 
     return {
       success: true,
@@ -161,20 +165,60 @@ export class AdminService {
 
   /* ── Private helpers ─────────────────────────────────────────────────────── */
 
-  private async getMostEfficientManager(): Promise<ManagerRow | null> {
-    const results = await this.buildAggregation();
+  private async resolveAllowedManagerIds(
+    warehouseId?: string,
+  ): Promise<Types.ObjectId[] | null> {
+    if (!warehouseId) return null;
+
+    const warehouse = await this.warehouseModel
+      .findById(warehouseId)
+      .select('managerIds')
+      .lean();
+
+    if (!warehouse) {
+      throw new NotFoundException(`Warehouse ${warehouseId} not found`);
+    }
+
+    return warehouse.managerIds ?? [];
+  }
+
+  private async getMostEfficientManager(
+    warehouseId?: string,
+  ): Promise<ManagerRow | null> {
+    const matchCriteria: Record<string, unknown> = {};
+
+    const allowedIds = await this.resolveAllowedManagerIds(warehouseId);
+    if (allowedIds !== null) {
+      matchCriteria.performedBy = { $in: allowedIds };
+    }
+
+    const results = await this.buildAggregation(matchCriteria);
     return results[0] ?? null;
   }
 
   private async getStatForManager(
     managerId: string,
+    warehouseId?: string,
   ): Promise<ManagerRow | null> {
-    const objectId = new Types.ObjectId(managerId);
-    const results = await this.buildAggregation({ performedBy: objectId });
+    const managerObjectId = new Types.ObjectId(managerId);
+
+    const allowedIds = await this.resolveAllowedManagerIds(warehouseId);
+
+    if (
+      allowedIds !== null &&
+      !allowedIds.some((id) => id.equals(managerObjectId))
+    ) {
+      return null;
+    }
+
+    const matchCriteria: Record<string, unknown> = {
+      performedBy: managerObjectId,
+    };
+
+    const results = await this.buildAggregation(matchCriteria);
     return results[0] ?? null;
   }
 
-  // line 145/151 fix: typed return so aggregate result is no longer `any`
   private async buildAggregation(
     extraMatch: Record<string, unknown> = {},
   ): Promise<ManagerRow[]> {

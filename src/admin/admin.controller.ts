@@ -22,8 +22,12 @@ export class AdminController {
 
   @Get('analytics')
   @ApiQuery({ name: 'managerId', required: false, type: String })
-  getManagerAnalytics(@Query('managerId') managerId?: string) {
-    return this.adminService.getManagerTransactionStats(managerId);
+  @ApiQuery({ name: 'warehouseId', required: false, type: String })
+  getManagerAnalytics(
+    @Query('managerId') managerId?: string,
+    @Query('warehouseId') warehouseId?: string,
+  ) {
+    return this.adminService.getManagerTransactionStats(managerId, warehouseId);
   }
 
   @Get('manager-trend')
