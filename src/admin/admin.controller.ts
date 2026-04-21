@@ -11,8 +11,8 @@ export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
   @Get('get-managers')
-  getManagers() {
-    return this.adminService.getManagers();
+  getManagers(@Query('warehouseId') warehouseId?: string) {
+    return this.adminService.getManagers(warehouseId);
   }
 
   @Get('get-all-managers')
