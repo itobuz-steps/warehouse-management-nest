@@ -37,8 +37,11 @@ export class AdminController {
     enum: ['7', '30'],
     description: 'Last 7 days or 30 days',
   })
-  getManagerTrend(@Query('period') period?: string) {
+  getManagerTrend(
+    @Query('period') period?: string,
+    @Query('warehouseId') warehouseId?: string,
+  ) {
     const days = period === '30' ? 30 : 7;
-    return this.adminService.getManagerAddedTrend(days);
+    return this.adminService.getManagerAddedTrend(days, warehouseId);
   }
 }

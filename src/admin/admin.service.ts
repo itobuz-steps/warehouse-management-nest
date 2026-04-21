@@ -85,6 +85,7 @@ export class AdminService {
       isActive,
       isVerified,
       sort = 'desc',
+      warehouseId,
     } = query;
 
     const pageNumber = Number(page);
@@ -93,6 +94,36 @@ export class AdminService {
     const filters: QueryFilter<User> = {
       role: USER_TYPES.MANAGER,
     };
+
+    let managerIds: Types.ObjectId[] | null = null;
+
+    if (warehouseId) {
+      const warehouse = await this.warehouseModel.findById(warehouseId, {
+        managerIds: 1,
+      });
+
+      if (!warehouse) {
+        return {
+          success: true,
+          message: 'Manager trend retrieved',
+          data: [],
+        };
+      }
+
+      managerIds = warehouse.managerIds ?? [];
+
+      if (!managerIds.length) {
+        return {
+          success: true,
+          message: 'Manager trend retrieved',
+          data: [],
+        };
+      }
+    }
+
+    if (managerIds && managerIds.length) {
+      filters._id = { $in: managerIds };
+    }
 
     if (isActive !== undefined) {
       filters.isActive = isActive === 'true';
@@ -117,7 +148,6 @@ export class AdminService {
       .skip((pageNumber - 1) * limitNumber)
       .limit(limitNumber);
 
-    // line 108-110 fix: type the mapped result explicitly
     const data: UserObject[] = await Promise.all(
       users.map(async (user): Promise<UserObject> => {
         if (user.profileImageKey) {
@@ -278,7 +308,10 @@ export class AdminService {
     ]);
   }
 
-  async getManagerAddedTrend(period: 7 | 30): Promise<{
+  async getManagerAddedTrend(
+    period: 7 | 30,
+    warehouseId?: string,
+  ): Promise<{
     success: boolean;
     message: string;
     data: TrendPoint[];
@@ -288,8 +321,25 @@ export class AdminService {
     from.setDate(now.getDate() - period + 1);
     from.setHours(0, 0, 0, 0);
 
+    let managerIds: Types.ObjectId[] | null = null;
+
+    if (warehouseId) {
+      const warehouse = await this.warehouseModel.findById(warehouseId, {
+        managerIds: 1,
+      });
+
+      if (!warehouse) {
+        return { success: true, message: 'Manager trend retrieved', data: [] };
+      }
+
+      managerIds = warehouse.managerIds ?? [];
+
+      if (!managerIds.length) {
+        return { success: true, message: 'Manager trend retrieved', data: [] };
+      }
+    }
+
     if (period === 7) {
-      // Daily — one point per day labelled "Mon", "Tue" …
       const results = await this.userModel.aggregate<{
         day: number;
         month: number;
@@ -300,6 +350,9 @@ export class AdminService {
           $match: {
             role: USER_TYPES.MANAGER,
             createdAt: { $gte: from, $lte: now },
+            ...(managerIds && managerIds.length
+              ? { _id: { $in: managerIds } }
+              : {}),
           },
         },
         {
@@ -358,11 +411,32 @@ export class AdminService {
         $match: {
           role: USER_TYPES.MANAGER,
           createdAt: { $gte: from, $lte: now },
+          ...(managerIds && managerIds.length
+            ? { _id: { $in: managerIds } }
+            : {}),
         },
       },
       {
         $group: {
-          _id: { $ceil: { $divide: [{ $dayOfMonth: '$createdAt' }, 7] } },
+          _id: {
+            $ceil: {
+              $divide: [
+                {
+                  $add: [
+                    {
+                      $dateDiff: {
+                        startDate: from,
+                        endDate: '$createdAt',
+                        unit: 'day',
+                      },
+                    },
+                    1,
+                  ],
+                },
+                7,
+              ],
+            },
+          },
           count: { $sum: 1 },
         },
       },
