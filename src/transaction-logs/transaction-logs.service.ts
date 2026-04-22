@@ -36,6 +36,11 @@ type UserWithImage = {
 };
 
 type LogWithUser = {
+  _id?: Types.ObjectId | string;
+  action?: string;
+  entityType?: string;
+  entityId?: string;
+  createdAt?: Date | string;
   performedBy: {
     userId: UserWithImage;
   };
@@ -312,6 +317,64 @@ export class TransactionLogsService {
       page,
       limit,
     };
+  }
+
+  async exportLogsCsv(
+    query: GetLogsDto,
+    currentUser: UserDocument,
+  ): Promise<string> {
+    const { data } = await this.getLogs(query, currentUser);
+
+    const headers = [
+      'id',
+      'action',
+      'entityType',
+      'entityId',
+      'performedByName',
+      'performedByEmail',
+      'createdAt',
+    ];
+
+    const toCellString = (value: unknown): string => {
+      if (value === null || value === undefined) {
+        return '';
+      }
+
+      if (
+        typeof value === 'string' ||
+        typeof value === 'number' ||
+        typeof value === 'boolean'
+      ) {
+        return String(value);
+      }
+
+      if (value instanceof Date || value instanceof Types.ObjectId) {
+        return value.toString();
+      }
+
+      return '';
+    };
+
+    const escapeCsvValue = (value: string): string =>
+      `"${value.replace(/"/g, '""')}"`;
+
+    const rows = data.map((log) => {
+      const user = log.performedBy?.userId;
+
+      const values = [
+        toCellString(log._id),
+        toCellString(log.action),
+        toCellString(log.entityType),
+        toCellString(log.entityId),
+        toCellString(user?.name),
+        toCellString(user?.email),
+        toCellString(log.createdAt),
+      ];
+
+      return values.map((value) => escapeCsvValue(value)).join(',');
+    });
+
+    return [headers.join(','), ...rows].join('\n');
   }
 
   async getEntityTimeline(entityId: string) {
