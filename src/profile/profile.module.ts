@@ -6,10 +6,17 @@ import { User, UserSchema } from '../auth/entities/auth.entity';
 import { MongooseModule } from '@nestjs/mongoose';
 import { StorageService } from 'src/storage/storage.service';
 import { TransactionLogsModule } from 'src/transaction-logs/transaction-logs.module';
+import {
+  Warehouse,
+  WarehouseSchema,
+} from 'src/warehouse/schemas/warehouse.schema';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
+    MongooseModule.forFeature([
+      { name: User.name, schema: UserSchema },
+      { name: Warehouse.name, schema: WarehouseSchema },
+    ]),
     TransactionLogsModule,
   ],
   controllers: [ProfileController],

@@ -11,8 +11,8 @@ export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
   @Get('get-managers')
-  getManagers() {
-    return this.adminService.getManagers();
+  getManagers(@Query('warehouseId') warehouseId?: string) {
+    return this.adminService.getManagers(warehouseId);
   }
 
   @Get('get-all-managers')
@@ -22,8 +22,12 @@ export class AdminController {
 
   @Get('analytics')
   @ApiQuery({ name: 'managerId', required: false, type: String })
-  getManagerAnalytics(@Query('managerId') managerId?: string) {
-    return this.adminService.getManagerTransactionStats(managerId);
+  @ApiQuery({ name: 'warehouseId', required: false, type: String })
+  getManagerAnalytics(
+    @Query('managerId') managerId?: string,
+    @Query('warehouseId') warehouseId?: string,
+  ) {
+    return this.adminService.getManagerTransactionStats(managerId, warehouseId);
   }
 
   @Get('manager-trend')
@@ -33,8 +37,11 @@ export class AdminController {
     enum: ['7', '30'],
     description: 'Last 7 days or 30 days',
   })
-  getManagerTrend(@Query('period') period?: string) {
+  getManagerTrend(
+    @Query('period') period?: string,
+    @Query('warehouseId') warehouseId?: string,
+  ) {
     const days = period === '30' ? 30 : 7;
-    return this.adminService.getManagerAddedTrend(days);
+    return this.adminService.getManagerAddedTrend(days, warehouseId);
   }
 }

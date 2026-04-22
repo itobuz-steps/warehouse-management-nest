@@ -12,6 +12,7 @@ import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.se
 import { LOG_ACTION } from 'src/transaction-logs/enums/log-action.enum';
 import { LOG_ENTITY_TYPE } from 'src/transaction-logs/enums/log-entity-type.enum';
 import { UpdatePreferenceDto } from './dto/update-preference.dto';
+import { Warehouse } from 'src/warehouse/schemas/warehouse.schema';
 
 @Injectable()
 export class ProfileService {
@@ -19,6 +20,8 @@ export class ProfileService {
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     private readonly storageService: StorageService,
     private readonly logsService: TransactionLogsService,
+
+    @InjectModel(Warehouse.name) private warehouseModel: Model<Warehouse>,
   ) {}
 
   async updateProfile(user: UserDocument, file: Express.Multer.File) {
@@ -67,26 +70,48 @@ export class ProfileService {
     }
   }
 
-  async getUserDetails(user: User) {
+  async getUserDetails(user: User, warehouseId?: string) {
     if (user.role === USER_TYPES.MANAGER) {
       throw new ForbiddenException(
         'Managers are not allowed to access this data',
       );
     }
-    let verifiedManagers = [];
-    let unverifiedManagers = [];
 
-    verifiedManagers = await this.userModel.find({
+    const managerFilter: {
+      role: USER_TYPES;
+      isDeleted: boolean;
+      _id?: { $in: Types.ObjectId[] };
+    } = {
       role: USER_TYPES.MANAGER,
-      isVerified: true,
       isDeleted: false,
-    });
+    };
 
-    unverifiedManagers = await this.userModel.find({
-      role: USER_TYPES.MANAGER,
-      isVerified: false,
-      isDeleted: false,
-    });
+    if (warehouseId) {
+      const warehouse = await this.warehouseModel.findById(warehouseId, {
+        managerIds: 1,
+      });
+
+      if (!warehouse || !warehouse.managerIds?.length) {
+        return {
+          user,
+          verifiedManagers: [],
+          unverifiedManagers: [],
+        };
+      }
+
+      managerFilter._id = { $in: warehouse.managerIds };
+    }
+
+    const [verifiedManagers, unverifiedManagers] = await Promise.all([
+      this.userModel.find({
+        ...managerFilter,
+        isVerified: true,
+      }),
+      this.userModel.find({
+        ...managerFilter,
+        isVerified: false,
+      }),
+    ]);
 
     return { user, verifiedManagers, unverifiedManagers };
   }
