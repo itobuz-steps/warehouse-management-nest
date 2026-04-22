@@ -16,6 +16,14 @@ import { Batch, BatchDocument } from 'src/batch/schemas/batch.schema';
 import { DamagedBatchBySupplierQueryDto } from './dto/damaged-batch-by-supplier.dto';
 import { UserDocument } from 'src/auth/entities/auth.entity';
 import { USER_TYPES } from 'src/auth/userType';
+import {
+  AuditLogActorsQueryDto,
+  AuditLogAnalyticsQueryDto,
+} from './dto/audit-log-analytics-query.dto';
+import {
+  TransactionLog,
+  TransactionLogDocument,
+} from 'src/transaction-logs/entities/transaction-log.entity';
 
 type CountMap = Record<string, number>;
 
@@ -66,6 +74,71 @@ type TransactionSummary = {
   }>;
 };
 
+type AuditLogsSummary = {
+  scope: {
+    startDate: string;
+    endDate: string;
+    warehouseId: string | null;
+    action: string[];
+    entityType: string[];
+    userId: string | null;
+  };
+  totalActions: number;
+  actionsByType: Array<{
+    action: string;
+    count: number;
+  }>;
+  actionsByEntity: Array<{
+    entityType: string;
+    count: number;
+  }>;
+  busiestHour: {
+    hour: number;
+    count: number;
+  } | null;
+};
+
+type AuditLogsTimeline = {
+  scope: {
+    startDate: string;
+    endDate: string;
+    granularity: 'day' | 'week';
+    warehouseId: string | null;
+    action: string[];
+    entityType: string[];
+    userId: string | null;
+  };
+  timelineCounts: Array<{
+    bucket: string;
+    count: number;
+  }>;
+};
+
+type AuditLogsActors = {
+  scope: {
+    startDate: string;
+    endDate: string;
+    warehouseId: string | null;
+    action: string[];
+    entityType: string[];
+    userId: string | null;
+    page: number;
+    limit: number;
+  };
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+  };
+  topActors: Array<{
+    userId: Types.ObjectId | null;
+    name: string;
+    email: string;
+    actionCount: number;
+    lastActionAt: Date;
+  }>;
+};
+
 @Injectable()
 export class AnalyticsService {
   constructor(
@@ -79,6 +152,8 @@ export class AnalyticsService {
     private variantStockModel: Model<VariantStockDocument>,
     @InjectModel(Batch.name)
     private batchModel: Model<BatchDocument>,
+    @InjectModel(TransactionLog.name)
+    private transactionLogModel: Model<TransactionLogDocument>,
   ) {}
 
   async getTwoProductQuantities(query: TwoProductQuery) {
@@ -797,6 +872,332 @@ export class AnalyticsService {
       })),
       transactionMix,
       topProducts: topRows,
+    };
+  }
+
+  async getAuditLogsSummary(
+    query: AuditLogAnalyticsQueryDto,
+  ): Promise<AuditLogsSummary> {
+    const { startDate, endDate } = this.resolveAuditDateRange(
+      query.startDate,
+      query.endDate,
+    );
+    const match = this.buildAuditLogMatch(query, startDate, endDate);
+
+    const rows = await this.transactionLogModel.aggregate<{
+      total: Array<{ totalActions: number }>;
+      actionsByType: Array<{ action: string; count: number }>;
+      actionsByEntity: Array<{ entityType: string; count: number }>;
+      busiestHour: Array<{ hour: number; count: number }>;
+    }>([
+      { $match: match },
+      {
+        $facet: {
+          total: [{ $count: 'totalActions' }],
+          actionsByType: [
+            {
+              $group: {
+                _id: '$action',
+                count: { $sum: 1 },
+              },
+            },
+            { $sort: { count: -1, _id: 1 } },
+            {
+              $project: {
+                _id: 0,
+                action: '$_id',
+                count: 1,
+              },
+            },
+          ],
+          actionsByEntity: [
+            {
+              $group: {
+                _id: '$entityType',
+                count: { $sum: 1 },
+              },
+            },
+            { $sort: { count: -1, _id: 1 } },
+            {
+              $project: {
+                _id: 0,
+                entityType: '$_id',
+                count: 1,
+              },
+            },
+          ],
+          busiestHour: [
+            {
+              $project: {
+                hour: { $hour: '$createdAt' },
+              },
+            },
+            {
+              $group: {
+                _id: '$hour',
+                count: { $sum: 1 },
+              },
+            },
+            { $sort: { count: -1, _id: 1 } },
+            { $limit: 1 },
+            {
+              $project: {
+                _id: 0,
+                hour: '$_id',
+                count: 1,
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    const payload = rows[0];
+
+    return {
+      scope: this.buildAuditScope(query, startDate, endDate),
+      totalActions: payload?.total[0]?.totalActions ?? 0,
+      actionsByType: payload?.actionsByType ?? [],
+      actionsByEntity: payload?.actionsByEntity ?? [],
+      busiestHour: payload?.busiestHour[0] ?? null,
+    };
+  }
+
+  async getAuditLogsTimeline(
+    query: AuditLogAnalyticsQueryDto,
+  ): Promise<AuditLogsTimeline> {
+    const { startDate, endDate } = this.resolveAuditDateRange(
+      query.startDate,
+      query.endDate,
+    );
+    const match = this.buildAuditLogMatch(query, startDate, endDate);
+    const timezone = query.timezone || 'UTC';
+    const granularity = query.granularity || 'day';
+
+    const bucketExpression: Record<string, unknown> =
+      granularity === 'week'
+        ? {
+            $concat: [
+              { $toString: { $isoWeekYear: '$createdAt' } },
+              '-W',
+              { $toString: { $isoWeek: '$createdAt' } },
+            ],
+          }
+        : {
+            $dateToString: {
+              format: '%Y-%m-%d',
+              date: '$createdAt',
+              timezone,
+            },
+          };
+
+    const timelineCounts = await this.transactionLogModel.aggregate<{
+      bucket: string;
+      count: number;
+    }>([
+      { $match: match },
+      {
+        $group: {
+          _id: bucketExpression,
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+      {
+        $project: {
+          _id: 0,
+          bucket: '$_id',
+          count: 1,
+        },
+      },
+    ]);
+
+    return {
+      scope: {
+        ...this.buildAuditScope(query, startDate, endDate),
+        granularity,
+      },
+      timelineCounts,
+    };
+  }
+
+  async getAuditLogsActors(
+    query: AuditLogActorsQueryDto,
+  ): Promise<AuditLogsActors> {
+    const { startDate, endDate } = this.resolveAuditDateRange(
+      query.startDate,
+      query.endDate,
+    );
+    const match = this.buildAuditLogMatch(query, startDate, endDate);
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+    const skip = (page - 1) * limit;
+
+    const rows = await this.transactionLogModel.aggregate<{
+      data: Array<{
+        userId: Types.ObjectId | null;
+        name: string;
+        email: string;
+        actionCount: number;
+        lastActionAt: Date;
+      }>;
+      total: Array<{ total: number }>;
+    }>([
+      { $match: match },
+      {
+        $group: {
+          _id: '$performedBy.userId',
+          actionCount: { $sum: 1 },
+          lastActionAt: { $max: '$createdAt' },
+        },
+      },
+      { $sort: { actionCount: -1, lastActionAt: -1 } },
+      {
+        $facet: {
+          data: [
+            { $skip: skip },
+            { $limit: limit },
+            {
+              $lookup: {
+                from: 'users',
+                localField: '_id',
+                foreignField: '_id',
+                as: 'user',
+              },
+            },
+            {
+              $unwind: {
+                path: '$user',
+                preserveNullAndEmptyArrays: true,
+              },
+            },
+            {
+              $project: {
+                _id: 0,
+                userId: '$_id',
+                name: { $ifNull: ['$user.name', 'Unknown User'] },
+                email: { $ifNull: ['$user.email', ''] },
+                actionCount: 1,
+                lastActionAt: 1,
+              },
+            },
+          ],
+          total: [{ $count: 'total' }],
+        },
+      },
+    ]);
+
+    const payload = rows[0];
+    const total = payload?.total[0]?.total ?? 0;
+
+    return {
+      scope: {
+        ...this.buildAuditScope(query, startDate, endDate),
+        page,
+        limit,
+      },
+      pagination: {
+        page,
+        limit,
+        total,
+      },
+      topActors: payload?.data ?? [],
+    };
+  }
+
+  private resolveAuditDateRange(startDate?: string, endDate?: string) {
+    const resolvedEnd = endDate ? new Date(endDate) : new Date();
+    resolvedEnd.setHours(23, 59, 59, 999);
+
+    const resolvedStart = startDate
+      ? new Date(startDate)
+      : new Date(resolvedEnd);
+    if (!startDate) {
+      resolvedStart.setDate(resolvedStart.getDate() - 29);
+    }
+    resolvedStart.setHours(0, 0, 0, 0);
+
+    return {
+      startDate: resolvedStart,
+      endDate: resolvedEnd,
+    };
+  }
+
+  private buildAuditLogMatch(
+    query: AuditLogAnalyticsQueryDto,
+    startDate: Date,
+    endDate: Date,
+  ): Record<string, unknown> {
+    const match: Record<string, unknown> = {
+      createdAt: {
+        $gte: startDate,
+        $lte: endDate,
+      },
+    };
+
+    if (query.action?.length) {
+      match.action = { $in: query.action };
+    }
+
+    if (query.entityType?.length) {
+      match.entityType = { $in: query.entityType };
+    }
+
+    if (query.userId) {
+      match['performedBy.userId'] = new Types.ObjectId(query.userId);
+    }
+
+    if (query.warehouseId) {
+      match.$or = this.buildAuditWarehouseFilter(query.warehouseId);
+    }
+
+    return match;
+  }
+
+  private buildAuditWarehouseFilter(
+    warehouseId: string,
+  ): Array<Record<string, unknown>> {
+    const warehouseObjectId = new Types.ObjectId(warehouseId);
+
+    return [
+      {
+        entityType: 'WAREHOUSE',
+        entityId: warehouseId,
+      },
+      {
+        entityType: 'WAREHOUSE',
+        entityId: warehouseObjectId,
+      },
+      {
+        'metadata.sourceWarehouse.warehouseId': {
+          $in: [warehouseId, warehouseObjectId],
+        },
+      },
+      {
+        'metadata.destinationWarehouse.warehouseId': {
+          $in: [warehouseId, warehouseObjectId],
+        },
+      },
+      {
+        'metadata.destinationWarehouseId': {
+          $in: [warehouseId, warehouseObjectId],
+        },
+      },
+    ];
+  }
+
+  private buildAuditScope(
+    query: AuditLogAnalyticsQueryDto,
+    startDate: Date,
+    endDate: Date,
+  ) {
+    return {
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      warehouseId: query.warehouseId ?? null,
+      action: query.action ?? [],
+      entityType: query.entityType ?? [],
+      userId: query.userId ?? null,
     };
   }
 

@@ -22,6 +22,10 @@ import {
   VariantStockSchema,
 } from 'src/variant-stock/schemas/variant-stock.schema';
 import { Batch, BatchSchema } from 'src/batch/schemas/batch.schema';
+import {
+  TransactionLog,
+  TransactionLogSchema,
+} from 'src/transaction-logs/entities/transaction-log.entity';
 
 @Module({
   imports: [
@@ -33,6 +37,7 @@ import { Batch, BatchSchema } from 'src/batch/schemas/batch.schema';
       { name: User.name, schema: UserSchema },
       { name: VariantStock.name, schema: VariantStockSchema },
       { name: Batch.name, schema: BatchSchema },
+      { name: TransactionLog.name, schema: TransactionLogSchema },
     ]),
   ],
   controllers: [AnalyticsController],

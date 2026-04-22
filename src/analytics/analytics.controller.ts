@@ -10,6 +10,10 @@ import { GetWarehouseProductStockQueryDto } from './dto/warehouse-product-stock.
 import { DamagedBatchBySupplierQueryDto } from './dto/damaged-batch-by-supplier.dto';
 import { TransactionSummaryQueryDto } from './dto/transaction-summary-query.dto';
 import type { RequestWithUserDocument } from 'src/transaction/types/types';
+import {
+  AuditLogActorsQueryDto,
+  AuditLogAnalyticsQueryDto,
+} from './dto/audit-log-analytics-query.dto';
 @UseGuards(AuthGuard)
 @ApiBearerAuth()
 @Controller('analytics')
@@ -172,6 +176,39 @@ export class AnalyticsController {
     return {
       success: true,
       message: 'Transaction analytics fetched successfully.',
+      data: result,
+    };
+  }
+
+  @Get('audit-logs/summary')
+  async getAuditLogsSummary(@Query() query: AuditLogAnalyticsQueryDto) {
+    const result = await this.analyticsService.getAuditLogsSummary(query);
+
+    return {
+      success: true,
+      message: 'Audit logs summary fetched successfully.',
+      data: result,
+    };
+  }
+
+  @Get('audit-logs/timeline')
+  async getAuditLogsTimeline(@Query() query: AuditLogAnalyticsQueryDto) {
+    const result = await this.analyticsService.getAuditLogsTimeline(query);
+
+    return {
+      success: true,
+      message: 'Audit logs timeline fetched successfully.',
+      data: result,
+    };
+  }
+
+  @Get('audit-logs/actors')
+  async getAuditLogActors(@Query() query: AuditLogActorsQueryDto) {
+    const result = await this.analyticsService.getAuditLogsActors(query);
+
+    return {
+      success: true,
+      message: 'Audit log actors fetched successfully.',
       data: result,
     };
   }
