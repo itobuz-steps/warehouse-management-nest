@@ -29,4 +29,8 @@ export class GetManagersDto {
   @IsOptional()
   @IsString()
   sort?: string;
+
+  @IsOptional()
+  @IsString()
+  warehouseId?: string;
 }

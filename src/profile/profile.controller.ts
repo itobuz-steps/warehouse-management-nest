@@ -9,6 +9,7 @@ import {
   Param,
   UseGuards,
   Body,
+  Query,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
@@ -59,10 +60,13 @@ export class ProfileController {
   }
 
   @Get()
-  async getUserDetails(@Req() req: RequestWithUser) {
+  async getUserDetails(
+    @Req() req: RequestWithUser,
+    @Query('warehouseId') warehouseId?: string,
+  ) {
     return {
       success: true,
-      ...(await this.profileService.getUserDetails(req.user)),
+      ...(await this.profileService.getUserDetails(req.user, warehouseId)),
     };
   }
 
