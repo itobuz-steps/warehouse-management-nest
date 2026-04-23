@@ -231,7 +231,7 @@ export class TransactionService {
             { path: 'products.product', select: 'name category' },
             {
               path: 'products.variants.variant',
-              select: 'sku attributes varinatImage',
+              select: 'sku attributes variantImage',
             },
             { path: 'approvedBy', select: 'name profileImageKey' },
             {
@@ -2284,7 +2284,7 @@ export class TransactionService {
                 price: 1,
                 markup: 1,
                 attributes: 1,
-                images: 1,
+                variantImage: 1,
               },
             },
           ],

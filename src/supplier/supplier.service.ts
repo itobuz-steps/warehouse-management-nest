@@ -52,6 +52,7 @@ export class SupplierService {
         phoneNumber: newSupplier.phoneNumber,
         address: newSupplier.address,
         suppliedProduct: newSupplier.suppliedProduct,
+        status: newSupplier.isActive ? 'Active' : 'Inactive',
       },
     });
 
@@ -71,6 +72,7 @@ export class SupplierService {
       phoneNumber: existingSupplier.phoneNumber,
       address: existingSupplier.address,
       suppliedProduct: existingSupplier.suppliedProduct,
+      status: existingSupplier.isActive ? 'Active' : 'Inactive',
     };
 
     const updatedSupplier = await this.supplierModel.findByIdAndUpdate(
@@ -96,6 +98,7 @@ export class SupplierService {
           phoneNumber: updatedSupplier.phoneNumber,
           address: updatedSupplier.address,
           suppliedProduct: updatedSupplier.suppliedProduct,
+          status: updatedSupplier.isActive ? 'Active' : 'Inactive',
         },
       },
     });
