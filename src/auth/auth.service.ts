@@ -29,10 +29,10 @@ import { MailService } from 'src/mail/mail.service';
 import OtpGenerator from '../utils/OtpGenerator.js';
 import { USER_TYPES } from './userType';
 
-export interface TokenPayload {
+export type TokenPayload = {
   email?: string;
   id?: string;
-}
+};
 
 @Injectable()
 export class AuthService {
@@ -70,8 +70,7 @@ export class AuthService {
 
     const link = `http://${config().FRONTEND_URL}/signup?token=${inviteToken}`;
 
-    const response = await this.sendEmail.sendInvitationEmail(email, link);
-    console.log(response);
+    await this.sendEmail.sendInvitationEmail(email, link);
 
     return {
       message: 'Invitation link sent successfully',
@@ -80,6 +79,7 @@ export class AuthService {
   }
 
   async setPassword(token: string, dto: SetPasswordDto) {
+    console.log(token, dto);
     const payload = jwt.verify(token, config().TOKEN_SECRET) as TokenPayload;
 
     if (!payload.email) {
