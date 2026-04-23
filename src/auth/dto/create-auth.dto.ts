@@ -1,7 +1,7 @@
 import { IsEmail, IsNotEmpty, IsString, Matches } from 'class-validator';
 
 export const PASSWORD_REGEX =
-  /^(?=.[a-z])(?=.[A-Z])(?=.\d)(?=.[@$!%?&])[A-Za-z\d@$!%?&]{8,}$/;
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%?&])[A-Za-z\d@$!%?&]{8,}$/;
 
 const invalidPasswordMessage: string =
   'Password must contain uppercase, lowercase, number, and special character';
