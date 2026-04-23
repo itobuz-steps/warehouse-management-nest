@@ -4,6 +4,7 @@ export type SupplierCreateLog = {
   suppliedProduct: string[];
   address: string;
   phoneNumber: string;
+  status: string;
 };
 
 export type SupplierUpdateLog = {

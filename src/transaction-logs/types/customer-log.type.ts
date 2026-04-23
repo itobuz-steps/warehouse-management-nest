@@ -3,6 +3,7 @@ export type CustomerCreateLog = {
   email: string;
   phoneNumber?: string;
   address?: string;
+  status: string;
 };
 
 export type CustomerUpdateLog = {

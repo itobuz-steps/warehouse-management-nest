@@ -289,6 +289,7 @@ export class ProductsService {
     }
 
     const oldValue = {
+      name: existingProduct.name,
       description: existingProduct.description,
     };
 
@@ -303,6 +304,7 @@ export class ProductsService {
     }
 
     const newValue = {
+      name: updatedProduct.name,
       description: updatedProduct.description,
     };
 

@@ -33,6 +33,7 @@ export class CustomerService {
         email: customer.email,
         phoneNumber: customer.phoneNumber,
         address: customer.address,
+        status: customer.isActive ? 'Active' : 'Inactive',
       },
     });
 
@@ -121,6 +122,8 @@ export class CustomerService {
       name: existingCustomer.name,
       email: existingCustomer.email,
       phoneNumber: existingCustomer.phoneNumber,
+      address: existingCustomer.address,
+      status: existingCustomer.isActive ? 'Active' : 'Inactive',
     };
 
     const updatedCustomer = await this.customerModel.findByIdAndUpdate(
@@ -137,6 +140,8 @@ export class CustomerService {
       name: updatedCustomer.name,
       email: updatedCustomer.email,
       phoneNumber: updatedCustomer.phoneNumber,
+      address: updatedCustomer.address,
+      status: updatedCustomer.isActive ? 'Active' : 'Inactive',
     };
 
     await this.logsService.createLog({
