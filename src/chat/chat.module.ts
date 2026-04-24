@@ -48,6 +48,7 @@ import { CustomerModule } from 'src/customer/customer.module';
 import { BatchModule } from 'src/batch/batch.module';
 import { AdminModule } from 'src/admin/admin.module';
 import { TransactionLogsModule } from 'src/transaction-logs/transaction-logs.module';
+import { VariantModule } from 'src/variant/variant.module';
 
 @Module({
   imports: [
@@ -76,6 +77,7 @@ import { TransactionLogsModule } from 'src/transaction-logs/transaction-logs.mod
     BatchModule,
     AdminModule,
     TransactionLogsModule,
+    VariantModule,
   ],
   controllers: [ChatController],
   providers: [ChatService],

@@ -157,125 +157,12 @@ export class AnalyticsService {
   ) {}
 
   async getTwoProductQuantities(query: TwoProductQuery) {
-    const { warehouseId, productA, productB } = query;
-
-    const warehouse = await this.warehouseModel.findById(warehouseId);
-
-    if (!warehouse) {
-      throw new NotFoundException('Warehouse not found.');
-    }
-
-    const [productAData, productBData] = await Promise.all([
-      this.productModel.findById(productA),
-      this.productModel.findById(productB),
-    ]);
-
-    if (!productAData || !productBData) {
-      throw new NotFoundException('One or both product(s) not found.');
-    }
-
-    const [qtyA, qtyB] = await Promise.all([
-      this.quantityModel.findOne({ warehouseId, productA }),
-      this.quantityModel.findOne({ warehouseId, productB }),
-    ]);
-
-    return {
-      warehouse: warehouse.name,
-      productA: {
-        id: productA,
-        name: productAData.name,
-        quantity: qtyA?.quantity ?? 0,
-      },
-      productB: {
-        id: productB,
-        name: productBData.name,
-        quantity: qtyB?.quantity ?? 0,
-      },
-    };
+    return this.getTwoProductQuantitiesData(query);
   }
 
   //this one
   async getTwoProductComparisonHistory(query: TwoProductQuery) {
-    const { warehouseId, productA, productB } = query;
-
-    const [warehouse, productAData, productBData] = await Promise.all([
-      this.warehouseModel.findById(warehouseId),
-      this.productModel.findById(productA),
-      this.productModel.findById(productB),
-    ]);
-
-    if (!warehouse) {
-      throw new NotFoundException('Warehouse not found.');
-    }
-    if (!productAData || !productBData) {
-      throw new NotFoundException('One or both product(s) not found.');
-    }
-
-    const endDate = new Date();
-    endDate.setHours(23, 59, 59, 999);
-    const startDate = new Date(endDate);
-    startDate.setDate(endDate.getDate() - 6);
-    startDate.setHours(0, 0, 0, 0);
-
-    const transactions = await this.transactionModel.find({
-      product: { $in: [productA, productB] },
-      createdAt: { $gte: startDate, $lte: endDate },
-      $or: [
-        { sourceWarehouse: warehouseId },
-        { destinationWarehouse: warehouseId },
-      ],
-    });
-
-    const counts = {
-      productA: {} as CountMap,
-      productB: {} as CountMap,
-    };
-    const dateList: string[] = [];
-
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(startDate);
-      d.setDate(startDate.getDate() + i);
-      const dateKey = d.toLocaleDateString('en-CA');
-      dateList.push(dateKey);
-      counts.productA[dateKey] = 0;
-      counts.productB[dateKey] = 0;
-    }
-
-    for (const transaction of transactions) {
-      const dateKey = new Date(transaction.createdAt).toLocaleDateString(
-        'en-CA',
-      );
-
-      for (const product of transaction.products) {
-        if (String(product.product) === String(productA)) {
-          counts.productA[dateKey]++;
-        }
-
-        if (String(product.product) === String(productB)) {
-          counts.productB[dateKey]++;
-        }
-      }
-    }
-
-    return {
-      warehouse: warehouse.name,
-      productA: {
-        id: productA,
-        name: productAData.name,
-        history: dateList.map((date) => ({
-          date,
-          transactions: counts.productA[date],
-        })),
-      },
-      productB: {
-        id: productB,
-        name: productBData.name,
-        history: dateList.map((date) => ({
-          date,
-          transactions: counts.productB[date],
-        })),
-      },
-    };
+    return this.getTwoProductComparisonHistoryData(query);
   }
 
   //and this one
@@ -344,7 +231,7 @@ export class AnalyticsService {
     startDate.setHours(0, 0, 0, 0);
 
     const transactions = await this.transactionModel.find({
-      product: { $in: [productA, productB] },
+      'products.product': { $in: [productA, productB] },
       createdAt: { $gte: startDate, $lte: endDate },
       $or: [
         { sourceWarehouse: warehouseId },

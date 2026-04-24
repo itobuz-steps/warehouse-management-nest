@@ -6,7 +6,6 @@ import { CustomerService } from 'src/customer/customer.service';
 import { BatchService } from 'src/batch/batch.service';
 import { AdminService } from 'src/admin/admin.service';
 import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
-import type User from 'src/warehouse/types/userType';
 import type { UserDocument } from 'src/auth/entities/auth.entity';
 import { unwrapToolResponse } from './unwrap-tool-response';
 
@@ -17,7 +16,7 @@ export function createEntityTools(
   batchService: BatchService,
   adminService: AdminService,
   transactionLogsService: TransactionLogsService,
-  getUserContext: () => unknown,
+  getUserContext: () => UserDocument,
 ) {
   return {
     get_warehouses: tool({
@@ -25,7 +24,7 @@ export function createEntityTools(
         'List all warehouses the current user has access to. Admins see all active warehouses; managers see only their assigned ones. Returns name, address, capacity, and manager list.',
       inputSchema: z.object({}),
       execute: async () => {
-        const user = getUserContext() as User as unknown as UserDocument;
+        const user = getUserContext();
         return unwrapToolResponse(await warehouseService.getWarehouses(user));
       },
     }),
@@ -37,7 +36,7 @@ export function createEntityTools(
         warehouseId: z.string().describe('MongoDB ObjectId of the warehouse'),
       }),
       execute: async ({ warehouseId }) => {
-        const user = getUserContext() as User as unknown as UserDocument;
+        const user = getUserContext();
         return unwrapToolResponse(
           await warehouseService.getWarehouseById(warehouseId, user),
         );
@@ -51,7 +50,7 @@ export function createEntityTools(
         warehouseId: z.string().describe('MongoDB ObjectId of the warehouse'),
       }),
       execute: async ({ warehouseId }) => {
-        const user = getUserContext() as User as unknown as UserDocument;
+        const user = getUserContext();
         return unwrapToolResponse(
           await warehouseService.getWarehouseCapacity(warehouseId, user),
         );
@@ -107,7 +106,7 @@ export function createEntityTools(
         'List all inventory batches with source/destination warehouse details and variant items. Batches track stock movement between warehouses.',
       inputSchema: z.object({}),
       execute: async () => {
-        const user = getUserContext() as User as unknown as UserDocument;
+        const user = getUserContext();
         return unwrapToolResponse(await batchService.findAll({}, user));
       },
     }),
