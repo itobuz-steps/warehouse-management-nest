@@ -17,7 +17,7 @@ export class ChatMessageDto {
     description: 'Session ID for continuing a conversation',
   })
   @IsOptional()
-  @IsString()
+  @IsMongoId()
   sessionId?: string;
 
   @ApiPropertyOptional({ description: 'Warehouse context for scoped queries' })

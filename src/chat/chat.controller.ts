@@ -8,6 +8,7 @@ import {
   Req,
   Res,
   UseGuards,
+  Logger,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -32,7 +33,20 @@ interface AuthRequest extends Request {
 @UseGuards(AuthGuard)
 @Controller('chat')
 export class ChatController {
+  private readonly logger = new Logger(ChatController.name);
+
   constructor(private readonly chatService: ChatService) {}
+
+  private getAuthContext(req: AuthRequest): {
+    userId: string;
+    user: UserDocument;
+  } {
+    if (!req.userId || !req.user) {
+      throw new Error('Missing authenticated user context');
+    }
+
+    return { userId: req.userId, user: req.user };
+  }
 
   /**
    * SSE streaming endpoint — ChatGPT-style.
@@ -49,10 +63,11 @@ export class ChatController {
     @Res() res: Response,
   ) {
     try {
+      const { userId, user } = this.getAuthContext(req);
       const { result, sessionId } = await this.chatService.streamChat(
-        req.userId!,
+        userId,
         dto.message,
-        req.user!,
+        user,
         dto.sessionId,
         dto.warehouseId,
         dto.model,
@@ -65,10 +80,6 @@ export class ChatController {
       res.setHeader('X-Session-Id', sessionId);
       res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
       res.flushHeaders();
-
-      // // Inject sessionId as the very first chunk so the client can read it
-      // // even when response headers aren't accessible (e.g. in streaming fetch)
-      // res.write(`{"sessionId":"${sessionId}"}\n`);
 
       // Get the text stream response and pipe it
       const streamResponse = result.toTextStreamResponse();
@@ -91,7 +102,9 @@ export class ChatController {
       }
       res.end();
     } catch (error) {
-      console.error('Stream error:', error);
+      this.logger.error(
+        error instanceof Error ? error.message : 'Stream failed',
+      );
       if (!res.headersSent) {
         res.status(500).json({
           success: false,
@@ -116,10 +129,12 @@ export class ChatController {
     description: 'Full chat response with text, session ID',
   })
   async sendMessage(@Body() dto: ChatMessageDto, @Req() req: AuthRequest) {
+    const { userId, user } = this.getAuthContext(req);
+
     return this.chatService.generateChat(
-      req.userId!,
+      userId,
       dto.message,
-      req.user!,
+      user,
       dto.sessionId,
       dto.warehouseId,
       dto.model,
@@ -148,7 +163,7 @@ export class ChatController {
   @Get('sessions')
   @ApiOperation({ summary: 'List all chat sessions for the current user' })
   async getSessions(@Req() req: AuthRequest) {
-    return this.chatService.getSessions(req.userId!);
+    return this.chatService.getSessions(this.getAuthContext(req).userId);
   }
 
   /**
@@ -160,7 +175,10 @@ export class ChatController {
     @Param('sessionId') sessionId: string,
     @Req() req: AuthRequest,
   ) {
-    return this.chatService.getSession(req.userId!, sessionId);
+    return this.chatService.getSession(
+      this.getAuthContext(req).userId,
+      sessionId,
+    );
   }
 
   /**
@@ -172,6 +190,9 @@ export class ChatController {
     @Param('sessionId') sessionId: string,
     @Req() req: AuthRequest,
   ) {
-    return this.chatService.deleteSession(req.userId!, sessionId);
+    return this.chatService.deleteSession(
+      this.getAuthContext(req).userId,
+      sessionId,
+    );
   }
 }

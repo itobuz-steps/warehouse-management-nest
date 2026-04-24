@@ -88,6 +88,7 @@ export default registerAs('app', () => {
       process.env.OLLAMA_BASE_URL ||
       'https://llm-server-1.wordpress-studio.io/',
     OLLAMA_MODEL: process.env.OLLAMA_MODEL || 'llama3.1:8b',
+    OLLAMA_API_KEY: process.env.OLLAMA_API_KEY,
     OLLAMA_TEMPERATURE: Number(process.env.OLLAMA_TEMPERATURE ?? 0.1),
   };
 });

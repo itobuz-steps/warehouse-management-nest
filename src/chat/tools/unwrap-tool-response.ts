@@ -4,7 +4,7 @@ type ApiEnvelope<T = unknown> = {
   data?: T;
 };
 
-export function unwrapToolResponse<T>(result: T): T {
+export function unwrapToolResponse(result: unknown): unknown {
   if (!result || typeof result !== 'object') {
     return result;
   }
@@ -17,5 +17,5 @@ export function unwrapToolResponse<T>(result: T): T {
     return result;
   }
 
-  return candidate.data as T;
+  return candidate.data;
 }

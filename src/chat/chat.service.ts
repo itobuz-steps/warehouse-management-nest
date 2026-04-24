@@ -20,6 +20,7 @@ import { CustomerService } from 'src/customer/customer.service';
 import { BatchService } from 'src/batch/batch.service';
 import { AdminService } from 'src/admin/admin.service';
 import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
+import { VariantService } from 'src/variant/variant.service';
 import type { UserDocument } from 'src/auth/entities/auth.entity';
 
 interface StreamPart {
@@ -31,6 +32,13 @@ interface ChatStreamResult {
   textStream: AsyncIterable<string>;
   fullStream: AsyncIterable<StreamPart>;
   toTextStreamResponse: () => Response;
+}
+
+interface ResolvedModel {
+  model: ReturnType<ReturnType<typeof createOpenAI>['chat']>;
+  resolvedName: string;
+  requestedName?: string;
+  usedFallback: boolean;
 }
 
 type ExecutableTool = {
@@ -46,6 +54,7 @@ import { createDashboardTools } from './tools/dashboard.tools';
 import { createAnalyticsTools } from './tools/analytics.tools';
 import { createEntityTools } from './tools/entity.tools';
 import { createQueryTools, type QueryModelMap } from './tools/query.tools';
+import { createVariantTools } from './tools/variant.tools';
 import { parseChatResponse } from './chat-response.parser';
 import { SYSTEM_PROMPT } from './chat.prompt';
 import { Product } from 'src/products/entities/product.entity';
@@ -147,6 +156,7 @@ export class ChatService {
     private readonly batchService: BatchService,
     private readonly adminService: AdminService,
     private readonly transactionLogsService: TransactionLogsService,
+    private readonly variantService: VariantService,
   ) {
     this.queryModelMap = {
       products: this.productModel,
@@ -175,10 +185,13 @@ export class ChatService {
 
     this.openai = createOpenAI({
       baseURL: normalizedBaseUrl,
-      apiKey: 'ollama',
+      apiKey: appConfig.OLLAMA_API_KEY,
     });
 
-    this.temperature = Number(appConfig.OLLAMA_TEMPERATURE) || 0.1;
+    const parsedTemperature = Number(appConfig.OLLAMA_TEMPERATURE);
+    this.temperature = Number.isFinite(parsedTemperature)
+      ? parsedTemperature
+      : 0.1;
 
     this.logStage('bootstrap', {
       model: this.defaultModel,
@@ -202,10 +215,18 @@ export class ChatService {
 
     try {
       const res = await fetch(this.ollamaTagsUrl);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status} while fetching model tags`);
+      }
+
       const data = (await res.json()) as {
         models?: Array<{ name: string }>;
       };
-      this.cachedModelIds = (data.models ?? []).map((m) => m.name);
+      const fetchedModelIds = (data.models ?? [])
+        .map((m) => m.name?.trim())
+        .filter((name): name is string => Boolean(name));
+
+      this.cachedModelIds = Array.from(new Set(fetchedModelIds));
       this.modelsCachedAt = now;
     } catch (err) {
       this.logger.warn(
@@ -215,7 +236,11 @@ export class ChatService {
       );
     }
 
-    return this.cachedModelIds.map((id) => ({ id, name: id }));
+    const modelIds = this.cachedModelIds.length
+      ? this.cachedModelIds
+      : [this.defaultModel];
+
+    return modelIds.map((id) => ({ id, name: id }));
   }
 
   /**
@@ -223,9 +248,7 @@ export class ChatService {
    * Calls getModels() to warm the cache, then validates the requested model.
    * Falls back to the configured default if the model is unknown.
    */
-  private async resolveModel(
-    name?: string,
-  ): Promise<ReturnType<ReturnType<typeof createOpenAI>['chat']>> {
+  private async resolveModel(name?: string): Promise<ResolvedModel> {
     // Warm the cache so validation is accurate
     await this.getModels();
 
@@ -233,11 +256,15 @@ export class ChatService {
 
     // If no override requested, use default
     if (!requested) {
-      return this.openai.chat(
-        this.defaultModel as Parameters<
-          ReturnType<typeof createOpenAI>['chat']
-        >[0],
-      );
+      return {
+        model: this.openai.chat(
+          this.defaultModel as Parameters<
+            ReturnType<typeof createOpenAI>['chat']
+          >[0],
+        ),
+        resolvedName: this.defaultModel,
+        usedFallback: false,
+      };
     }
 
     // Validate against cached list; fall back if unknown
@@ -252,9 +279,14 @@ export class ChatService {
       );
     }
 
-    return this.openai.chat(
-      resolved as Parameters<ReturnType<typeof createOpenAI>['chat']>[0],
-    );
+    return {
+      model: this.openai.chat(
+        resolved as Parameters<ReturnType<typeof createOpenAI>['chat']>[0],
+      ),
+      resolvedName: resolved,
+      requestedName: requested,
+      usedFallback: !isKnown,
+    };
   }
 
   /**
@@ -560,7 +592,8 @@ export class ChatService {
       ...createInventoryTools(this.quantityService),
       ...createTransactionTools(this.transactionService, getUserContext),
       ...createDashboardTools(this.dashboardService),
-      ...createAnalyticsTools(this.analyticsService),
+      ...createAnalyticsTools(this.analyticsService, getUserContext),
+      ...createVariantTools(this.variantService, this.variantModel),
       ...createEntityTools(
         this.warehouseService,
         this.supplierService,
@@ -651,14 +684,16 @@ export class ChatService {
     const history = this.sessionToMessages(session);
     const tools = this.buildTools(user);
     const systemPrompt = this.buildFullSystemPrompt(warehouseId, user);
-    const model = await this.resolveModel(modelName);
-    const resolvedModelName = modelName?.trim() || this.defaultModel;
+    const resolvedModel = await this.resolveModel(modelName);
+    const model = resolvedModel.model;
 
     this.logStage('stream.model.call_start', {
       sessionId: sid,
       historyMessages: history.length,
       toolCount: Object.keys(tools).length,
-      model: resolvedModelName,
+      model: resolvedModel.resolvedName,
+      requestedModel: resolvedModel.requestedName ?? null,
+      usedFallback: resolvedModel.usedFallback,
       temperature: this.temperature,
     });
 
@@ -686,12 +721,41 @@ export class ChatService {
           responseLength: text.length,
         });
 
-        await this.saveAssistantResponse(session, text);
+        try {
+          const fallbackMarkdown =
+            await this.buildFallbackMarkdownFromPseudoToolCall(
+              sid,
+              text,
+              tools as unknown as ExecutableToolSet,
+            );
 
-        this.logStage('stream.session.assistant_message_saved', {
-          sessionId: sid,
-          totalMessages: session.messages.length,
-        });
+          const savedReply = await this.saveAssistantResponse(
+            session,
+            fallbackMarkdown ?? text,
+          );
+
+          this.logStage('stream.session.assistant_message_saved', {
+            sessionId: sid,
+            totalMessages: session.messages.length,
+            savedReplyPreview: this.preview(savedReply, 260),
+          });
+        } catch (error) {
+          this.logStage(
+            'stream.session.assistant_message_save_error',
+            {
+              sessionId: sid,
+              error:
+                error instanceof Error
+                  ? {
+                      name: error.name,
+                      message: error.message,
+                      stack: error.stack,
+                    }
+                  : { detail: this.toLog(error) },
+            },
+            'error',
+          );
+        }
       },
       onError: ({ error }) => {
         this.logStage(
@@ -765,14 +829,16 @@ export class ChatService {
     const history = this.sessionToMessages(session);
     const tools = this.buildTools(user);
     const systemPrompt = this.buildFullSystemPrompt(warehouseId, user);
-    const model = await this.resolveModel(modelName);
-    const resolvedModelName = modelName?.trim() || this.defaultModel;
+    const resolvedModel = await this.resolveModel(modelName);
+    const model = resolvedModel.model;
 
     this.logStage('generate.model.call_start', {
       sessionId: sid,
       historyMessages: history.length,
       toolCount: Object.keys(tools).length,
-      model: resolvedModelName,
+      model: resolvedModel.resolvedName,
+      requestedModel: resolvedModel.requestedName ?? null,
+      usedFallback: resolvedModel.usedFallback,
       temperature: this.temperature,
     });
 
@@ -844,14 +910,10 @@ export class ChatService {
       tools as unknown as ExecutableToolSet,
     );
 
-    const finalReply = this.normalizeAssistantOutput(fallbackMarkdown ?? text);
-
-    session.messages.push({
-      role: 'assistant',
-      content: finalReply,
-      timestamp: new Date(),
-    } as ChatMessage);
-    await session.save();
+    const finalReply = await this.saveAssistantResponse(
+      session,
+      fallbackMarkdown ?? text,
+    );
 
     this.logStage('generate.session.assistant_message_saved', {
       sessionId: sid,

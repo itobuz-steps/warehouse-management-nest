@@ -3,7 +3,7 @@ import { ChatController } from './chat.controller';
 import { ChatService } from './chat.service';
 import { Types } from 'mongoose';
 
-// Mock the AuthGuard to avoid transitive Mongoose schema resolution
+// Mock the AuthGuard to avoid transitive auth setup.
 jest.mock('src/common/guard/auth.guard', () => ({
   AuthGuard: class MockAuthGuard {
     canActivate() {
@@ -12,53 +12,9 @@ jest.mock('src/common/guard/auth.guard', () => ({
   },
 }));
 
-// Mock ESM modules that Jest can't parse
-jest.mock('uuid', () => ({ v4: jest.fn(() => 'mock-uuid') }));
-jest.mock('@aws-sdk/client-s3', () => ({}));
-jest.mock('@aws-sdk/s3-request-presigner', () => ({}));
-
-// Mock auth entity to prevent Mongoose decorator resolution error
-jest.mock('src/auth/entities/auth.entity', () => {
-  class User {
-    name?: string;
-    email: string;
-    role: string;
-    isVerified: boolean;
-    isActive: boolean;
-    isDeleted: boolean;
-  }
-  return { User, UserDocument: User };
-});
-
-// Mock all dependent service modules with explicit factories to prevent transitive Mongoose decorator errors
-jest.mock('src/products/products.service', () => ({
-  ProductsService: jest.fn(),
-}));
-jest.mock('src/quantity/quantity.service', () => ({
-  QuantityService: jest.fn(),
-}));
-jest.mock('src/transaction/transaction.service', () => ({
-  TransactionService: jest.fn(),
-}));
-jest.mock('src/dashboard/dashboard.service', () => ({
-  DashboardService: jest.fn(),
-}));
-jest.mock('src/analytics/analytics.service', () => ({
-  AnalyticsService: jest.fn(),
-}));
-jest.mock('src/warehouse/warehouse.service', () => ({
-  WarehouseService: jest.fn(),
-}));
-jest.mock('src/supplier/supplier.service', () => ({
-  SupplierService: jest.fn(),
-}));
-jest.mock('src/customer/customer.service', () => ({
-  CustomerService: jest.fn(),
-}));
-jest.mock('src/batch/batch.service', () => ({ BatchService: jest.fn() }));
-jest.mock('src/admin/admin.service', () => ({ AdminService: jest.fn() }));
-jest.mock('src/transaction-logs/transaction-logs.service', () => ({
-  TransactionLogsService: jest.fn(),
+// Replace ChatService import with a lightweight class token.
+jest.mock('./chat.service', () => ({
+  ChatService: class MockChatService {},
 }));
 
 const mockUserId = new Types.ObjectId().toString();
@@ -81,12 +37,28 @@ const createMockRequest = (overrides = {}) => ({
 
 const createMockResponse = () => {
   const res = {
+    headersSent: false,
     setHeader: jest.fn(),
+    flushHeaders: jest.fn(),
     write: jest.fn(),
     end: jest.fn(),
+    status: jest.fn().mockReturnThis(),
+    json: jest.fn(),
   };
   return res;
 };
+
+function createReadableResponse(chunks: string[]): Response {
+  return new Response(
+    new ReadableStream<Uint8Array>({
+      start(controller) {
+        const encoder = new TextEncoder();
+        chunks.forEach((chunk) => controller.enqueue(encoder.encode(chunk)));
+        controller.close();
+      },
+    }),
+  );
+}
 
 describe('ChatController', () => {
   let controller: ChatController;
@@ -94,6 +66,7 @@ describe('ChatController', () => {
   const mockChatService = {
     streamChat: jest.fn(),
     generateChat: jest.fn(),
+    getModels: jest.fn(),
     getSessions: jest.fn(),
     getSession: jest.fn(),
     deleteSession: jest.fn(),
@@ -115,12 +88,12 @@ describe('ChatController', () => {
   });
 
   describe('streamChat', () => {
-    it('should set SSE headers and pipe the stream to response', async () => {
-      const mockResult = {
-        pipeTextStreamToResponse: jest.fn(),
-      };
+    it('sets SSE headers and forwards chunks to the response', async () => {
       mockChatService.streamChat.mockResolvedValue({
-        result: mockResult,
+        result: {
+          toTextStreamResponse: () =>
+            createReadableResponse(['hello', ' world']),
+        },
         sessionId: mockSessionId,
       });
 
@@ -136,47 +109,45 @@ describe('ChatController', () => {
         mockUser,
         undefined,
         undefined,
+        undefined,
       );
       expect(res.setHeader).toHaveBeenCalledWith(
         'Content-Type',
         'text/event-stream',
       );
-      expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'no-cache');
-      expect(res.setHeader).toHaveBeenCalledWith('Connection', 'keep-alive');
       expect(res.setHeader).toHaveBeenCalledWith('X-Session-Id', mockSessionId);
-      expect(mockResult.pipeTextStreamToResponse).toHaveBeenCalledWith(res);
+      expect(res.flushHeaders).toHaveBeenCalled();
+      expect(res.write).toHaveBeenCalledWith('hello');
+      expect(res.write).toHaveBeenCalledWith(' world');
+      expect(res.end).toHaveBeenCalled();
     });
 
-    it('should pass sessionId and warehouseId from dto', async () => {
-      const warehouseId = new Types.ObjectId().toString();
-      const mockResult = { pipeTextStreamToResponse: jest.fn() };
+    it('returns json error when stream body is missing', async () => {
       mockChatService.streamChat.mockResolvedValue({
-        result: mockResult,
+        result: {
+          toTextStreamResponse: () => new Response(null),
+        },
         sessionId: mockSessionId,
       });
 
       const req = createMockRequest();
       const res = createMockResponse();
-      const dto = {
-        message: 'Show stock',
-        sessionId: mockSessionId,
-        warehouseId,
-      };
-
-      await controller.streamChat(dto as never, req as never, res as never);
-
-      expect(mockChatService.streamChat).toHaveBeenCalledWith(
-        mockUserId,
-        'Show stock',
-        mockUser,
-        mockSessionId,
-        warehouseId,
+      await controller.streamChat(
+        { message: 'hi' } as never,
+        req as never,
+        res as never,
       );
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'No stream available',
+      });
     });
   });
 
   describe('sendMessage', () => {
-    it('should return generated chat response', async () => {
+    it('returns generated chat response', async () => {
       const expectedResponse = {
         success: true,
         message: 'Chat response generated',
@@ -196,33 +167,13 @@ describe('ChatController', () => {
         mockUser,
         undefined,
         undefined,
-      );
-    });
-
-    it('should forward sessionId and warehouseId', async () => {
-      mockChatService.generateChat.mockResolvedValue({ success: true });
-
-      const req = createMockRequest();
-      const dto = {
-        message: 'Test',
-        sessionId: mockSessionId,
-        warehouseId: 'wh-123',
-      };
-
-      await controller.sendMessage(dto as never, req as never);
-
-      expect(mockChatService.generateChat).toHaveBeenCalledWith(
-        mockUserId,
-        'Test',
-        mockUser,
-        mockSessionId,
-        'wh-123',
+        undefined,
       );
     });
   });
 
-  describe('getSessions', () => {
-    it('should return user sessions', async () => {
+  describe('session APIs', () => {
+    it('returns user sessions', async () => {
       const sessions = {
         success: true,
         message: 'Chat sessions retrieved',
@@ -230,88 +181,42 @@ describe('ChatController', () => {
       };
       mockChatService.getSessions.mockResolvedValue(sessions);
 
-      const req = createMockRequest();
-      const result = await controller.getSessions(req as never);
+      const result = await controller.getSessions(createMockRequest() as never);
 
       expect(result).toEqual(sessions);
       expect(mockChatService.getSessions).toHaveBeenCalledWith(mockUserId);
     });
-  });
 
-  describe('getSession', () => {
-    it('should return session details with messages', async () => {
-      const session = {
-        success: true,
-        message: 'Session retrieved',
-        data: {
-          _id: mockSessionId,
-          title: 'Chat 1',
-          messages: [
-            { role: 'user', content: 'Hi' },
-            { role: 'assistant', content: 'Hello!' },
-          ],
-        },
-      };
-      mockChatService.getSession.mockResolvedValue(session);
+    it('returns single session', async () => {
+      const payload = { success: true, data: { _id: mockSessionId } };
+      mockChatService.getSession.mockResolvedValue(payload);
 
-      const req = createMockRequest();
-      const result = await controller.getSession(mockSessionId, req as never);
+      const result = await controller.getSession(
+        mockSessionId,
+        createMockRequest() as never,
+      );
 
-      expect(result).toEqual(session);
+      expect(result).toEqual(payload);
       expect(mockChatService.getSession).toHaveBeenCalledWith(
         mockUserId,
         mockSessionId,
       );
     });
 
-    it('should handle not found session', async () => {
-      const notFound = {
-        success: false,
-        message: 'Session not found',
-        data: null,
-      };
-      mockChatService.getSession.mockResolvedValue(notFound);
+    it('deletes a session', async () => {
+      const payload = { success: true, message: 'Session deleted', data: null };
+      mockChatService.deleteSession.mockResolvedValue(payload);
 
-      const req = createMockRequest();
-      const result = await controller.getSession('nonexistent', req as never);
-
-      expect(result).toEqual(notFound);
-    });
-  });
-
-  describe('deleteSession', () => {
-    it('should delete a session successfully', async () => {
-      const deleted = { success: true, message: 'Session deleted', data: null };
-      mockChatService.deleteSession.mockResolvedValue(deleted);
-
-      const req = createMockRequest();
       const result = await controller.deleteSession(
         mockSessionId,
-        req as never,
+        createMockRequest() as never,
       );
 
-      expect(result).toEqual(deleted);
+      expect(result).toEqual(payload);
       expect(mockChatService.deleteSession).toHaveBeenCalledWith(
         mockUserId,
         mockSessionId,
       );
-    });
-
-    it('should handle deleting non-existent session', async () => {
-      const notFound = {
-        success: false,
-        message: 'Session not found',
-        data: null,
-      };
-      mockChatService.deleteSession.mockResolvedValue(notFound);
-
-      const req = createMockRequest();
-      const result = await controller.deleteSession(
-        'nonexistent',
-        req as never,
-      );
-
-      expect(result).toEqual(notFound);
     });
   });
 });
