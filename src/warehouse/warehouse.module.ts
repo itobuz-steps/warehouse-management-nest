@@ -14,6 +14,10 @@ import {
   Transaction,
   TransactionSchema,
 } from 'src/transaction/schemas/transaction.schema';
+import {
+  Notification,
+  NotificationSchema,
+} from 'src/notification/entities/notification.entity';
 
 @Module({
   imports: [
@@ -22,6 +26,7 @@ import {
       { name: User.name, schema: UserSchema },
       { name: Quantity.name, schema: QuantitySchema },
       { name: Transaction.name, schema: TransactionSchema },
+      { name: Notification.name, schema: NotificationSchema },
     ]),
     TransactionLogsModule,
   ],
