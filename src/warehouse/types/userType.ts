@@ -1,4 +1,5 @@
 import type { Request } from 'express';
+import { Types } from 'mongoose';
 import { USER_TYPES } from 'src/auth/userType';
 
 export type User = {
@@ -31,3 +32,23 @@ export type RequestWithUser = Request & {
 };
 
 export default User;
+
+export type CapacityAggResult = {
+  warehouseId: Types.ObjectId;
+  warehouseName: string;
+  capacity: number;
+  used: number;
+};
+
+export type HealthAggResult = {
+  _id: Types.ObjectId;
+  total: number;
+  cancelled: number;
+  returned: number;
+  rejected: number;
+  adjustments: number;
+  lowStock: number;
+  warehouse: {
+    name: string;
+  };
+};

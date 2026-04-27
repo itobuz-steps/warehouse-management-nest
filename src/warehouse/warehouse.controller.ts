@@ -10,6 +10,7 @@ import {
   UseGuards,
   UseInterceptors,
   UploadedFile,
+  Query,
 } from '@nestjs/common';
 import { WarehouseService } from './warehouse.service';
 import { AuthGuard } from 'src/common/guard/auth.guard';
@@ -23,6 +24,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { FILE_FIELD } from 'src/common/constants/file.constant';
 import { StorageService } from 'src/storage/storage.service';
+import { WarehouseAnalyticsQueryDto } from './dto/warehouse-analytics.dto';
 
 @UseGuards(AuthGuard)
 @ApiBearerAuth()
@@ -103,5 +105,25 @@ export class WarehouseController {
   @Roles(USER_TYPES.ADMIN)
   deleteWarehouse(@Param('id') id: string, @Req() req: RequestWithUser) {
     return this.service.deleteWarehouse(id, req.user);
+  }
+
+  @Get('analytics/health-comparison')
+  getWarehouseHealthComparison(
+    @Query() query: WarehouseAnalyticsQueryDto,
+    @Req() req: RequestWithUser,
+  ) {
+    return this.service.getWarehouseHealthComparison(
+      {
+        days: query.days ? Number(query.days) : undefined,
+        startDate: query.startDate,
+        endDate: query.endDate,
+      },
+      req.user,
+    );
+  }
+
+  @Get('analytics/capacity-comparison')
+  getWarehouseCapacityComparison(@Req() req: RequestWithUser) {
+    return this.service.getWarehouseCapacityComparison(req.user);
   }
 }

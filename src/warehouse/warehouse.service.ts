@@ -16,8 +16,14 @@ import { LOG_ACTION } from 'src/transaction-logs/enums/log-action.enum';
 import { LOG_ENTITY_TYPE } from 'src/transaction-logs/enums/log-entity-type.enum';
 import { User, UserDocument } from 'src/auth/entities/auth.entity';
 import { StorageService } from 'src/storage/storage.service';
-import { PopulatedManager } from './types/userType';
+import {
+  CapacityAggResult,
+  HealthAggResult,
+  PopulatedManager,
+} from './types/userType';
 import { Transaction } from 'src/transaction/schemas/transaction.schema';
+import { NOTIFICATION_TYPES } from 'src/notification/notificationTypes';
+import { Notification } from 'src/notification/entities/notification.entity';
 
 @Injectable()
 export class WarehouseService {
@@ -35,6 +41,9 @@ export class WarehouseService {
 
     @InjectModel(Transaction.name)
     private readonly transactionModel: Model<Transaction>,
+
+    @InjectModel(Notification.name)
+    private readonly notificationModel: Model<Notification>,
 
     private readonly logService: TransactionLogsService,
 
@@ -369,5 +378,234 @@ export class WarehouseService {
       success: true,
       message: 'Warehouse Deleted Successfully',
     };
+  }
+
+  async getWarehouseCapacityComparison(user: UserDocument) {
+    if (user.role !== USER_TYPES.MANAGER && user.role !== USER_TYPES.ADMIN) {
+      throw new ForbiddenException('User role not allowed');
+    }
+
+    const warehouseFilter =
+      user.role === USER_TYPES.MANAGER
+        ? { managerIds: user._id, active: true }
+        : { active: true };
+
+    const allowedWarehouses = await this.warehouseModel
+      .find(warehouseFilter, '_id')
+      .lean();
+
+    const allowedIds = allowedWarehouses.map((w) => w._id);
+
+    const data = await this.quantityModel.aggregate<CapacityAggResult>([
+      {
+        $match: {
+          warehouseId: { $in: allowedIds },
+        },
+      },
+      {
+        $group: {
+          _id: '$warehouseId',
+          totalQuantity: { $sum: '$quantity' },
+        },
+      },
+      {
+        $lookup: {
+          from: 'warehouses',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'warehouse',
+        },
+      },
+      { $unwind: '$warehouse' },
+      {
+        $project: {
+          warehouseId: '$_id',
+          warehouseName: '$warehouse.name',
+          capacity: '$warehouse.capacity',
+          used: '$totalQuantity',
+        },
+      },
+    ]);
+
+    return data
+      .map((w) => {
+        const percentage = w.capacity
+          ? Number(((w.used / w.capacity) * 100).toFixed(2))
+          : 0;
+
+        return {
+          warehouseId: w.warehouseId,
+          warehouseName: w.warehouseName,
+          capacity: w.capacity,
+          used: w.used,
+          percentage,
+        };
+      })
+      .sort((a, b) => b.percentage - a.percentage);
+  }
+
+  async getWarehouseHealthComparison(
+    query: { days?: number; startDate?: string; endDate?: string },
+    user: UserDocument,
+  ) {
+    if (user.role !== USER_TYPES.MANAGER && user.role !== USER_TYPES.ADMIN) {
+      throw new ForbiddenException('User role not allowed');
+    }
+
+    const { days = 7, startDate, endDate } = query;
+
+    const since = startDate
+      ? new Date(startDate)
+      : new Date(new Date().setDate(new Date().getDate() - days));
+
+    const until = endDate
+      ? new Date(new Date(endDate).setHours(23, 59, 59, 999))
+      : new Date();
+
+    const warehouseFilter =
+      user.role === USER_TYPES.MANAGER
+        ? { managerIds: user._id, active: true }
+        : { active: true };
+
+    const allowedWarehouses = await this.warehouseModel
+      .find(warehouseFilter, '_id')
+      .lean();
+
+    const allowedIds = allowedWarehouses.map((w) => w._id);
+
+    const data = await this.transactionModel.aggregate<HealthAggResult>([
+      {
+        $match: {
+          createdAt: { $gte: since, $lte: until },
+          $or: [
+            { sourceWarehouse: { $in: allowedIds } },
+            { destinationWarehouse: { $in: allowedIds } },
+          ],
+        },
+      },
+      {
+        $project: {
+          warehouses: ['$sourceWarehouse', '$destinationWarehouse'],
+          type: 1,
+          shipment: 1,
+          approvalStatus: 1,
+        },
+      },
+      { $unwind: '$warehouses' },
+      {
+        $match: {
+          warehouses: { $ne: null, $in: allowedIds },
+        },
+      },
+      {
+        $group: {
+          _id: '$warehouses',
+          total: { $sum: 1 },
+          cancelled: {
+            $sum: { $cond: [{ $eq: ['$shipment', 'CANCELLED'] }, 1, 0] },
+          },
+          returned: {
+            $sum: { $cond: [{ $eq: ['$shipment', 'RETURNED'] }, 1, 0] },
+          },
+          rejected: {
+            $sum: { $cond: [{ $eq: ['$approvalStatus', 'REJECTED'] }, 1, 0] },
+          },
+          adjustments: {
+            $sum: { $cond: [{ $eq: ['$type', 'ADJUSTMENT'] }, 1, 0] },
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: 'notifications',
+          let: { warehouseId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ['$warehouse', '$$warehouseId'] },
+                type: NOTIFICATION_TYPES.LOW_STOCK,
+                createdAt: { $gte: since, $lte: until },
+              },
+            },
+            { $count: 'count' },
+          ],
+          as: 'lowStockData',
+        },
+      },
+      {
+        $addFields: {
+          lowStock: {
+            $ifNull: [{ $arrayElemAt: ['$lowStockData.count', 0] }, 0],
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: 'warehouses',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'warehouse',
+        },
+      },
+      { $unwind: '$warehouse' },
+    ]);
+
+    const lowStockCounts = await this.notificationModel.aggregate<{
+      _id: Types.ObjectId;
+      count: number;
+    }>([
+      {
+        $match: {
+          type: NOTIFICATION_TYPES.LOW_STOCK,
+          warehouse: { $in: allowedIds },
+          createdAt: { $gte: since, $lte: until },
+        },
+      },
+      {
+        $group: {
+          _id: '$warehouse',
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const lowStockMap = new Map<string, number>(
+      lowStockCounts.map((x) => [x._id.toString(), x.count]),
+    );
+
+    const clamp = (v: number) => Math.min(1, Math.max(0, v));
+
+    return data
+      .map((w) => {
+        const total = w.total || 1;
+        const lowStock = lowStockMap.get(w._id.toString()) ?? 0;
+
+        const cancelRate = clamp(w.cancelled / total);
+        const returnRate = clamp(w.returned / total);
+        const rejectionRate = clamp(w.rejected / total);
+        const adjustmentRate = clamp(w.adjustments / total);
+        const lowStockRate = clamp(lowStock / total);
+
+        const score =
+          100 -
+          returnRate * 20 -
+          cancelRate * 20 -
+          rejectionRate * 20 -
+          adjustmentRate * 20 -
+          lowStockRate * 20;
+
+        return {
+          warehouseId: w._id,
+          warehouseName: w.warehouse.name,
+          score: Math.max(0, Math.round(score)),
+          breakdown: {
+            cancelRate,
+            returnRate,
+            rejectionRate,
+            adjustmentRate,
+          },
+        };
+      })
+      .sort((a, b) => b.score - a.score);
   }
 }
