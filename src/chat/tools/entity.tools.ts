@@ -118,7 +118,13 @@ export function createEntityTools(
         batchId: z.string().describe('MongoDB ObjectId of the batch'),
       }),
       execute: async ({ batchId }) => {
-        return unwrapToolResponse(await batchService.findOne(batchId));
+        const user = getUserContext();
+
+        if (!batchId) {
+          throw new Error('batchId is required');
+        }
+
+        return unwrapToolResponse(await batchService.findOne(batchId, user));
       },
     }),
 

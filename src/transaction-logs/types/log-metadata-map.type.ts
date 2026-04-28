@@ -15,6 +15,7 @@ import {
   SupplierUpdateLog,
 } from './supplier-log.type';
 import {
+  LowStockAlertLog,
   ShipmentStatusChangeLog,
   StockAdjustLog,
   StockInLog,
@@ -57,7 +58,7 @@ export type LogMetadataMap = {
   [LOG_ACTION.STOCK_OUT]: StockOutLog;
   [LOG_ACTION.STOCK_TRANSFER]: StockTransferLog;
   [LOG_ACTION.STOCK_ADJUSTED]: StockAdjustLog;
-
+  [LOG_ACTION.LOW_STOCK_ALERT]: LowStockAlertLog;
   [LOG_ACTION.SHIPMENT_SHIPPED]: ShipmentStatusChangeLog;
   [LOG_ACTION.SHIPMENT_CANCELLED]: ShipmentStatusChangeLog;
 

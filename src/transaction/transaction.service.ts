@@ -424,13 +424,19 @@ export class TransactionService {
     return [headers.join(','), ...csvRows].join('\n');
   }
 
-  async getTransactionById(id: string) {
+  async getTransactionById(id: string, user: UserDocument) {
     const transaction = await this.transactionModel.findById(id).populate([
       { path: 'performedBy', select: 'name email role profileImageKey' },
       { path: 'supplier', select: 'name email address phoneNumber' },
       { path: 'customer', select: 'name email address phoneNumber' },
-      { path: 'sourceWarehouse', select: 'name address description' },
-      { path: 'destinationWarehouse', select: 'name address description' },
+      {
+        path: 'sourceWarehouse',
+        select: 'name address description managerIds',
+      },
+      {
+        path: 'destinationWarehouse',
+        select: 'name address description managerIds',
+      },
       { path: 'products.product', select: 'name category' },
       {
         path: 'products.variants.variant',
@@ -451,6 +457,27 @@ export class TransactionService {
       throw new NotFoundException('Transaction not found');
     }
 
+    const isAdmin = user.role === USER_TYPES.ADMIN;
+
+    if (!isAdmin) {
+      const hasAccess = await this.warehouseModel.exists({
+        _id: {
+          $in: [
+            transaction.sourceWarehouse?._id,
+            transaction.destinationWarehouse?._id,
+          ].filter(Boolean),
+        },
+        managerIds: user._id,
+      });
+
+      if (!hasAccess) {
+        throw new ForbiddenException(
+          'You do not have access to this transaction',
+        );
+      }
+    }
+
+    // profile image handling
     const performedBy = transaction.performedBy as unknown as User;
     if (performedBy?.profileImageKey) {
       performedBy.profileImage = await this.s3Service.getPresignedSignedUrl(

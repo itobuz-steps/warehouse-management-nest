@@ -15,6 +15,7 @@ import { MarkBatchDamagedDto } from './dto/mark-batch-damaged.dto';
 import { GetBatchesQueryDto } from './dto/get-batches-query.dto';
 import { AuthGuard } from 'src/common/guard/auth.guard';
 import type { RequestWithUser } from 'src/profile/profile.controller';
+import type { RequestWithUserDocument } from 'src/transaction/types/types';
 
 @Controller('batch')
 @UseGuards(AuthGuard)
@@ -32,8 +33,8 @@ export class BatchController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.batchService.findOne(id);
+  findOne(@Param('id') id: string, @Req() req: RequestWithUserDocument) {
+    return this.batchService.findOne(id, req.user);
   }
 
   @Patch(':id/mark-as-damaged')

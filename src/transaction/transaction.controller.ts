@@ -40,8 +40,11 @@ export class TransactionController {
   }
 
   @Get('single/:id')
-  getTransactionById(@Param('id') id: string) {
-    return this.transactionService.getTransactionById(id);
+  getTransactionById(
+    @Param('id') id: string,
+    @Req() req: RequestWithUserDocument,
+  ) {
+    return this.transactionService.getTransactionById(id, req.user);
   }
 
   @Get('/frequent-products')

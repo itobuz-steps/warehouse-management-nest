@@ -199,11 +199,48 @@ export class BatchService {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, user: UserDocument) {
+    const batch = await this.batchModel
+      .findById(id)
+      .populate('sourceWarehouse')
+      .populate('destinationWarehouse')
+      .populate('items.variant');
+
+    if (!batch) {
+      throw new NotFoundException('Batch not found');
+    }
+
+    const isAdmin = user.role === USER_TYPES.ADMIN;
+
+    if (!isAdmin) {
+      const userWarehouseIds = await this.getUserWarehouseIds(
+        user._id.toString(),
+      );
+
+      if (!userWarehouseIds.length) {
+        throw new ForbiddenException('No warehouse is assigned to this user');
+      }
+
+      const batchWarehouseIds = [
+        batch.sourceWarehouse?._id,
+        batch.destinationWarehouse?._id,
+      ]
+        .filter((id): id is Types.ObjectId => !!id)
+        .map((id) => id.toString());
+
+      const hasAccess = batchWarehouseIds.some((wid) =>
+        userWarehouseIds.some((user_wid) => user_wid.toString() === wid),
+      );
+
+      if (!hasAccess) {
+        throw new ForbiddenException('You do not have access to this batch');
+      }
+    }
+
     return {
       success: true,
       message: 'Batch retrieved successfully',
-      data: await this.populateBatchById(id),
+      data: batch,
     };
   }
 
@@ -218,11 +255,6 @@ export class BatchService {
     try {
       const batch = await this.getBatchForDamage(batchId, session);
       const variantDamageMap = this.buildVariantDamageMap(batch, dto);
-      const logMetadata = this.buildBatchDamagedLogMetadata(
-        batch,
-        dto,
-        variantDamageMap,
-      );
 
       await this.decrementVariantStocks(
         batch.destinationWarehouse as Types.ObjectId,
@@ -233,15 +265,19 @@ export class BatchService {
       await batch.save({ session });
       await session.commitTransaction();
 
-      const logInput = {
+      const logMetadata = await this.buildBatchDamagedLogMetadata(
+        batch,
+        dto,
+        variantDamageMap,
+      );
+
+      await this.logsService.createLog({
         action: 'BATCH_MARKED_DAMAGED',
         entityType: 'BATCH',
         entityId: batch._id.toString(),
         performedBy: user,
         metadata: logMetadata,
-      } as unknown as Parameters<TransactionLogsService['createLog']>[0];
-
-      await this.logsService.createLog(logInput);
+      } as unknown as Parameters<TransactionLogsService['createLog']>[0]);
 
       return {
         success: true,
@@ -410,21 +446,43 @@ export class BatchService {
     return variant.product;
   }
 
-  private buildBatchDamagedLogMetadata(
+  private async buildBatchDamagedLogMetadata(
     batch: BatchDocument,
     dto: MarkBatchDamagedDto,
     variantDamageMap: VariantDamageMap,
-  ): BatchMarkedDamagedLog {
+  ): Promise<BatchMarkedDamagedLog> {
+    const warehouse = await this.warehouseModel
+      .findById(batch.destinationWarehouse)
+      .select('name')
+      .lean();
+
+    const variantIds = Array.from(variantDamageMap.keys());
+
+    const variants = await this.variantModel
+      .find({ _id: { $in: variantIds.map((id) => new Types.ObjectId(id)) } })
+      .populate<{ product: { name: string } }>({
+        path: 'product',
+        select: 'name',
+      })
+      .select('sku product')
+      .lean();
+
+    const variantMap = new Map(variants.map((v) => [v._id.toString(), v]));
+
     return {
       sourceWarehouseId: batch.sourceWarehouse?.toString(),
       destinationWarehouseId: batch.destinationWarehouse!.toString(),
+      destinationWarehouseName: warehouse?.name ?? '',
       damageScope: dto.variantId ? 'SINGLE_VARIANT' : 'FULL_BATCH',
-      items: Array.from(variantDamageMap.entries()).map(
-        ([variantId, damagedQuantity]) => ({
+      items: variantIds.map((variantId) => {
+        const variant = variantMap.get(variantId);
+        return {
           variantId,
-          damagedQuantity,
-        }),
-      ),
+          sku: variant?.sku ?? '',
+          productName: variant?.product?.name ?? '',
+          damagedQuantity: variantDamageMap.get(variantId) ?? 0,
+        };
+      }),
     };
   }
 }
