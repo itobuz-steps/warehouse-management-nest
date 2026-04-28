@@ -5,6 +5,7 @@ export type BatchDamagedItemLog = {
 
 export type BatchMarkedDamagedLog = {
   sourceWarehouseId?: string;
+  destinationWarehouseName: string;
   destinationWarehouseId: string;
   damageScope: 'FULL_BATCH' | 'SINGLE_VARIANT';
   items: BatchDamagedItemLog[];

@@ -19,6 +19,9 @@ import {
   VariantStockDocument,
 } from 'src/variant-stock/schemas/variant-stock.schema';
 import { Variant, VariantDocument } from 'src/variant/schemas/variant.schema';
+import { TransactionLogsService } from 'src/transaction-logs/transaction-logs.service';
+import { LOG_ACTION } from 'src/transaction-logs/enums/log-action.enum';
+import { LOG_ENTITY_TYPE } from 'src/transaction-logs/enums/log-entity-type.enum';
 
 @Injectable()
 export class NotificationTriggerService {
@@ -38,6 +41,8 @@ export class NotificationTriggerService {
 
     @InjectModel(Variant.name)
     private readonly variantModel: Model<VariantDocument>,
+
+    private readonly logsService: TransactionLogsService,
   ) {}
 
   async notifyLowStock(
@@ -63,6 +68,27 @@ export class NotificationTriggerService {
 
     if (!product || !warehouse || !variant) {
       return;
+    }
+
+    const user = await this.userModel.findById(performedBy);
+
+    if (user) {
+      await this.logsService.createLog({
+        action: LOG_ACTION.LOW_STOCK_ALERT,
+        entityType: LOG_ENTITY_TYPE.VARIANT,
+        entityId: variantId,
+        performedBy: user,
+        metadata: {
+          productId,
+          productName: product.name,
+          variantId,
+          sku: variant.sku,
+          warehouseId: warehouseId.toString(),
+          warehouseName: warehouse.name,
+          currentStock: variantStock.quantity,
+          threshold: LOW_STOCK_THRESHOLD,
+        },
+      });
     }
 
     const users = await this.userModel.find({

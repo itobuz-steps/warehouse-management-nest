@@ -62,3 +62,14 @@ export type StockAdjustLog = {
   reason: string;
   products: TransactionLogItem[];
 };
+
+export type LowStockAlertLog = {
+  productId: string;
+  productName: string;
+  variantId: string;
+  sku: string;
+  warehouseId: string;
+  warehouseName: string;
+  currentStock: number;
+  threshold: number;
+};
