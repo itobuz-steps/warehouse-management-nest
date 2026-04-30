@@ -937,6 +937,7 @@ export class ChatService {
   async getSessions(userId: string) {
     const sessions = await this.chatSessionModel
       .find({ userId: new Types.ObjectId(userId) })
+      .populate('warehouseContext', 'name')
       .select('title warehouseContext createdAt updatedAt')
       .sort({ updatedAt: -1 })
       .lean();
@@ -957,6 +958,7 @@ export class ChatService {
         _id: sessionId,
         userId: new Types.ObjectId(userId),
       })
+      .populate('warehouseContext', 'name')
       .lean();
 
     if (!session) {
