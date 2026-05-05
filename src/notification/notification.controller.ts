@@ -1,6 +1,8 @@
 import {
   Controller,
   Get,
+  Param,
+  Patch,
   Post,
   Put,
   Query,
@@ -44,5 +46,11 @@ export class NotificationController {
   async markSeen(@Req() req: RequestWithUser) {
     await this.service.markAllAsSeen(req.userId);
     return { success: true, message: 'All marked as seen' };
+  }
+
+  @Patch(':id/mark-seen')
+  async markOneSeen(@Req() req: RequestWithUser, @Param('id') id: string) {
+    await this.service.markOneAsSeen(id, req.userId);
+    return { success: true, message: 'Notification marked as seen' };
   }
 }
