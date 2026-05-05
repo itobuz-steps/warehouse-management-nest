@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, PipelineStage, Types } from 'mongoose';
 import { Notification } from './entities/notification.entity';
@@ -135,6 +139,31 @@ export class NotificationService {
     );
 
     return result;
+  }
+
+  async markOneAsSeen(notificationId: string, userId: string) {
+    if (!userId) {
+      throw new Error('User ID missing from request');
+    }
+
+    if (!Types.ObjectId.isValid(notificationId)) {
+      throw new BadRequestException('Invalid notification ID');
+    }
+
+    const notification = await this.notificationModel.findOneAndUpdate(
+      {
+        _id: new Types.ObjectId(notificationId),
+        userIds: { $in: [new Types.ObjectId(userId)] },
+      },
+      { $set: { seen: true } },
+      { new: true },
+    );
+
+    if (!notification) {
+      throw new NotFoundException('Notification not found');
+    }
+
+    return notification;
   }
 
   async updateShipmentNotifications(
