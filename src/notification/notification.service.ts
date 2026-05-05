@@ -156,7 +156,7 @@ export class NotificationService {
         userIds: { $in: [new Types.ObjectId(userId)] },
       },
       { $set: { seen: true } },
-      { new: true },
+      { returnDocument: 'after' },
     );
 
     if (!notification) {
