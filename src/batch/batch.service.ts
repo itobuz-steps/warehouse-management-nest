@@ -485,4 +485,102 @@ export class BatchService {
       }),
     };
   }
+
+  async getDamageStats(warehouseId?: string) {
+    if (warehouseId && !Types.ObjectId.isValid(warehouseId)) {
+      throw new BadRequestException('Invalid warehouseId');
+    }
+
+    const matchStage: Record<string, unknown> = {
+      'items.damagedQuantity': { $gt: 0 },
+    };
+
+    if (warehouseId) {
+      matchStage.destinationWarehouse = new Types.ObjectId(warehouseId);
+    }
+
+    const basePipeline = [
+      { $match: matchStage },
+      { $unwind: '$items' },
+      { $match: { 'items.damagedQuantity': { $gt: 0 } } },
+      {
+        $lookup: {
+          from: 'variants',
+          localField: 'items.variant',
+          foreignField: '_id',
+          as: 'variantDoc',
+        },
+      },
+      { $unwind: '$variantDoc' },
+      {
+        $lookup: {
+          from: 'products',
+          localField: 'variantDoc.product',
+          foreignField: '_id',
+          as: 'productDoc',
+        },
+      },
+      { $unwind: '$productDoc' },
+    ];
+
+    const [categoryStats, topVariants] = await Promise.all([
+      //group by product.category
+      this.batchModel.aggregate([
+        ...basePipeline,
+        {
+          $group: {
+            _id: {
+              $ifNull: ['$productDoc.category', 'Uncategorised'],
+            },
+            totalDamaged: { $sum: '$items.damagedQuantity' },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            category: '$_id',
+            totalDamaged: 1,
+          },
+        },
+        { $sort: { totalDamaged: -1 } },
+      ]),
+
+      // top 5 variants by total damaged quantity
+      this.batchModel.aggregate([
+        ...basePipeline,
+        {
+          $group: {
+            _id: {
+              variantId: '$variantDoc._id',
+              sku: '$variantDoc.sku',
+              productName: '$productDoc.name',
+              category: '$productDoc.category',
+            },
+            totalDamaged: { $sum: '$items.damagedQuantity' },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            variantId: '$_id.variantId',
+            sku: '$_id.sku',
+            productName: '$_id.productName',
+            category: '$_id.category',
+            totalDamaged: 1,
+          },
+        },
+        { $sort: { totalDamaged: -1 } },
+        { $limit: 5 },
+      ]),
+    ]);
+
+    return {
+      success: true,
+      message: 'Damage statistics retrieved successfully',
+      data: {
+        categoryBreakdown: categoryStats,
+        topDamagedVariants: topVariants,
+      },
+    };
+  }
 }
