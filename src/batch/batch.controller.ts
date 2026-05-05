@@ -16,6 +16,7 @@ import { GetBatchesQueryDto } from './dto/get-batches-query.dto';
 import { AuthGuard } from 'src/common/guard/auth.guard';
 import type { RequestWithUser } from 'src/profile/profile.controller';
 import type { RequestWithUserDocument } from 'src/transaction/types/types';
+import { GetBatchDamageStatsDto } from './dto/get-batch-damage-stats.dto';
 
 @Controller('batch')
 @UseGuards(AuthGuard)
@@ -44,5 +45,10 @@ export class BatchController {
     @Req() req: RequestWithUser,
   ) {
     return this.batchService.markDamaged(id, dto, req.user);
+  }
+
+  @Get('stats/damage')
+  getDamageStats(@Query() query: GetBatchDamageStatsDto) {
+    return this.batchService.getDamageStats(query.warehouseId);
   }
 }
