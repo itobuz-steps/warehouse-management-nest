@@ -2,8 +2,12 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import { DashboardService } from 'src/dashboard/dashboard.service';
 import { unwrapToolResponse } from './unwrap-tool-response';
+import type { UserDocument } from 'src/auth/entities/auth.entity';
 
-export function createDashboardTools(dashboardService: DashboardService) {
+export function createDashboardTools(
+  dashboardService: DashboardService,
+  getUserContext: () => UserDocument,
+) {
   return {
     get_top_products: tool({
       description:
@@ -12,8 +16,9 @@ export function createDashboardTools(dashboardService: DashboardService) {
         warehouseId: z.string().describe('MongoDB ObjectId of the warehouse'),
       }),
       execute: async ({ warehouseId }) => {
+        const user = getUserContext();
         return unwrapToolResponse(
-          await dashboardService.getTopFiveProducts(warehouseId),
+          await dashboardService.getTopFiveProducts(warehouseId, user),
         );
       },
     }),
@@ -25,8 +30,9 @@ export function createDashboardTools(dashboardService: DashboardService) {
         warehouseId: z.string().describe('MongoDB ObjectId of the warehouse'),
       }),
       execute: async ({ warehouseId }) => {
+        const user = getUserContext();
         return unwrapToolResponse(
-          await dashboardService.getInventoryByCategory(warehouseId),
+          await dashboardService.getInventoryByCategory(warehouseId, user),
         );
       },
     }),
@@ -38,8 +44,9 @@ export function createDashboardTools(dashboardService: DashboardService) {
         warehouseId: z.string().describe('MongoDB ObjectId of the warehouse'),
       }),
       execute: async ({ warehouseId }) => {
+        const user = getUserContext();
         return unwrapToolResponse(
-          await dashboardService.getProductTransaction(warehouseId),
+          await dashboardService.getProductTransaction(warehouseId, user),
         );
       },
     }),
@@ -51,8 +58,9 @@ export function createDashboardTools(dashboardService: DashboardService) {
         warehouseId: z.string().describe('MongoDB ObjectId of the warehouse'),
       }),
       execute: async ({ warehouseId }) => {
+        const user = getUserContext();
         return unwrapToolResponse(
-          await dashboardService.getTransactionStats(warehouseId),
+          await dashboardService.getTransactionStats(warehouseId, user),
         );
       },
     }),
@@ -64,8 +72,9 @@ export function createDashboardTools(dashboardService: DashboardService) {
         warehouseId: z.string().describe('MongoDB ObjectId of the warehouse'),
       }),
       execute: async ({ warehouseId }) => {
+        const user = getUserContext();
         return unwrapToolResponse(
-          await dashboardService.getLowStockProducts(warehouseId),
+          await dashboardService.getLowStockProducts(warehouseId, user),
         );
       },
     }),
@@ -81,8 +90,13 @@ export function createDashboardTools(dashboardService: DashboardService) {
           .describe('Number of top products to return'),
       }),
       execute: async ({ warehouseId, limit }) => {
+        const user = getUserContext();
         return unwrapToolResponse(
-          await dashboardService.getTopSellingProducts(warehouseId, limit),
+          await dashboardService.getTopSellingProducts(
+            warehouseId,
+            limit,
+            user,
+          ),
         );
       },
     }),
@@ -100,8 +114,13 @@ export function createDashboardTools(dashboardService: DashboardService) {
         limit: z.number().optional().describe('Number of results'),
       }),
       execute: async ({ warehouseId, ...options }) => {
+        const user = getUserContext();
         return unwrapToolResponse(
-          await dashboardService.getMostCancelledProducts(warehouseId, options),
+          await dashboardService.getMostCancelledProducts(
+            warehouseId,
+            options,
+            user,
+          ),
         );
       },
     }),
@@ -114,10 +133,13 @@ export function createDashboardTools(dashboardService: DashboardService) {
         limit: z.number().optional().describe('Number of results'),
       }),
       execute: async ({ warehouseId, limit }) => {
+        const user = getUserContext();
         return unwrapToolResponse(
-          await dashboardService.getMostAdjustedProducts(warehouseId, {
-            limit,
-          }),
+          await dashboardService.getMostAdjustedProducts(
+            warehouseId,
+            { limit },
+            user,
+          ),
         );
       },
     }),
@@ -141,13 +163,12 @@ export function createDashboardTools(dashboardService: DashboardService) {
           .describe('Custom range end date (ISO string)'),
       }),
       execute: async ({ warehouseId, period, from, to }) => {
+        const user = getUserContext();
         return unwrapToolResponse(
-          await dashboardService.getProfitLoss({
-            id: warehouseId,
-            period,
-            from,
-            to,
-          }),
+          await dashboardService.getProfitLoss(
+            { id: warehouseId, period, from, to },
+            user,
+          ),
         );
       },
     }),

@@ -133,11 +133,13 @@ export function createAnalyticsTools(
         warehouseId: optionalWarehouseIdSchema,
       }),
       execute: async ({ order = 'desc', limit, warehouseId }) => {
+        const user = getUserContext();
         return unwrapToolResponse(
           await analyticsService.getTopSellingProducts(
             order,
             limit,
             warehouseId,
+            user,
           ),
         );
       },
@@ -151,8 +153,13 @@ export function createAnalyticsTools(
         warehouseId: optionalWarehouseIdSchema,
       }),
       execute: async ({ productId, warehouseId }) => {
+        const user = getUserContext();
         return unwrapToolResponse(
-          await analyticsService.getTopSellingVariants(productId, warehouseId),
+          await analyticsService.getTopSellingVariants(
+            productId,
+            warehouseId,
+            user,
+          ),
         );
       },
     }),
@@ -168,8 +175,14 @@ export function createAnalyticsTools(
         warehouseId: optionalWarehouseIdSchema,
       }),
       execute: async ({ order = 'desc', limit, warehouseId }) => {
+        const user = getUserContext();
         return unwrapToolResponse(
-          await analyticsService.getTopStockProducts(order, limit, warehouseId),
+          await analyticsService.getTopStockProducts(
+            order,
+            limit,
+            warehouseId,
+            user,
+          ),
         );
       },
     }),
@@ -182,8 +195,13 @@ export function createAnalyticsTools(
         warehouseId: optionalWarehouseIdSchema,
       }),
       execute: async ({ productId, warehouseId }) => {
+        const user = getUserContext();
         return unwrapToolResponse(
-          await analyticsService.getTopStockVariants(productId, warehouseId),
+          await analyticsService.getTopStockVariants(
+            productId,
+            warehouseId,
+            user,
+          ),
         );
       },
     }),
@@ -199,11 +217,13 @@ export function createAnalyticsTools(
         warehouseId: optionalWarehouseIdSchema,
       }),
       execute: async ({ order = 'desc', limit, warehouseId }) => {
+        const user = getUserContext();
         return unwrapToolResponse(
           await analyticsService.getTopBatchesByVolume(
             order,
             limit,
             warehouseId,
+            user,
           ),
         );
       },
@@ -217,8 +237,13 @@ export function createAnalyticsTools(
         warehouseId: optionalWarehouseIdSchema,
       }),
       execute: async ({ limit, warehouseId }) => {
+        const user = getUserContext();
         return unwrapToolResponse(
-          await analyticsService.getTopConsumedBatches(limit, warehouseId),
+          await analyticsService.getTopConsumedBatches(
+            limit,
+            warehouseId,
+            user,
+          ),
         );
       },
     }),

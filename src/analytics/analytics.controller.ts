@@ -101,6 +101,7 @@ export class AnalyticsController {
 
   @Get('top-selling')
   getTopSellingProducts(
+    @Req() req: RequestWithUserDocument,
     @Query('order') order: 'asc' | 'desc' = 'desc',
     @Query('limit') limit?: number,
     @Query('warehouseId') warehouseId?: string,
@@ -109,36 +110,54 @@ export class AnalyticsController {
       order,
       limit,
       warehouseId,
+      req.user,
     );
   }
 
   @Get('top-selling/variants')
   getTopSellingVariants(
+    @Req() req: RequestWithUserDocument,
     @Query('productId') productId: string,
     @Query('warehouseId') warehouseId?: string,
   ) {
-    return this.analyticsService.getTopSellingVariants(productId, warehouseId);
+    return this.analyticsService.getTopSellingVariants(
+      productId,
+      warehouseId,
+      req.user,
+    );
   }
 
   @Get('top-stock')
   getTopStockProducts(
+    @Req() req: RequestWithUserDocument,
     @Query('order') order: 'asc' | 'desc' = 'desc',
     @Query('limit') limit?: number,
     @Query('warehouseId') warehouseId?: string,
   ) {
-    return this.analyticsService.getTopStockProducts(order, limit, warehouseId);
+    return this.analyticsService.getTopStockProducts(
+      order,
+      limit,
+      warehouseId,
+      req.user,
+    );
   }
 
   @Get('top-stock/variants')
   getTopStockVariants(
+    @Req() req: RequestWithUserDocument,
     @Query('productId') productId: string,
     @Query('warehouseId') warehouseId?: string,
   ) {
-    return this.analyticsService.getTopStockVariants(productId, warehouseId);
+    return this.analyticsService.getTopStockVariants(
+      productId,
+      warehouseId,
+      req.user,
+    );
   }
 
   @Get('batches/top-volume')
   getTopBatchesByVolume(
+    @Req() req: RequestWithUserDocument,
     @Query('order') order: 'asc' | 'desc' = 'desc',
     @Query('limit') limit?: number,
     @Query('warehouseId') warehouseId?: string,
@@ -147,15 +166,21 @@ export class AnalyticsController {
       order,
       limit,
       warehouseId,
+      req.user,
     );
   }
 
   @Get('batches/top-consumed')
   getTopConsumedBatches(
+    @Req() req: RequestWithUserDocument,
     @Query('limit') limit?: number,
     @Query('warehouseId') warehouseId?: string,
   ) {
-    return this.analyticsService.getTopConsumedBatches(limit, warehouseId);
+    return this.analyticsService.getTopConsumedBatches(
+      limit,
+      warehouseId,
+      req.user,
+    );
   }
 
   @Get('batches/damaged-cost-by-supplier')

@@ -419,11 +419,15 @@ export class AnalyticsService {
   async getTopSellingProducts(
     order: 'asc' | 'desc' = 'desc',
     limit = 10,
-    warehouseId?: string,
+    warehouseId: string | undefined,
+    user: UserDocument,
   ) {
-    const match: Record<string, string | Types.ObjectId> = { type: 'OUT' };
-    if (warehouseId) {
-      match.sourceWarehouse = new Types.ObjectId(warehouseId);
+    const ids = await this.resolveWarehouseIds(user, warehouseId);
+
+    const match: Record<string, unknown> = { type: 'OUT' };
+
+    if (ids !== null) {
+      match.sourceWarehouse = ids.length ? { $in: ids } : { $exists: false };
     }
 
     return this.transactionModel.aggregate([
@@ -461,10 +465,17 @@ export class AnalyticsService {
     ]);
   }
 
-  async getTopSellingVariants(productId: string, warehouseId?: string) {
-    const match: Record<string, string | Types.ObjectId> = { type: 'OUT' };
-    if (warehouseId) {
-      match.sourceWarehouse = new Types.ObjectId(warehouseId);
+  async getTopSellingVariants(
+    productId: string,
+    warehouseId: string | undefined,
+    user: UserDocument,
+  ) {
+    const ids = await this.resolveWarehouseIds(user, warehouseId);
+
+    const match: Record<string, unknown> = { type: 'OUT' };
+
+    if (ids !== null) {
+      match.sourceWarehouse = ids.length ? { $in: ids } : { $exists: false };
     }
 
     return this.transactionModel.aggregate([
@@ -506,11 +517,15 @@ export class AnalyticsService {
   async getTopStockProducts(
     order: 'asc' | 'desc' = 'desc',
     limit = 10,
-    warehouseId?: string,
+    warehouseId: string | undefined,
+    user: UserDocument,
   ) {
-    const match: Record<string, string | Types.ObjectId> = {};
-    if (warehouseId) {
-      match.warehouseId = new Types.ObjectId(warehouseId);
+    const ids = await this.resolveWarehouseIds(user, warehouseId);
+
+    const match: Record<string, unknown> = {};
+
+    if (ids !== null) {
+      match.warehouseId = ids.length ? { $in: ids } : { $exists: false };
     }
 
     return this.variantStockModel.aggregate([
@@ -543,12 +558,19 @@ export class AnalyticsService {
     ]);
   }
 
-  async getTopStockVariants(productId: string, warehouseId?: string) {
-    const match: Record<string, Types.ObjectId> = {
+  async getTopStockVariants(
+    productId: string,
+    warehouseId: string | undefined,
+    user: UserDocument,
+  ) {
+    const ids = await this.resolveWarehouseIds(user, warehouseId);
+
+    const match: Record<string, unknown> = {
       productId: new Types.ObjectId(productId),
     };
-    if (warehouseId) {
-      match.warehouseId = new Types.ObjectId(warehouseId);
+
+    if (ids !== null) {
+      match.warehouseId = ids.length ? { $in: ids } : { $exists: false };
     }
 
     return this.variantStockModel.aggregate([
@@ -583,11 +605,17 @@ export class AnalyticsService {
   async getTopBatchesByVolume(
     order: 'asc' | 'desc' = 'desc',
     limit = 10,
-    warehouseId?: string,
+    warehouseId: string | undefined,
+    user: UserDocument,
   ) {
-    const match: Record<string, Types.ObjectId> = {};
-    if (warehouseId) {
-      match.destinationWarehouse = new Types.ObjectId(warehouseId);
+    const ids = await this.resolveWarehouseIds(user, warehouseId);
+
+    const match: Record<string, unknown> = {};
+
+    if (ids !== null) {
+      match.destinationWarehouse = ids.length
+        ? { $in: ids }
+        : { $exists: false };
     }
 
     return this.batchModel.aggregate([
@@ -625,10 +653,19 @@ export class AnalyticsService {
     ]);
   }
 
-  async getTopConsumedBatches(limit = 10, warehouseId?: string) {
-    const match: Record<string, Types.ObjectId> = {};
-    if (warehouseId) {
-      match.destinationWarehouse = new Types.ObjectId(warehouseId);
+  async getTopConsumedBatches(
+    limit = 10,
+    warehouseId: string | undefined,
+    user: UserDocument,
+  ) {
+    const ids = await this.resolveWarehouseIds(user, warehouseId);
+
+    const match: Record<string, unknown> = {};
+
+    if (ids !== null) {
+      match.destinationWarehouse = ids.length
+        ? { $in: ids }
+        : { $exists: false };
     }
 
     return this.batchModel.aggregate([

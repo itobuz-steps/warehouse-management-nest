@@ -591,7 +591,7 @@ export class ChatService {
       ...createProductTools(this.productsService),
       ...createInventoryTools(this.quantityService),
       ...createTransactionTools(this.transactionService, getUserContext),
-      ...createDashboardTools(this.dashboardService),
+      ...createDashboardTools(this.dashboardService, getUserContext),
       ...createAnalyticsTools(this.analyticsService, getUserContext),
       ...createVariantTools(this.variantService, this.variantModel),
       ...createEntityTools(

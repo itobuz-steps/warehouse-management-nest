@@ -486,17 +486,46 @@ export class BatchService {
     };
   }
 
-  async getDamageStats(warehouseId?: string) {
+  async getDamageStats(warehouseId: string | undefined, user: UserDocument) {
     if (warehouseId && !Types.ObjectId.isValid(warehouseId)) {
       throw new BadRequestException('Invalid warehouseId');
     }
+
+    const isAdmin = user.role === USER_TYPES.ADMIN;
 
     const matchStage: Record<string, unknown> = {
       'items.damagedQuantity': { $gt: 0 },
     };
 
+    if (!isAdmin) {
+      const userWarehouseIds = await this.getUserWarehouseIds(
+        user._id.toString(),
+      );
+
+      if (!userWarehouseIds.length) {
+        throw new ForbiddenException('No warehouse is assigned to this user');
+      }
+
+      matchStage.destinationWarehouse = { $in: userWarehouseIds };
+    }
+
     if (warehouseId) {
-      matchStage.destinationWarehouse = new Types.ObjectId(warehouseId);
+      const destinationWarehouseId = new Types.ObjectId(warehouseId);
+
+      if (!isAdmin) {
+        const isAllowed = await this.warehouseModel.exists({
+          _id: destinationWarehouseId,
+          managerIds: user._id,
+        });
+
+        if (!isAllowed) {
+          throw new ForbiddenException(
+            'You are not allowed to view damage stats for this warehouse',
+          );
+        }
+      }
+
+      matchStage.destinationWarehouse = destinationWarehouseId;
     }
 
     const basePipeline = [
