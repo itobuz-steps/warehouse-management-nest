@@ -48,7 +48,10 @@ export class BatchController {
   }
 
   @Get('stats/damage')
-  getDamageStats(@Query() query: GetBatchDamageStatsDto) {
-    return this.batchService.getDamageStats(query.warehouseId);
+  getDamageStats(
+    @Query() query: GetBatchDamageStatsDto,
+    @Req() req: RequestWithUser,
+  ) {
+    return this.batchService.getDamageStats(query.warehouseId, req.user);
   }
 }
