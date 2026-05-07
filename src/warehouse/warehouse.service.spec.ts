@@ -20,6 +20,7 @@ jest.mock('src/transaction-logs/transaction-logs.service', () => ({
 
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { WarehouseService } from './warehouse.service';
+import { USER_TYPES } from 'src/auth/userType';
 
 describe('WarehouseService', () => {
   const warehouseModel = {
@@ -35,8 +36,8 @@ describe('WarehouseService', () => {
   const userModel = {
     find: jest.fn(),
   };
-  const transactionModel = {};
-  const notificationModel = {};
+  const transactionModel = { aggregate: jest.fn() };
+  const notificationModel = { aggregate: jest.fn() };
   const logService = {
     createLog: jest.fn(),
   };
@@ -59,10 +60,56 @@ describe('WarehouseService', () => {
     );
   });
 
+  it('returns assigned warehouses for manager', async () => {
+    warehouseModel.find.mockReturnValue({
+      populate: jest.fn().mockReturnValue({
+        lean: jest.fn().mockResolvedValue([]),
+      }),
+    });
+
+    const result = await service.getWarehouses({
+      role: USER_TYPES.MANAGER,
+      _id: 'manager-1',
+    } as any);
+
+    expect(result).toEqual({
+      success: true,
+      message: 'Assigned Warehouses',
+      data: [],
+    });
+  });
+
+  it('returns all warehouses for admin', async () => {
+    warehouseModel.find.mockReturnValue({
+      populate: jest.fn().mockReturnValue({
+        lean: jest.fn().mockResolvedValue([]),
+      }),
+    });
+
+    const result = await service.getWarehouses({
+      role: USER_TYPES.ADMIN,
+    } as any);
+
+    expect(result.message).toBe('All Warehouses');
+  });
+
   it('rejects warehouse access for unsupported roles', async () => {
     await expect(
       service.getWarehouses({ role: 'guest' } as any),
     ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('throws when manager tries accessing unassigned warehouse', async () => {
+    warehouseModel.findOne.mockReturnValue({
+      populate: jest.fn().mockResolvedValue(null),
+    });
+
+    await expect(
+      service.getWarehouseById('warehouse-1', {
+        role: USER_TYPES.MANAGER,
+        _id: 'manager-1',
+      } as any),
+    ).rejects.toThrow(NotFoundException);
   });
 
   it('throws when warehouse capacity is requested for a missing warehouse', async () => {
@@ -107,5 +154,103 @@ describe('WarehouseService', () => {
         message: 'Warehouses Created Successfully',
       }),
     );
+  });
+
+  it('soft deletes warehouse', async () => {
+    warehouseModel.findById.mockReturnValue({
+      lean: jest.fn().mockResolvedValue({
+        _id: 'warehouse-1',
+        name: 'Warehouse',
+        active: true,
+        address: 'Address',
+        maxTransactionPriceLimit: 1000,
+        warehouseImageKey: null,
+      }),
+    });
+
+    warehouseModel.findByIdAndUpdate.mockResolvedValue({});
+
+    logService.createLog.mockResolvedValue(undefined);
+
+    await expect(
+      service.deleteWarehouse('warehouse-1', { _id: 'user-1' } as any),
+    ).resolves.toEqual({
+      success: true,
+      message: 'Warehouse Deleted Successfully',
+    });
+
+    expect(warehouseModel.findByIdAndUpdate).toHaveBeenCalledWith(
+      'warehouse-1',
+      { active: false },
+      { new: true },
+    );
+  });
+
+  it('rejects unsupported role for capacity comparison', async () => {
+    await expect(
+      service.getWarehouseCapacityComparison({
+        role: 'guest',
+      } as any),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('returns warehouse capacity comparison', async () => {
+    warehouseModel.find.mockReturnValue({
+      lean: jest.fn().mockResolvedValue([{ _id: 'warehouse-1' }]),
+    });
+
+    quantityModel.aggregate.mockResolvedValue([
+      {
+        warehouseId: 'warehouse-1',
+        warehouseName: 'Main',
+        capacity: 100,
+        used: 50,
+      },
+    ]);
+
+    const result = await service.getWarehouseCapacityComparison({
+      role: USER_TYPES.ADMIN,
+    } as any);
+
+    expect(result[0].percentage).toBe(50);
+  });
+
+  it('rejects unsupported role for health comparison', async () => {
+    await expect(
+      service.getWarehouseHealthComparison({}, { role: 'guest' } as any),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('returns warehouse health comparison', async () => {
+    warehouseModel.find.mockReturnValue({
+      lean: jest.fn().mockResolvedValue([{ _id: 'warehouse-1' }]),
+    });
+
+    transactionModel.aggregate.mockResolvedValue([
+      {
+        _id: 'warehouse-1',
+        total: 10,
+        cancelled: 1,
+        returned: 1,
+        rejected: 1,
+        adjustments: 1,
+        warehouse: {
+          name: 'Main',
+        },
+      },
+    ]);
+
+    notificationModel.aggregate.mockResolvedValue([
+      {
+        _id: 'warehouse-1',
+        count: 1,
+      },
+    ]);
+
+    const result = await service.getWarehouseHealthComparison({}, {
+      role: USER_TYPES.ADMIN,
+    } as any);
+
+    expect(result[0].warehouseName).toBe('Main');
   });
 });

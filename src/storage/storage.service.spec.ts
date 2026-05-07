@@ -77,4 +77,57 @@ describe('StorageService', () => {
       InternalServerErrorException,
     );
   });
+
+  it('uploads multiple files', async () => {
+    const uploadSpy = jest
+      .spyOn(service, 'uploadSingleFile')
+      .mockResolvedValue({
+        key: 'generated-key',
+        url: 'https://signed-url',
+        uploadResult: {
+          $metadata: {},
+        },
+      });
+
+    const result = await service.uploadMultipleFiles([
+      { originalname: 'a.png' },
+      { originalname: 'b.png' },
+    ] as any);
+
+    expect(uploadSpy).toHaveBeenCalledTimes(2);
+    expect(result).toHaveLength(2);
+  });
+
+  it('wraps uploadSingleFile errors', async () => {
+    const sendMock = (service as any).client.send as jest.Mock;
+    sendMock.mockRejectedValue(new Error('upload failed'));
+
+    await expect(
+      service.uploadSingleFile({
+        buffer: Buffer.from('data'),
+        mimetype: 'image/png',
+        originalname: 'image.png',
+      } as any),
+    ).rejects.toThrow(InternalServerErrorException);
+  });
+
+  it('deletes a file successfully', async () => {
+    const sendMock = (service as any).client.send as jest.Mock;
+    sendMock.mockResolvedValue({});
+
+    await expect(service.deleteFile('file-key')).resolves.toEqual({
+      message: 'File deleted successfully',
+    });
+
+    expect(sendMock).toHaveBeenCalled();
+  });
+
+  it('wraps deleteFile errors', async () => {
+    const sendMock = (service as any).client.send as jest.Mock;
+    sendMock.mockRejectedValue(new Error('delete failed'));
+
+    await expect(service.deleteFile('file-key')).rejects.toThrow(
+      InternalServerErrorException,
+    );
+  });
 });

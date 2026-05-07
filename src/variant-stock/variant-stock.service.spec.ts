@@ -66,4 +66,94 @@ describe('VariantStockService', () => {
       service.bulkDecrease([{ variant, warehouse, quantity: 5 }]),
     ).rejects.toThrow(BadRequestException);
   });
+
+  it('decreases stock successfully', async () => {
+    mockModel.findOne.mockResolvedValue({ quantity: 10 });
+
+    await service.decreaseStock(variant, warehouse, 5);
+
+    expect(mockModel.updateOne).toHaveBeenCalledWith(
+      { variant, warehouse },
+      { $inc: { stock: -5 } },
+      { session: undefined },
+    );
+  });
+
+  it('rejects decreaseStock when stock is insufficient', async () => {
+    mockModel.findOne.mockResolvedValue({
+      quantity: 2,
+    });
+
+    await expect(service.decreaseStock(variant, warehouse, 5)).rejects.toThrow(
+      BadRequestException,
+    );
+  });
+
+  it('returns early when bulkIncrease receives empty operations', async () => {
+    await service.bulkIncrease([]);
+
+    expect(mockModel.bulkWrite).not.toHaveBeenCalled();
+  });
+
+  it('returns early when bulkDecrease receives empty operations', async () => {
+    await service.bulkDecrease([]);
+
+    expect(mockModel.find).not.toHaveBeenCalled();
+  });
+
+  it('bulk increases stock successfully', async () => {
+    await service.bulkIncrease([
+      {
+        variant,
+        warehouse,
+        quantity: 5,
+      },
+    ]);
+
+    expect(mockModel.bulkWrite).toHaveBeenCalled();
+  });
+
+  it('bulk decreases stock successfully', async () => {
+    mockModel.find.mockResolvedValue([
+      {
+        variantId: variant,
+        quantity: 10,
+      },
+    ]);
+
+    await service.bulkDecrease([
+      {
+        variant,
+        warehouse,
+        quantity: 5,
+      },
+    ]);
+
+    expect(mockModel.bulkWrite).toHaveBeenCalledWith(
+      [
+        {
+          updateOne: {
+            filter: {
+              variant,
+              warehouse,
+            },
+            update: {
+              $inc: {
+                stock: -5,
+              },
+            },
+          },
+        },
+      ],
+      { session: undefined },
+    );
+  });
+
+  it('rejects validation when stock record does not exist', async () => {
+    mockModel.findOne.mockResolvedValue(null);
+
+    await expect(service.validateStock(variant, warehouse, 1)).rejects.toThrow(
+      BadRequestException,
+    );
+  });
 });

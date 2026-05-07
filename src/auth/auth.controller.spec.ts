@@ -84,4 +84,46 @@ describe('AuthController', () => {
     expect(result).toEqual({ success: true });
     expect(mockAuthService.refresh).toHaveBeenCalledWith('user-1');
   });
+
+  it('delegates login', async () => {
+    const dto = {
+      email: 'user@example.com',
+      password: 'secret',
+    } as any;
+
+    mockAuthService.login.mockResolvedValue({ success: true });
+
+    await expect(controller.login(dto)).resolves.toEqual({
+      success: true,
+    });
+
+    expect(mockAuthService.login).toHaveBeenCalledWith(dto);
+  });
+
+  it('delegates sendOtp', async () => {
+    const dto = { email: 'user@example.com' } as any;
+
+    mockAuthService.sendOtp.mockResolvedValue({ success: true });
+
+    await expect(controller.sendOtp(dto)).resolves.toEqual({
+      success: true,
+    });
+
+    expect(mockAuthService.sendOtp).toHaveBeenCalledWith(dto);
+  });
+
+  it('delegates verifyOtp', async () => {
+    const dto = {
+      email: 'user@example.com',
+      otp: '1234',
+    } as any;
+
+    mockAuthService.verifyOtp.mockResolvedValue({ success: true });
+
+    await expect(controller.verifyOtp(dto)).resolves.toEqual({
+      success: true,
+    });
+
+    expect(mockAuthService.verifyOtp).toHaveBeenCalledWith(dto);
+  });
 });

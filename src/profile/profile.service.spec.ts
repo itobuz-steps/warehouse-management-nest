@@ -11,6 +11,10 @@ jest.mock('src/transaction-logs/transaction-logs.service', () => ({
 
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { ProfileService } from './profile.service';
+import { Types } from 'mongoose';
+import { USER_TYPES } from 'src/auth/userType';
+import { LOG_ACTION } from 'src/transaction-logs/enums/log-action.enum';
+import { LOG_ENTITY_TYPE } from 'src/transaction-logs/enums/log-entity-type.enum';
 
 describe('ProfileService', () => {
   const userModel = {
@@ -49,6 +53,26 @@ describe('ProfileService', () => {
     ).rejects.toThrow(NotFoundException);
   });
 
+  it('uploads and saves a new profile image', async () => {
+    const save = jest.fn();
+
+    storageService.uploadSingleFile.mockResolvedValue({
+      key: 'profile-key',
+      url: 'https://cdn/profile.png',
+    });
+
+    const user = {
+      save,
+    } as any;
+
+    await expect(service.updateProfile(user, {} as any)).resolves.toEqual({
+      message: 'User profile updated successfully!',
+      profileImage: 'https://cdn/profile.png',
+    });
+
+    expect(save).toHaveBeenCalled();
+  });
+
   it('blocks managers from reading admin user details', async () => {
     await expect(
       service.getUserDetails({ role: 'manager' } as any),
@@ -63,5 +87,72 @@ describe('ProfileService', () => {
       service.setUserNotificationPreference({ push: false } as any, user),
     ).resolves.toEqual({ email: true, push: false });
     expect(save).toHaveBeenCalled();
+  });
+
+  it('toggles manager status and creates a log entry', async () => {
+    const existingManager = {
+      _id: {
+        toHexString: jest.fn().mockReturnValue('manager-id'),
+      },
+      name: 'Manager One',
+      email: 'manager@example.com',
+      isActive: true,
+    };
+
+    const updatedManager = {
+      _id: {
+        toHexString: jest.fn().mockReturnValue('manager-id'),
+      },
+      name: 'Manager One',
+      email: 'manager@example.com',
+      isActive: false,
+    };
+
+    userModel.findOne.mockResolvedValue(existingManager);
+
+    userModel.findOneAndUpdate.mockResolvedValue(updatedManager);
+
+    logsService.createLog.mockResolvedValue(undefined);
+
+    await expect(
+      service.changeStatus('507f1f77bcf86cd799439011', {
+        _id: 'admin-1',
+      } as any),
+    ).resolves.toEqual({
+      message: 'Manager Blocked Successfully',
+    });
+
+    expect(userModel.findOne).toHaveBeenCalledWith({
+      _id: expect.any(Types.ObjectId),
+      role: USER_TYPES.MANAGER,
+      isVerified: true,
+      isDeleted: false,
+    });
+
+    expect(userModel.findOneAndUpdate).toHaveBeenCalledWith(
+      { _id: existingManager._id },
+      [{ $set: { isActive: { $not: '$isActive' } } }],
+      { new: true, updatePipeline: true },
+    );
+
+    expect(logsService.createLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: LOG_ACTION.USER_BLOCKED,
+        entityType: LOG_ENTITY_TYPE.USER,
+        entityId: 'manager-id',
+        metadata: {
+          oldValue: {
+            name: 'Manager One',
+            email: 'manager@example.com',
+            isActive: true,
+          },
+          newValue: {
+            name: 'Manager One',
+            email: 'manager@example.com',
+            isActive: false,
+          },
+        },
+      }),
+    );
   });
 });
