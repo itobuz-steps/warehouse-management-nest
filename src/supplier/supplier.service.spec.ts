@@ -147,4 +147,190 @@ describe('SupplierService', () => {
       expect(result).toEqual([supplier]);
     });
   });
+
+  describe('update', () => {
+    it('throws when supplier does not exist', async () => {
+      mockSupplierModel.findById.mockResolvedValue(null);
+
+      await expect(
+        service.update('missing-id', {} as any, mockUser),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('updates supplier and logs action', async () => {
+      const existingSupplier = {
+        _id: new Types.ObjectId(),
+        name: 'Old',
+        email: 'old@example.com',
+        phoneNumber: '123',
+        address: 'Address',
+        suppliedProduct: ['Food'],
+        isActive: true,
+      };
+
+      const updatedSupplier = {
+        ...existingSupplier,
+        name: 'Updated',
+      };
+
+      mockSupplierModel.findById.mockResolvedValue(existingSupplier);
+      mockSupplierModel.findByIdAndUpdate.mockResolvedValue(updatedSupplier);
+
+      const result = await service.update(
+        existingSupplier._id.toHexString(),
+        { name: 'Updated' } as any,
+        mockUser,
+      );
+
+      expect(result).toEqual(updatedSupplier);
+
+      expect(mockLogsService.createLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entityId: existingSupplier._id.toHexString(),
+          performedBy: mockUser,
+        }),
+      );
+    });
+
+    it('throws when supplier is missing after update', async () => {
+      const existingSupplier = {
+        _id: new Types.ObjectId(),
+      };
+
+      mockSupplierModel.findById.mockResolvedValue(existingSupplier);
+      mockSupplierModel.findByIdAndUpdate.mockResolvedValue(null);
+
+      await expect(
+        service.update(existingSupplier._id.toHexString(), {} as any, mockUser),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('getAllPaginated', () => {
+    it('returns paginated supplier data', async () => {
+      const suppliers = [{ id: 's1' }];
+
+      mockSupplierModel.countDocuments.mockResolvedValue(1);
+
+      mockSupplierModel.find.mockReturnValue({
+        sort: jest.fn().mockReturnValue({
+          skip: jest.fn().mockReturnValue({
+            limit: jest.fn().mockResolvedValue(suppliers),
+          }),
+        }),
+      });
+
+      const result = await service.getAllPaginated('search', 1, 10, 'true');
+
+      expect(result).toEqual({
+        data: suppliers,
+        total: 1,
+        page: 1,
+        totalPages: 1,
+      });
+    });
+  });
+
+  describe('getSpecificSupplier', () => {
+    it('returns a supplier', async () => {
+      const supplier = { id: 's1' };
+
+      mockSupplierModel.findOne.mockResolvedValue(supplier);
+
+      const result = await service.getSpecificSupplier(
+        new Types.ObjectId().toHexString(),
+      );
+
+      expect(result).toEqual(supplier);
+    });
+
+    it('throws when supplier is not found', async () => {
+      mockSupplierModel.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.getSpecificSupplier(new Types.ObjectId().toHexString()),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('analytics', () => {
+    it('returns analytics payload', async () => {
+      jest.spyOn(service, 'getStatusCounts').mockResolvedValue({
+        total: 10,
+        active: 8,
+        inactive: 2,
+      });
+
+      jest
+        .spyOn(service, 'getTopSuppliersByStockSupplied')
+        .mockResolvedValue([]);
+
+      jest.spyOn(service, 'getSupplyByCategory').mockResolvedValue([]);
+
+      jest
+        .spyOn(service, 'getTopSuppliersByProductVariety')
+        .mockResolvedValue([]);
+
+      const result = await service.getAnalytics();
+
+      expect(result).toEqual({
+        success: true,
+        message: 'Supplier analytics retrieved successfully',
+        data: {
+          statusCounts: {
+            total: 10,
+            active: 8,
+            inactive: 2,
+          },
+          topByStock: [],
+          categoryBreakdown: [],
+          productVariety: [],
+        },
+      });
+    });
+
+    it('returns supplier status counts', async () => {
+      mockSupplierModel.countDocuments
+        .mockResolvedValueOnce(10)
+        .mockResolvedValueOnce(7);
+
+      const result = await service.getStatusCounts();
+
+      expect(result).toEqual({
+        total: 10,
+        active: 7,
+        inactive: 3,
+      });
+    });
+
+    it('returns top suppliers by stock supplied', async () => {
+      const aggregateMock = [{ name: 'Supplier A' }];
+
+      mockTransactionModel.aggregate.mockResolvedValue(aggregateMock);
+
+      const result = await service.getTopSuppliersByStockSupplied();
+
+      expect(result).toEqual(aggregateMock);
+    });
+
+    it('returns supply by category', async () => {
+      const aggregateMock = [{ category: 'Food', supplierCount: 2 }];
+
+      mockSupplierModel.aggregate.mockResolvedValue(aggregateMock);
+
+      const result = await service.getSupplyByCategory();
+
+      expect(result).toEqual(aggregateMock);
+    });
+
+    it('returns top suppliers by product variety', async () => {
+      const aggregateMock = [{ name: 'Supplier A', categoryCount: 5 }];
+
+      mockSupplierModel.aggregate.mockResolvedValue(aggregateMock);
+
+      const result = await service.getTopSuppliersByProductVariety();
+
+      expect(result).toEqual(aggregateMock);
+    });
+  });
 });

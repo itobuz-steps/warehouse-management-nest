@@ -23,6 +23,30 @@ describe('QuantityController', () => {
     controller = new QuantityController(mockService as any);
   });
 
+  it('wraps quantity creation responses', async () => {
+    mockService.create.mockResolvedValue({ id: 'quantity-1' });
+
+    await expect(
+      controller.addProductQuantity({ productId: 'product-1' } as any),
+    ).resolves.toEqual({
+      message: 'Product Quantity Updated',
+      success: true,
+      data: { id: 'quantity-1' },
+    });
+  });
+
+  it('wraps product limit updates', async () => {
+    mockService.updateLimit.mockResolvedValue({ id: 'quantity-1', limit: 10 });
+
+    await expect(
+      controller.updateProductLimit('quantity-1', { limit: 10 } as any),
+    ).resolves.toEqual({
+      success: true,
+      message: 'Product limit updated successfully',
+      data: { id: 'quantity-1', limit: 10 },
+    });
+  });
+
   it('wraps total quantity responses', async () => {
     mockService.getTotalQuantity.mockResolvedValue({ total: 10 });
 
@@ -60,5 +84,43 @@ describe('QuantityController', () => {
     expect(
       mockService.getWarehouseAndCategorySpecificProducts,
     ).toHaveBeenCalledWith('warehouse-1', 'food');
+  });
+
+  it('wraps products having quantity responses', async () => {
+    mockService.getProductsHavingQuantity.mockResolvedValue(['product']);
+
+    await expect(
+      controller.getProductsHavingQuantity({ search: 'a' } as any),
+    ).resolves.toEqual({
+      message: 'Products with quantity information',
+      success: true,
+      data: ['product'],
+    });
+  });
+
+  it('wraps warehouse-specific product responses', async () => {
+    mockService.getWarehouseProducts.mockResolvedValue(['product']);
+
+    await expect(
+      controller.getWarehouseSpecificProducts('warehouse-1'),
+    ).resolves.toEqual({
+      message: 'Specific Warehouse all products',
+      success: true,
+      data: ['product'],
+    });
+  });
+
+  it('wraps product warehouse lookup responses', async () => {
+    mockService.findByProduct.mockResolvedValue(['warehouse']);
+
+    await expect(
+      controller.getProductSpecificWarehouses({
+        productId: 'product-1',
+      } as any),
+    ).resolves.toEqual({
+      message: 'Warehouse where that specific Product is stored',
+      success: true,
+      data: ['warehouse'],
+    });
   });
 });

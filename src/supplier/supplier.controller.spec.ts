@@ -97,4 +97,82 @@ describe('SupplierController', () => {
     });
     expect(mockSupplierService.delete).toHaveBeenCalledWith('s1', mockUser);
   });
+
+  it('updates a supplier', async () => {
+    mockSupplierService.update.mockResolvedValue({ id: 's1', name: 'Updated' });
+
+    const response = await controller.updateSupplier(
+      's1',
+      { name: 'Updated' } as any,
+      { user: mockUser } as any,
+    );
+
+    expect(response).toEqual({
+      success: true,
+      message: 'Updated Supplier successfully',
+      data: { id: 's1', name: 'Updated' },
+    });
+
+    expect(mockSupplierService.update).toHaveBeenCalledWith(
+      's1',
+      expect.objectContaining({ name: 'Updated' }),
+      mockUser,
+    );
+  });
+
+  it('returns paginated suppliers', async () => {
+    const paginated = {
+      data: [{ id: 's1' }],
+      total: 1,
+      page: 1,
+      totalPages: 1,
+    };
+
+    mockSupplierService.getAllPaginated.mockResolvedValue(paginated);
+
+    const response = await controller.getAllPaginated('search', 1, 10, 'true');
+
+    expect(response).toEqual({
+      success: true,
+      message: 'Suppliers Data fetched',
+      data: paginated,
+    });
+
+    expect(mockSupplierService.getAllPaginated).toHaveBeenCalledWith(
+      'search',
+      1,
+      10,
+      'true',
+    );
+  });
+
+  it('returns a specific supplier', async () => {
+    const supplier = { id: 's1' };
+
+    mockSupplierService.getSpecificSupplier.mockResolvedValue(supplier);
+
+    const response = await controller.getSpecificSupplier('s1');
+
+    expect(response).toEqual({
+      message: 'Specific Supplier',
+      success: true,
+      data: supplier,
+    });
+
+    expect(mockSupplierService.getSpecificSupplier).toHaveBeenCalledWith('s1');
+  });
+
+  it('returns supplier analytics', async () => {
+    const analytics = {
+      success: true,
+      message: 'Supplier analytics retrieved successfully',
+      data: {},
+    };
+
+    mockSupplierService.getAnalytics.mockResolvedValue(analytics);
+
+    await expect(controller.getAnalytics()).resolves.toEqual(analytics);
+
+    expect(mockSupplierService.getAnalytics).toHaveBeenCalled();
+  });
 });

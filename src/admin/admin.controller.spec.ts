@@ -43,4 +43,25 @@ describe('AdminController', () => {
       'warehouse-1',
     );
   });
+
+  it('delegates paginated manager retrieval', () => {
+    controller.getAllManagers({
+      page: '2',
+      limit: '10',
+    } as any);
+
+    expect(mockAdminService.getAllManagers).toHaveBeenCalledWith({
+      page: '2',
+      limit: '10',
+    });
+  });
+
+  it('delegates manager analytics requests', () => {
+    controller.getManagerAnalytics('manager-1', 'warehouse-1');
+
+    expect(mockAdminService.getManagerTransactionStats).toHaveBeenCalledWith(
+      'manager-1',
+      'warehouse-1',
+    );
+  });
 });

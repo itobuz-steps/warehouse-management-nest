@@ -88,6 +88,30 @@ describe('CustomerController', () => {
     expect(mockCustomerService.findAll).toHaveBeenCalledWith('search');
   });
 
+  it('returns paginated customers with parsed numeric params', async () => {
+    const payload = { data: [{ name: 'A' }], total: 1 };
+    mockCustomerService.findAllPaginated.mockResolvedValue(payload);
+
+    const response = await controller.findAllPaginated(
+      'search',
+      '2' as any,
+      '5' as any,
+      'true',
+    );
+
+    expect(response).toEqual({
+      message: 'All customers retrieved successfully',
+      success: true,
+      data: payload,
+    });
+    expect(mockCustomerService.findAllPaginated).toHaveBeenCalledWith(
+      'search',
+      2,
+      5,
+      'true',
+    );
+  });
+
   it('returns single customer details', async () => {
     const customer = { id: 'c1' };
     mockCustomerService.findOne.mockResolvedValue(customer);
@@ -135,5 +159,17 @@ describe('CustomerController', () => {
       data: { id: 'c3' },
     });
     expect(mockCustomerService.remove).toHaveBeenCalledWith('c3', mockUser);
+  });
+
+  it('delegates analytics lookups', () => {
+    controller.getAnalytics();
+
+    expect(mockCustomerService.getAnalytics).toHaveBeenCalled();
+  });
+
+  it('delegates status count lookups', () => {
+    controller.getStatusCounts();
+
+    expect(mockCustomerService.getStatusCounts).toHaveBeenCalled();
   });
 });

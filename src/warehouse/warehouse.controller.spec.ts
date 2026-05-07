@@ -88,4 +88,34 @@ describe('WarehouseController', () => {
       user,
     );
   });
+
+  it('delegates warehouse listing to service', () => {
+    controller.getWarehouses({ user } as any);
+
+    expect(mockService.getWarehouses).toHaveBeenCalledWith(user);
+  });
+
+  it('delegates warehouse listing to service', () => {
+    controller.getWarehouses({ user } as any);
+
+    expect(mockService.getWarehouses).toHaveBeenCalledWith(user);
+  });
+
+  it('gets warehouse capacity', () => {
+    controller.getWarehouseCapacity('warehouse-1', { user } as any);
+
+    expect(mockService.getWarehouseCapacity).toHaveBeenCalledWith(
+      'warehouse-1',
+      user,
+    );
+  });
+
+  it('deletes warehouse', () => {
+    controller.deleteWarehouse('warehouse-1', { user } as any);
+
+    expect(mockService.deleteWarehouse).toHaveBeenCalledWith(
+      'warehouse-1',
+      user,
+    );
+  });
 });

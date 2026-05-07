@@ -189,6 +189,39 @@ describe('AuthService', () => {
     ).rejects.toThrow(UnauthorizedException);
   });
 
+  it('sendOtp generates otp for existing user', async () => {
+    mockUserModel.findOne.mockReturnValue({
+      exec: jest.fn().mockResolvedValue({ email: 'user@example.com' }),
+    });
+
+    mockOtpGenerator.generateOtp.mockReturnValue('1234');
+
+    const result = await service.sendOtp({
+      email: 'user@example.com',
+    } as any);
+
+    expect(result).toEqual({
+      message: 'OTP sent successfully, check your email',
+      success: true,
+    });
+
+    expect(mockOtpGenerator.generateOtp).toHaveBeenCalledWith(
+      'user@example.com',
+    );
+  });
+
+  it('sendOtp rejects missing users', async () => {
+    mockUserModel.findOne.mockReturnValue({
+      exec: jest.fn().mockResolvedValue(null),
+    });
+
+    await expect(
+      service.sendOtp({
+        email: 'missing@example.com',
+      } as any),
+    ).rejects.toThrow(BadRequestException);
+  });
+
   it('verifyOtp returns a reset token for the latest otp', async () => {
     mockOtpModel.findOne.mockReturnValue({
       exec: jest.fn().mockResolvedValue({ otp: ['1111', '2222'] }),
@@ -205,6 +238,21 @@ describe('AuthService', () => {
       success: true,
       data: { resetToken: 'reset-token' },
     });
+  });
+
+  it('verifyOtp rejects invalid otp', async () => {
+    mockOtpModel.findOne.mockReturnValue({
+      exec: jest.fn().mockResolvedValue({
+        otp: ['1111'],
+      }),
+    });
+
+    await expect(
+      service.verifyOtp({
+        email: 'user@example.com',
+        otp: '9999',
+      } as any),
+    ).rejects.toThrow(UnauthorizedException);
   });
 
   it('forgotPassword updates password for an existing user', async () => {
@@ -246,5 +294,47 @@ describe('AuthService', () => {
         password: 'secret123',
       } as any),
     ).rejects.toThrow(UnauthorizedException);
+  });
+
+  it('setPassword updates the user password', async () => {
+    (jwt.verify as jest.Mock).mockReturnValue({
+      email: 'user@example.com',
+    });
+
+    (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-password');
+
+    mockUserModel.findOneAndUpdate.mockResolvedValue({
+      _id: 'user-1',
+    });
+
+    const result = await service.setPassword('valid-token', {
+      name: 'User',
+      password: 'secret123',
+    } as any);
+
+    expect(result).toEqual({
+      message: 'Registration successful',
+      success: true,
+    });
+
+    expect(mockUserModel.findOneAndUpdate).toHaveBeenCalled();
+  });
+
+  it('refresh returns new tokens', () => {
+    mockTokenGenerator.generateToken.mockReturnValue({
+      access: 'access-token',
+      refresh: 'refresh-token',
+    });
+
+    const result = service.refresh('user-1');
+
+    expect(result).toEqual({
+      message: 'Valid Access and Refresh Token',
+      success: true,
+      data: {
+        accessToken: 'access-token',
+        refreshToken: 'refresh-token',
+      },
+    });
   });
 });

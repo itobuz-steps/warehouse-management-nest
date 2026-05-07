@@ -188,5 +188,44 @@ describe('CustomerService', () => {
         NotFoundException,
       );
     });
+
+    it('soft deletes customer and logs deletion', async () => {
+      const deleted = {
+        _id: new Types.ObjectId(),
+        name: 'Deleted',
+        email: 'deleted@test.com',
+      };
+
+      mockCustomerModel.findByIdAndUpdate.mockResolvedValue(deleted);
+
+      const result = await service.remove(deleted._id.toHexString(), mockUser);
+
+      expect(result).toEqual(deleted);
+
+      expect(mockLogsService.createLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entityId: deleted._id.toHexString(),
+          performedBy: mockUser,
+        }),
+      );
+    });
+  });
+
+  describe('findOne', () => {
+    it('returns active customer', async () => {
+      const customer = { _id: 'c1', isActive: true };
+
+      mockCustomerModel.findOne.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(customer),
+      });
+
+      const result = await service.findOne('c1');
+
+      expect(result).toEqual(customer);
+      expect(mockCustomerModel.findOne).toHaveBeenCalledWith({
+        _id: 'c1',
+        isActive: true,
+      });
+    });
   });
 });

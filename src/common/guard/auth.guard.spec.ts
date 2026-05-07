@@ -19,9 +19,11 @@ import {
   ExecutionContext,
   ForbiddenException,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import * as jwt from 'jsonwebtoken';
 import { AuthGuard } from './auth.guard';
+import configService from 'src/config/config.service';
 
 describe('AuthGuard', () => {
   const userModel = {
@@ -133,5 +135,49 @@ describe('AuthGuard', () => {
         }),
       ),
     ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('throws when token payload does not contain a valid id', async () => {
+    (jwt.verify as jest.Mock).mockReturnValue({});
+
+    await expect(
+      guard.canActivate(
+        createContext({
+          path: '/secure',
+          headers: { authorization: 'Bearer token' },
+        }),
+      ),
+    ).rejects.toThrow(UnauthorizedException);
+  });
+
+  it('throws unauthorized when jwt verification fails', async () => {
+    (jwt.verify as jest.Mock).mockImplementation(() => {
+      throw new Error('jwt malformed');
+    });
+
+    await expect(
+      guard.canActivate(
+        createContext({
+          path: '/secure',
+          headers: { authorization: 'Bearer invalid-token' },
+        }),
+      ),
+    ).rejects.toThrow(UnauthorizedException);
+  });
+
+  it('throws when access secret is missing', async () => {
+    (configService as unknown as jest.Mock).mockReturnValueOnce({
+      ACCESS_SECRET_KEY: '',
+      REFRESH_SECRET_KEY: 'refresh-secret',
+    });
+
+    await expect(
+      guard.canActivate(
+        createContext({
+          path: '/secure',
+          headers: { authorization: 'Bearer token' },
+        }),
+      ),
+    ).rejects.toThrow(UnauthorizedException);
   });
 });
